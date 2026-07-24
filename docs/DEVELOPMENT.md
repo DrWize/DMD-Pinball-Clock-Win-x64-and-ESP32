@@ -71,6 +71,27 @@ Build output is generated below `output\` and is intentionally excluded from Git
 Every package contains the tracked `scenes\scene-metadata.json`; downloaded `.scn`
 animations are never packaged.
 
+## Publish a GitHub Release
+
+After building and validating all packages, preview release publication:
+
+```powershell
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.0.0 -Prerelease -WhatIf
+```
+
+Publish after reviewing the preflight output:
+
+```powershell
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.0.0 -Prerelease
+```
+
+The script requires an authenticated GitHub CLI, a clean working tree whose `HEAD`
+exactly matches `origin/master`, matching portable/standalone/installer build IDs,
+and a tag that does not already exist. It uploads the setup EXE, portable ZIP,
+standalone ZIP, installer build information, and a generated SHA-256 file covering
+all uploaded build artifacts. Use `-NotesPath path\to\notes.md` for curated release
+notes; otherwise GitHub generates notes from the repository history.
+
 ## Work with Git
 
 Inspect before staging:
