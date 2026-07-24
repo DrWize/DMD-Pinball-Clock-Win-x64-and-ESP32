@@ -32,19 +32,26 @@ from 1 through 20.
 
 ![DMDClock Scene Reviewer showing 40 live scenes](screenshots/setup/scene-reviewer.png)
 
-- Click an unreviewed or allowed scene to mark it **Disallowed**.
-- Click a disallowed scene to mark it **Allowed** again.
+- On a new installation, every valid scene and game starts **Allowed**.
+- Right-click a scene to toggle **Disallowed** and **Allowed**.
+- Left-click toggles **Allowed** and **Unreviewed**; left-clicking a Disallowed
+  scene restores it to Allowed.
 - **Allow page** and **Disallow page** apply one decision to every visible scene.
+- **Allow all** resets every game and valid scene to Allowed.
 - **Enable game for clock** controls whether that game's allowed scenes can play.
 - Filters show all, unreviewed, allowed, or disallowed scenes.
 - Page controls cover games with more scenes than the selected grid can display.
 - **Pause all** freezes or resumes every visible preview.
 
 Decisions are saved immediately to
-`%LOCALAPPDATA%\DmdClock\library-selections.json`. Only valid scenes explicitly
-marked Allowed under an enabled game enter playback. Unreviewed and Disallowed
-scenes do not play. The normal application and fullscreen screensaver use and
-reload the same selection file.
+`%LOCALAPPDATA%\DmdClock\library-selections.json`. Valid scenes and games are
+Allowed by default; disabling a game or marking a scene Disallowed removes it from
+playback. Unreviewed and Disallowed scenes do not play. The normal application and
+fullscreen screensaver use and reload the same selection file.
+
+Version 1 selection files are migrated once to the allow-all model. Existing
+explicitly Disallowed or Unreviewed scene decisions are preserved; previously
+implicit game exclusions become enabled and can be disabled again in the reviewer.
 
 Release years are shown beside a game only when the metadata contains one verified
 year for that exact game identity. Missing or uncertain years are omitted.
@@ -196,6 +203,7 @@ If menu labels appear as internal keys, restore the `i18n` folder from the ZIP.
 | Clock/date font | Built-in 5×7 |
 | Title bar | On |
 | Window/fullscreen size | 100% |
+| Games and valid scenes | Allowed |
 
 ## Settings reset and backup
 

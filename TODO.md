@@ -560,9 +560,8 @@ Acceptance criteria:
       application, opened from the context menu without cluttering the clock display
 - [ ] Show enabled games and the allowed scenes for the selected game side by side,
       with search, per-game scene counts, and `Select all`, `Clear all`, and `Reset`
-- [x] Use strict allowlist behavior: only valid scenes explicitly marked `Allowed`
-      under an enabled game may enter the playback queue; `Unreviewed` and
-      `Disallowed` scenes must not play
+- [x] Allow every valid game and scene on first run, then use persisted disabled-game
+      and Disallowed/Unreviewed exceptions to remove content from the playback queue
 - [x] Keep individual scene decisions when a game is disabled so re-enabling the game
       restores the same allowed scenes
 - [x] Store stable scene ID, last relative path, and SHA-256 fallback information so
@@ -589,14 +588,10 @@ Acceptance criteria:
       using the real DMD renderer, compositor, and working clock
 - [x] Support `Unreviewed`, `Allowed`, and `Disallowed` states with one-click
       Allow/Disallow controls and an obvious overlay on disallowed tiles
-- [ ] Change tile mouse controls so left-click toggles `Allowed` ↔ `Unreviewed`
-      and right-click toggles `Disallowed` ↔ `Unreviewed`; clicking the opposite
-      decision directly replaces it, so left-click on Disallowed becomes Allowed
-      and right-click on Allowed becomes Disallowed
-- [ ] Add **Allow remaining Unreviewed** actions for the current page, current game,
-      and entire library so the reviewer can right-click only bad scenes and approve
-      every remaining scene in one batch; never change existing Disallowed decisions,
-      show the affected count, and require confirmation for the entire-library action
+- [x] Make left-click toggle `Allowed` ↔ `Unreviewed`, make right-click toggle
+      `Disallowed` ↔ `Allowed`, and let either button replace the opposite decision
+- [x] Add page-level Allow/Disallow actions and a library-wide **Allow all** reset so
+      a new library needs no approval clicks and exceptions can be removed quickly
 - [x] Save every review decision immediately and make DMDClock playback use only
       animations allowed by the persisted library selection
 - [x] Add separate numeric `Columns` and `Rows` controls starting at `1 × 1`, with
@@ -622,16 +617,16 @@ Acceptance criteria:
 - adding new files never resets existing enablement or block choices;
 - every playback mode uses only the active selection and skips invalid files;
 - disabling and re-enabling a game restores its previous individual scene decisions;
-- a newly discovered or unreviewed scene never starts playing without explicit approval;
+- a newly discovered valid scene starts Allowed, while Unreviewed and Disallowed
+  exceptions never enter playback;
 - the main selector, reviewer, and playback queue always resolve the same saved state;
 - regular app and screensaver playback use the same selection concurrently and refresh
   safely after a saved change without interrupting the scene currently playing;
 - every visible reviewer tile plays the complete scene with a working clock;
-- repeated left-clicks alternate only between Allowed and Unreviewed, repeated
-  right-clicks alternate only between Disallowed and Unreviewed, and switching
-  mouse button replaces the previous decision;
-- batch approval changes only Unreviewed scenes to Allowed, preserves every
-  Disallowed scene, and avoids requiring an individual click for every good scene;
+- repeated left-clicks alternate between Allowed and Unreviewed, repeated
+  right-clicks alternate between Disallowed and Allowed, and switching mouse button
+  replaces the previous decision;
+- **Allow all** resets every game and valid scene to Allowed;
 - changing rows or columns immediately rebuilds the page without losing decisions.
 
 ### Priority 4 — display and daily operation

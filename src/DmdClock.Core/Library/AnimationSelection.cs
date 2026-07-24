@@ -17,13 +17,25 @@ public sealed record AnimationSelectionDocument(
     string? LibraryRoot,
     int Columns,
     int Rows,
+    bool DefaultGamesEnabled,
+    AnimationSelectionState DefaultSceneState,
     IReadOnlyList<string> EnabledGames,
+    IReadOnlyList<string> DisabledGames,
     IReadOnlyList<AnimationSelectionEntry> Scenes)
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public static AnimationSelectionDocument Empty { get; } =
-        new(CurrentSchemaVersion, null, 5, 8, [], []);
+        new(
+            CurrentSchemaVersion,
+            null,
+            5,
+            8,
+            DefaultGamesEnabled: true,
+            DefaultSceneState: AnimationSelectionState.Allowed,
+            EnabledGames: [],
+            DisabledGames: [],
+            Scenes: []);
 
     public AnimationSelectionDocument Normalize() => this with
     {
@@ -32,6 +44,12 @@ public sealed record AnimationSelectionDocument(
         Columns = Math.Clamp(Columns, 1, 20),
         Rows = Math.Clamp(Rows, 1, 20),
         EnabledGames = (EnabledGames ?? [])
+            .Where(static game => !string.IsNullOrWhiteSpace(game))
+            .Select(static game => game.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToArray(),
+        DisabledGames = (DisabledGames ?? [])
             .Where(static game => !string.IsNullOrWhiteSpace(game))
             .Select(static game => game.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)

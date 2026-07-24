@@ -15,11 +15,10 @@ public static class AnimationSelectionResolver
         AnimationSelectionDocument document)
     {
         var normalized = document.Normalize();
-        var enabledGames = normalized.EnabledGames.ToHashSet(StringComparer.OrdinalIgnoreCase);
         return catalog
             .Where(item =>
                 item.LibraryItem.IsValid &&
-                enabledGames.Contains(item.Game) &&
+                IsGameEnabled(normalized, item.Game) &&
                 ResolveState(item, normalized) == AnimationSelectionState.Allowed)
             .Select(static item => item.LibraryItem)
             .ToArray();
@@ -53,7 +52,7 @@ public static class AnimationSelectionResolver
                     AnimationSelectionDocument.NormalizePath(entry.LastRelativePath),
                     normalizedPath,
                     StringComparison.OrdinalIgnoreCase))
-            ?.State ?? AnimationSelectionState.Unreviewed;
+            ?.State ?? document.DefaultSceneState;
     }
 
     public static AnimationSelectionDocument SetSceneState(
@@ -61,16 +60,23 @@ public static class AnimationSelectionResolver
         AnimationCatalogItem item,
         AnimationSelectionState state)
     {
-        var entries = document.Scenes
+        var entries = (document.Scenes ?? [])
             .Where(entry =>
                 !string.Equals(
                     entry.Id, item.LibraryItem.Id, StringComparison.OrdinalIgnoreCase))
-            .Append(new AnimationSelectionEntry(
-                item.LibraryItem.Id,
-                item.LibraryItem.RelativePath,
-                item.LibraryItem.Sha256,
-                state))
             .ToArray();
+        if (state != document.DefaultSceneState)
+        {
+            entries =
+            [
+                .. entries,
+                new AnimationSelectionEntry(
+                    item.LibraryItem.Id,
+                    item.LibraryItem.RelativePath,
+                    item.LibraryItem.Sha256,
+                    state)
+            ];
+        }
         return (document with { Scenes = entries }).Normalize();
     }
 
@@ -79,9 +85,45 @@ public static class AnimationSelectionResolver
         string game,
         bool enabled)
     {
-        var games = document.EnabledGames.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (enabled) games.Add(game);
-        else games.Remove(game);
-        return (document with { EnabledGames = games.ToArray() }).Normalize();
+        var enabledGames = (document.EnabledGames ?? [])
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var disabledGames = (document.DisabledGames ?? [])
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (document.DefaultGamesEnabled)
+        {
+            if (enabled) disabledGames.Remove(game);
+            else disabledGames.Add(game);
+        }
+        else
+        {
+            if (enabled) enabledGames.Add(game);
+            else enabledGames.Remove(game);
+        }
+        return (document with
+        {
+            EnabledGames = enabledGames.ToArray(),
+            DisabledGames = disabledGames.ToArray()
+        }).Normalize();
     }
+
+    public static bool IsGameEnabled(
+        AnimationSelectionDocument document,
+        string game) =>
+        document.DefaultGamesEnabled
+            ? !(document.DisabledGames ?? []).Contains(
+                game, StringComparer.OrdinalIgnoreCase)
+            : (document.EnabledGames ?? []).Contains(
+                game, StringComparer.OrdinalIgnoreCase);
+
+    public static AnimationSelectionDocument AllowAll(
+        AnimationSelectionDocument document) =>
+        (document with
+        {
+            SchemaVersion = AnimationSelectionDocument.CurrentSchemaVersion,
+            DefaultGamesEnabled = true,
+            DefaultSceneState = AnimationSelectionState.Allowed,
+            EnabledGames = [],
+            DisabledGames = [],
+            Scenes = []
+        }).Normalize();
 }

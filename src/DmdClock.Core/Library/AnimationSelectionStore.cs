@@ -23,9 +23,12 @@ public sealed class AnimationSelectionStore
                 81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
             var document = await JsonSerializer.DeserializeAsync<AnimationSelectionDocument>(
                 stream, JsonOptions, cancellationToken).ConfigureAwait(false);
-            return document?.SchemaVersion == AnimationSelectionDocument.CurrentSchemaVersion
-                ? document.Normalize()
-                : AnimationSelectionDocument.Empty;
+            return document?.SchemaVersion switch
+            {
+                AnimationSelectionDocument.CurrentSchemaVersion => document.Normalize(),
+                1 => MigrateVersion1(document),
+                _ => AnimationSelectionDocument.Empty
+            };
         }
         catch (Exception exception) when (
             exception is IOException or JsonException or UnauthorizedAccessException)
@@ -33,6 +36,21 @@ public sealed class AnimationSelectionStore
             return AnimationSelectionDocument.Empty;
         }
     }
+
+    private static AnimationSelectionDocument MigrateVersion1(
+        AnimationSelectionDocument document) =>
+        (document with
+        {
+            SchemaVersion = AnimationSelectionDocument.CurrentSchemaVersion,
+            DefaultGamesEnabled = true,
+            DefaultSceneState = AnimationSelectionState.Allowed,
+            EnabledGames = [],
+            DisabledGames = [],
+            Scenes = (document.Scenes ?? [])
+                .Where(static scene =>
+                    scene.State != AnimationSelectionState.Allowed)
+                .ToArray()
+        }).Normalize();
 
     public async Task SaveAtomicAsync(
         AnimationSelectionDocument document,

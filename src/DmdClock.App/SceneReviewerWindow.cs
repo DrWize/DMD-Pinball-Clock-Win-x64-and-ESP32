@@ -89,6 +89,7 @@ public sealed class SceneReviewerWindow : Window
         _next = new Button { Content = "Next", MinWidth = 90 };
         var allowPage = new Button { Content = "Allow page" };
         var disallowPage = new Button { Content = "Disallow page" };
+        var allowAll = new Button { Content = "Allow all" };
         var pause = new Button { Content = "Pause all" };
 
         _tileGrid = new Grid
@@ -135,6 +136,14 @@ public sealed class SceneReviewerWindow : Window
         };
         allowPage.Click += async (_, _) => await SetPageStateAsync(AnimationSelectionState.Allowed);
         disallowPage.Click += async (_, _) => await SetPageStateAsync(AnimationSelectionState.Disallowed);
+        allowAll.Click += async (_, _) =>
+        {
+            _document = AnimationSelectionResolver.AllowAll(_document);
+            UpdateGameEnabledControl();
+            await SaveAsync();
+            await RebuildPageAsync();
+            _statusText.Text = "All valid scenes and games are allowed.";
+        };
         pause.Click += (_, _) =>
         {
             _paused = !_paused;
@@ -159,6 +168,7 @@ public sealed class SceneReviewerWindow : Window
         toolbar.Children.Add(_rows);
         toolbar.Children.Add(allowPage);
         toolbar.Children.Add(disallowPage);
+        toolbar.Children.Add(allowAll);
         toolbar.Children.Add(pause);
 
         var footer = new Grid
@@ -268,12 +278,14 @@ public sealed class SceneReviewerWindow : Window
             };
             ToolTip.SetTip(
                 border,
-                $"{item.Game}\n{item.LibraryItem.RelativePath}\nClick to allow/disallow");
+                $"{item.Game}\n{item.LibraryItem.RelativePath}\n" +
+                "Left-click: Allowed/Unreviewed · Right-click: Disallowed/Allowed");
             var tile = new TileSession(item, border, display);
             ApplyTileState(tile);
             border.PointerPressed += async (_, eventArgs) =>
             {
-                if (!eventArgs.GetCurrentPoint(border).Properties.IsLeftButtonPressed) return;
+                var properties = eventArgs.GetCurrentPoint(border).Properties;
+                if (!properties.IsLeftButtonPressed && !properties.IsRightButtonPressed) return;
                 if (!item.LibraryItem.IsValid)
                 {
                     _statusText.Text =
@@ -282,9 +294,13 @@ public sealed class SceneReviewerWindow : Window
                     return;
                 }
                 var current = AnimationSelectionResolver.ResolveState(item, _document);
-                var next = current == AnimationSelectionState.Disallowed
-                    ? AnimationSelectionState.Allowed
-                    : AnimationSelectionState.Disallowed;
+                var next = properties.IsRightButtonPressed
+                    ? current == AnimationSelectionState.Disallowed
+                        ? AnimationSelectionState.Allowed
+                        : AnimationSelectionState.Disallowed
+                    : current == AnimationSelectionState.Allowed
+                        ? AnimationSelectionState.Unreviewed
+                        : AnimationSelectionState.Allowed;
                 _document = AnimationSelectionResolver.SetSceneState(_document, item, next);
                 ApplyTileState(tile);
                 await SaveAsync();
@@ -314,7 +330,7 @@ public sealed class SceneReviewerWindow : Window
             }
             _statusText.Text = pageItems.Length == 0
                 ? "No scenes match this filter."
-                : "All visible scenes are playing. Click a bad scene to disallow it.";
+                : "All visible scenes are playing. Right-click a bad scene to disallow it.";
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) when (
@@ -367,6 +383,7 @@ public sealed class SceneReviewerWindow : Window
     {
         foreach (var tile in _tiles)
         {
+            if (!tile.Item.LibraryItem.IsValid) continue;
             _document = AnimationSelectionResolver.SetSceneState(
                 _document, tile.Item, state);
             ApplyTileState(tile);
@@ -408,7 +425,7 @@ public sealed class SceneReviewerWindow : Window
     {
         _updatingControls = true;
         _gameEnabled.IsChecked = SelectedGame is { } game &&
-            _document.EnabledGames.Contains(game.Game, StringComparer.OrdinalIgnoreCase);
+            AnimationSelectionResolver.IsGameEnabled(_document, game.Game);
         _updatingControls = false;
     }
 

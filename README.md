@@ -34,6 +34,8 @@ Main features:
 - an in-app downloader for the separately stored original DotClk scene pack;
 - a live Scene Reviewer with configurable rows and columns, game controls, and
   per-scene Allowed, Disallowed, and Unreviewed decisions;
+- allow-all first-run playback, with whole games or individual bad scenes removable
+  from the shared selection;
 - one shared playback selection for the normal application and screensaver;
 - keyboard controls, persistent settings, fullscreen, and screensaver modes;
 - structured logs and SCN compatibility reports.

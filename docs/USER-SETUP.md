@@ -126,10 +126,12 @@ renderer and working clock as normal playback.
 
 ![DMDClock Scene Reviewer showing 40 live scenes](screenshots/setup/scene-reviewer.png)
 
-Choose a game, set the number of columns and rows, and click tiles to allow or
-disallow scenes. Green scenes are Allowed, red scenes are Disallowed, and amber
-scenes are Unreviewed. Enable the game with **Enable game for clock**. Only Allowed
-scenes from enabled games play in either the normal application or screensaver.
+Every valid game and scene starts Allowed. Choose a game, set the number of columns
+and rows, then right-click only scenes that do not work on the clock. Green scenes
+are Allowed, red scenes are Disallowed, and amber scenes are Unreviewed. Clear
+**Enable game for clock** to remove a complete game. Use **Allow all** to reset the
+whole library. Only Allowed scenes from enabled games play in either the normal
+application or screensaver.
 
 Decisions are saved immediately and shared by both modes. The default layout is
 5 columns by 8 rows (40 live scenes), and games with more scenes use additional
