@@ -61,6 +61,14 @@
                                 <Separator />
                                 <MenuItem x:Name="PlasmaCustomMenuItem" Header="Custom…" Click="PlasmaCustom_Click" />
                             </MenuItem>
+                            <MenuItem Header="Plasma speed">
+                                <MenuItem x:Name="PlasmaSlowMenuItem" Header="Slow — 16 seconds" Click="PlasmaSlow_Click" />
+                                <MenuItem x:Name="PlasmaNormalMenuItem" Header="Normal — 8 seconds" Click="PlasmaNormal_Click" />
+                                <MenuItem x:Name="PlasmaFastMenuItem" Header="Fast — 4 seconds" Click="PlasmaFast_Click" />
+                                <MenuItem x:Name="PlasmaVeryFastMenuItem" Header="Very fast — 2 seconds" Click="PlasmaVeryFast_Click" />
+                                <Separator />
+                                <MenuItem x:Name="PlasmaCustomSpeedMenuItem" Header="Custom…" Click="PlasmaCustomSpeed_Click" />
+                            </MenuItem>
                             <MenuItem x:Name="AppearanceMonochromeMenuItem" Header="Monochrome" Click="AppearanceMonochrome_Click" />
                             <Separator />
                             <MenuItem x:Name="AppearanceNeonSunsetMenuItem" Header="Neon sunset" Click="AppearanceNeonSunset_Click" />

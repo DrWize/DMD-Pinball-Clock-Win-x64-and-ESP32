@@ -31,6 +31,19 @@ simultaneously to the main app, screensaver, preview, and Scene Reviewer.
 The phase completes one cycle every eight seconds. Main app, screensaver, preview,
 and all Scene Reviewer tiles use the same phase source.
 
+## Cycle speed
+
+Choose **Appearance → Color theme → Plasma speed** to select:
+
+- **Slow:** 16 seconds per complete cycle;
+- **Normal:** 8 seconds;
+- **Fast:** 4 seconds;
+- **Very fast:** 2 seconds;
+- **Custom:** 1–60 seconds in 0.25-second steps.
+
+The duration is stored as an integer `plasmaCycleMilliseconds` value. Pause freezes
+the monotonic elapsed timer, so resuming continues from the same phase.
+
 ## ESP32 target
 
 The field deliberately uses types and operations that translate directly to C or
@@ -56,3 +69,12 @@ reference vectors for the 128 × 32 matrix.
 Only the four RGB color stops need to be transferred when a user changes the
 palette. The ESP32 can regenerate the same 128 interpolated colors locally, or the
 desktop app can send the expanded palette.
+
+The ESP32 uses the same integer timing expression:
+
+```cpp
+phase = ((millis() % cycleMilliseconds) * 256) / cycleMilliseconds;
+```
+
+Use an unsigned 64-bit intermediate for the multiplication if cycle durations are
+later extended beyond the current 60-second maximum.

@@ -961,6 +961,15 @@ public partial class MainWindow : Window
         PlasmaOceanMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Ocean, "Ocean");
         PlasmaAuroraMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Aurora, "Aurora");
         PlasmaCustomMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Custom, "Custom…");
+        var plasmaCycle = _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds;
+        PlasmaSlowMenuItem.Header = Check(plasmaCycle == 16_000, "Slow — 16 seconds");
+        PlasmaNormalMenuItem.Header = Check(plasmaCycle == 8_000, "Normal — 8 seconds");
+        PlasmaFastMenuItem.Header = Check(plasmaCycle == 4_000, "Fast — 4 seconds");
+        PlasmaVeryFastMenuItem.Header = Check(plasmaCycle == 2_000, "Very fast — 2 seconds");
+        var isPresetSpeed = plasmaCycle is 16_000 or 8_000 or 4_000 or 2_000;
+        PlasmaCustomSpeedMenuItem.Header = Check(
+            !isPresetSpeed,
+            $"Custom… ({plasmaCycle / 1000d:0.##} seconds)");
         var brightness = _settings.BrightnessPercent ?? 100;
         Brightness25MenuItem.Header = Check(brightness == 25, "25 %");
         Brightness50MenuItem.Header = Check(brightness == 50, "50 %");
@@ -1004,7 +1013,8 @@ public partial class MainWindow : Window
         Display.SetAppearance(preset, brightness, _settings.GlowEnabled ?? true,
             _settings.ForegroundColor, _settings.BackgroundColor,
             _settings.PlasmaPalette ?? PlasmaPalettePreset.Neon,
-            _settings.PlasmaCustomColors);
+            _settings.PlasmaCustomColors,
+            _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds);
     }
 
     private static string Check(bool selected, string label) => selected ? $"✓ {label}" : label;
@@ -1239,6 +1249,28 @@ public partial class MainWindow : Window
         SetStatus("Plasma palette: Custom");
     }
 
+    private void SetPlasmaSpeed(int cycleMilliseconds)
+    {
+        _settings = (_settings with
+        {
+            ColorPreset = DmdColorPreset.Plasma,
+            ForegroundColor = null,
+            PlasmaCycleMilliseconds = cycleMilliseconds
+        }).Normalize();
+        ApplySettingsToMenu();
+        SaveSettings();
+        SetStatus($"Plasma cycle: {_settings.PlasmaCycleMilliseconds / 1000d:0.##} seconds");
+    }
+
+    private async Task CustomizePlasmaSpeedAsync()
+    {
+        var dialog = new PlasmaSpeedEditorWindow(
+            _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds);
+        var selected = await dialog.ShowDialog<int?>(this);
+        if (selected is { } milliseconds)
+            SetPlasmaSpeed(milliseconds);
+    }
+
     private async Task PickColorAsync(bool foreground)
     {
         var initial = foreground
@@ -1394,6 +1426,11 @@ public partial class MainWindow : Window
     private void PlasmaOcean_Click(object? sender, RoutedEventArgs e) => SetPlasmaPalette(PlasmaPalettePreset.Ocean);
     private void PlasmaAurora_Click(object? sender, RoutedEventArgs e) => SetPlasmaPalette(PlasmaPalettePreset.Aurora);
     private async void PlasmaCustom_Click(object? sender, RoutedEventArgs e) => await CustomizePlasmaPaletteAsync();
+    private void PlasmaSlow_Click(object? sender, RoutedEventArgs e) => SetPlasmaSpeed(16_000);
+    private void PlasmaNormal_Click(object? sender, RoutedEventArgs e) => SetPlasmaSpeed(8_000);
+    private void PlasmaFast_Click(object? sender, RoutedEventArgs e) => SetPlasmaSpeed(4_000);
+    private void PlasmaVeryFast_Click(object? sender, RoutedEventArgs e) => SetPlasmaSpeed(2_000);
+    private async void PlasmaCustomSpeed_Click(object? sender, RoutedEventArgs e) => await CustomizePlasmaSpeedAsync();
     private void AppearanceMonochrome_Click(object? sender, RoutedEventArgs e) => SetColorPreset(DmdColorPreset.Monochrome);
     private void AppearanceNeonSunset_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.NeonSunset, "#180020");
     private void AppearanceCyberOcean_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.CyberOcean, "#001528");

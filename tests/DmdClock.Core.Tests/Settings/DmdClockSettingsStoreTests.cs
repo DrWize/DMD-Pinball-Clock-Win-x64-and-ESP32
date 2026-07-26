@@ -38,7 +38,8 @@ public sealed class DmdClockSettingsStoreTests
             {
                 AnimationDirectory = animationDirectory,
                 PlasmaPalette = PlasmaPalettePreset.Custom,
-                PlasmaCustomColors = ["#102030", "#a0b0c0", "#445566", "#abcdef"]
+                PlasmaCustomColors = ["#102030", "#a0b0c0", "#445566", "#abcdef"],
+                PlasmaCycleMilliseconds = 4_321
             };
             await store.SaveAtomicAsync(settings, path);
             var loaded = await store.LoadAsync(path);
@@ -68,6 +69,7 @@ public sealed class DmdClockSettingsStoreTests
             Assert.Equal(
                 ["#102030", "#A0B0C0", "#445566", "#ABCDEF"],
                 customColors);
+            Assert.Equal(4_250, loaded.PlasmaCycleMilliseconds);
         }
         finally
         {
@@ -103,6 +105,18 @@ public sealed class DmdClockSettingsStoreTests
 
         Assert.Equal(PlasmaPaletteDefinition.ColorStopCount, colors.Length);
         Assert.All(colors, color => Assert.Matches("^#[0-9A-F]{6}$", color));
+    }
+
+    [Theory]
+    [InlineData(null, 8_000)]
+    [InlineData(100, 1_000)]
+    [InlineData(4_321, 4_250)]
+    [InlineData(99_000, 60_000)]
+    public void PlasmaSpeedDefinition_NormalizesForSharedIntegerTiming(
+        int? value,
+        int expected)
+    {
+        Assert.Equal(expected, PlasmaSpeedDefinition.Normalize(value));
     }
 
     [Fact]

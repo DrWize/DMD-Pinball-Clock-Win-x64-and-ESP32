@@ -13,6 +13,21 @@ public sealed class PlasmaFieldTests
         Assert.Equal(0, PlasmaField.PhaseAtMilliseconds(-1));
     }
 
+    [Theory]
+    [InlineData(2_000, 1_000, 128)]
+    [InlineData(4_000, 2_000, 128)]
+    [InlineData(16_000, 8_000, 128)]
+    [InlineData(4_000, 4_000, 0)]
+    public void PhaseAtMilliseconds_UsesConfiguredCycle(
+        int cycleMilliseconds,
+        int elapsedMilliseconds,
+        byte expectedPhase)
+    {
+        Assert.Equal(
+            expectedPhase,
+            PlasmaField.PhaseAtMilliseconds(elapsedMilliseconds, cycleMilliseconds));
+    }
+
     [Fact]
     public void GetPaletteIndex_AlwaysReturnsValidIndex()
     {

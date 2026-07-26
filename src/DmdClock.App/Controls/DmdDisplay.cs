@@ -18,6 +18,7 @@ public sealed class DmdDisplay : Control
     private bool _paletteByRow;
     private bool _plasmaEnabled;
     private byte _plasmaPhase;
+    private int _plasmaCycleMilliseconds = PlasmaSpeedDefinition.DefaultCycleMilliseconds;
 
     private double _zoom = 1d;
 
@@ -44,7 +45,8 @@ public sealed class DmdDisplay : Control
         string? foregroundColor,
         string? backgroundColor,
         PlasmaPalettePreset plasmaPalette = PlasmaPalettePreset.Neon,
-        IReadOnlyList<string>? plasmaCustomColors = null)
+        IReadOnlyList<string>? plasmaCustomColors = null,
+        int plasmaCycleMilliseconds = PlasmaSpeedDefinition.DefaultCycleMilliseconds)
     {
         brightnessPercent = Math.Clamp(brightnessPercent, 25, 100);
         var palette = preset switch
@@ -68,6 +70,7 @@ public sealed class DmdDisplay : Control
         };
         _plasmaEnabled = preset == DmdColorPreset.Plasma &&
             string.IsNullOrWhiteSpace(foregroundColor);
+        _plasmaCycleMilliseconds = PlasmaSpeedDefinition.Normalize(plasmaCycleMilliseconds);
         _paletteByRow = IsC64RasterPreset(preset);
         if (!string.IsNullOrWhiteSpace(foregroundColor))
         {
@@ -92,7 +95,9 @@ public sealed class DmdDisplay : Control
         if (!_plasmaEnabled)
             return;
 
-        var phase = PlasmaField.PhaseAtMilliseconds(elapsedMilliseconds);
+        var phase = PlasmaField.PhaseAtMilliseconds(
+            elapsedMilliseconds,
+            _plasmaCycleMilliseconds);
         if (phase == _plasmaPhase)
             return;
 

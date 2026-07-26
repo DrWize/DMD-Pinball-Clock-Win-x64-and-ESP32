@@ -480,7 +480,8 @@ public sealed class SceneReviewerWindow : Window
             _settings.ForegroundColor,
             _settings.BackgroundColor,
             _settings.PlasmaPalette ?? PlasmaPalettePreset.Neon,
-            _settings.PlasmaCustomColors);
+            _settings.PlasmaCustomColors,
+            _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds);
 
     private void OnClosed(object? sender, EventArgs e)
     {

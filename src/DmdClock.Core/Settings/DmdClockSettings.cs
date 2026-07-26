@@ -55,7 +55,8 @@ public sealed record DmdClockSettings(
     int? FullscreenZoomPercent,
     string? AnimationDirectory = null,
     PlasmaPalettePreset? PlasmaPalette = null,
-    string[]? PlasmaCustomColors = null)
+    string[]? PlasmaCustomColors = null,
+    int? PlasmaCycleMilliseconds = null)
 {
     public const int CurrentSchemaVersion = 1;
 
@@ -87,7 +88,8 @@ public sealed record DmdClockSettings(
         PlasmaPalette = PlasmaPalette is { } plasmaPalette && Enum.IsDefined(plasmaPalette)
             ? plasmaPalette
             : PlasmaPalettePreset.Neon,
-        PlasmaCustomColors = NormalizePlasmaColors(PlasmaCustomColors)
+        PlasmaCustomColors = NormalizePlasmaColors(PlasmaCustomColors),
+        PlasmaCycleMilliseconds = PlasmaSpeedDefinition.Normalize(PlasmaCycleMilliseconds)
     };
 
     private static string? NormalizeFontFile(string? value)
@@ -157,4 +159,21 @@ public static class PlasmaPaletteDefinition
             customColors.ToArray(),
         _ => ["#2D0C6E", "#3250FF", "#1EEBFF", "#FF41DC"]
     };
+}
+
+public static class PlasmaSpeedDefinition
+{
+    public const int MinimumCycleMilliseconds = 1_000;
+    public const int MaximumCycleMilliseconds = 60_000;
+    public const int DefaultCycleMilliseconds = 8_000;
+    public const int StepMilliseconds = 250;
+
+    public static int Normalize(int? milliseconds)
+    {
+        var clamped = Math.Clamp(
+            milliseconds ?? DefaultCycleMilliseconds,
+            MinimumCycleMilliseconds,
+            MaximumCycleMilliseconds);
+        return (int)Math.Round(clamped / (double)StepMilliseconds) * StepMilliseconds;
+    }
 }
