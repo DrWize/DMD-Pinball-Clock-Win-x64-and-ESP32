@@ -3,6 +3,9 @@ param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
 
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$Version = '1.0.0',
+
     [switch]$SkipApplicationBuild,
 
     [string]$InnoCompiler,
@@ -73,6 +76,7 @@ if (-not $SkipApplicationBuild) {
     & (Join-Path $PSScriptRoot 'Build.ps1') `
         -Configuration $Configuration `
         -Runtime win-x64 `
+        -Version $Version `
         -NoStart `
         -MaxArchivedBuilds $MaxArchivedBuilds
     if ($LASTEXITCODE -ne 0) {

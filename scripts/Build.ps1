@@ -6,6 +6,9 @@ param(
     [ValidateSet('win-x64', 'linux-arm64', 'linux-arm')]
     [string]$Runtime = 'win-x64',
 
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$Version = '1.0.0',
+
     [switch]$NoStart,
 
     [ValidateRange(1, 100)]
@@ -19,7 +22,7 @@ $outputRoot = Join-Path $projectRoot 'output'
 $currentDirectory = Join-Path $outputRoot "current\$Runtime"
 $archiveRoot = Join-Path $outputRoot 'archive'
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$buildId = "1.0.0+$timestamp.$Runtime"
+$buildId = "$Version+$timestamp.$Runtime"
 $archiveDirectory = Join-Path $archiveRoot "$timestamp-$Runtime"
 $stagingDirectory = Join-Path $outputRoot ".staging\$timestamp-$Runtime"
 $portableZipName = "DMDClock-$Runtime-portable.zip"

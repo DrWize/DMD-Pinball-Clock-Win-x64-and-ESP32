@@ -67,6 +67,10 @@ Create and validate the installer:
 .\scripts\Test-Installer.ps1
 ```
 
+Use `-Version 1.1.0` with `Build.ps1` or `Build-Installer.ps1` when preparing
+artifacts for a newer release. The version is included in the build ID and Windows
+installer metadata; the default remains `1.0.0`.
+
 Build output is generated below `output\` and is intentionally excluded from Git.
 Every package contains the tracked `scenes\scene-metadata.json`; downloaded `.scn`
 animations are never packaged.
