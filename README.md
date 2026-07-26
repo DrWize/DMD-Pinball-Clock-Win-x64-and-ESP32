@@ -24,11 +24,6 @@ Windows screensaver.
   [TODO.md](TODO.md).
 
 ## Current status
-
-The Windows application, `.scr` screensaver, portable ZIP, standalone single-file
-ZIP, and per-user setup EXE are functional. The current tested build is published
-as the [`v1.0.0` pre-release](https://github.com/DrWize/DMDClock-Windows-x64/releases/tag/v1.0.0).
-
 Main features:
 
 - classic 128×32, four-bit DotClk `.scn` playback;
@@ -55,7 +50,7 @@ directory.
 ## Quick user start
 
 1. Download `DMDClock-win-x64-setup.exe` from the
-   [`v1.0.0` release](https://github.com/DrWize/DMDClock-Windows-x64/releases/tag/v1.0.0).
+   [`v1.0.0` release](https://github.com/DrWize/DMDClock-Windows-x64/releases/).
 2. Run the installer and keep the default per-user directory.
 3. Start DMDClock from the Start Menu.
 4. Right-click and choose **Download DotClk scenes…**, or press `Ctrl+Shift+O`
@@ -163,7 +158,5 @@ inside DMDClock for now so the original clock faces work without another downloa
 The upstream repository has no explicit license file, so this temporary inclusion
 is not a claim of open-source or redistribution rights. Exact hashes are recorded
 in [`assets/fonts/README.md`](assets/fonts/README.md).
-
-Optional Pinball OpenType files are not committed or included because their source
 requests contact for commercial use. Users can install their own compatible
 `.ttf`/`.otf` files locally.
