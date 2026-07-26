@@ -36,7 +36,10 @@ public sealed class DmdClockSettingsStoreTests
                 1, true, true, 1, 99, 9999, DmdColorPreset.Plasma, 999, false, false, "sv", "12", "dd/MM/yyyy", false, false,
                 "Inter/InterVariable.ttf", "../outside.otf", "#1a2b3c", "invalid", -100, 99999)
             {
-                AnimationDirectory = animationDirectory
+                AnimationDirectory = animationDirectory,
+                PlasmaPalette = PlasmaPalettePreset.Custom,
+                PlasmaCustomColors = ["#102030", "#a0b0c0", "#445566", "#abcdef"],
+                PlasmaCycleMilliseconds = 4_321
             };
             await store.SaveAtomicAsync(settings, path);
             var loaded = await store.LoadAsync(path);
@@ -61,11 +64,59 @@ public sealed class DmdClockSettingsStoreTests
             Assert.Equal(5, loaded.WindowScalePercent);
             Assert.Equal(5000, loaded.FullscreenZoomPercent);
             Assert.Equal(Path.GetFullPath(animationDirectory), loaded.AnimationDirectory);
+            Assert.Equal(PlasmaPalettePreset.Custom, loaded.PlasmaPalette);
+            var customColors = Assert.IsType<string[]>(loaded.PlasmaCustomColors);
+            Assert.Equal(
+                ["#102030", "#A0B0C0", "#445566", "#ABCDEF"],
+                customColors);
+            Assert.Equal(4_250, loaded.PlasmaCycleMilliseconds);
         }
         finally
         {
             if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
         }
+    }
+
+    [Fact]
+    public void Normalize_InvalidPlasmaPaletteFallsBackToNeon()
+    {
+        var settings = DmdClockSettings.Default with
+        {
+            PlasmaPalette = (PlasmaPalettePreset)999,
+            PlasmaCustomColors = ["bad", "#112233"]
+        };
+
+        var normalized = settings.Normalize();
+
+        Assert.Equal(PlasmaPalettePreset.Neon, normalized.PlasmaPalette);
+        Assert.Equal(
+            PlasmaPaletteDefinition.GetStops(PlasmaPalettePreset.Neon),
+            normalized.PlasmaCustomColors);
+    }
+
+    [Theory]
+    [InlineData(PlasmaPalettePreset.Neon)]
+    [InlineData(PlasmaPalettePreset.Lava)]
+    [InlineData(PlasmaPalettePreset.Ocean)]
+    [InlineData(PlasmaPalettePreset.Aurora)]
+    public void PlasmaPaletteDefinition_ReturnsFourColorStops(PlasmaPalettePreset preset)
+    {
+        var colors = PlasmaPaletteDefinition.GetStops(preset);
+
+        Assert.Equal(PlasmaPaletteDefinition.ColorStopCount, colors.Length);
+        Assert.All(colors, color => Assert.Matches("^#[0-9A-F]{6}$", color));
+    }
+
+    [Theory]
+    [InlineData(null, 8_000)]
+    [InlineData(100, 1_000)]
+    [InlineData(4_321, 4_250)]
+    [InlineData(99_000, 60_000)]
+    public void PlasmaSpeedDefinition_NormalizesForSharedIntegerTiming(
+        int? value,
+        int expected)
+    {
+        Assert.Equal(expected, PlasmaSpeedDefinition.Normalize(value));
     }
 
     [Fact]

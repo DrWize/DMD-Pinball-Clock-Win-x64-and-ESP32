@@ -1,5 +1,6 @@
 <Project>
   <PropertyGroup>
+    <VersionPrefix>1.1.0</VersionPrefix>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -7,4 +8,3 @@
     <Deterministic>true</Deterministic>
   </PropertyGroup>
 </Project>
-

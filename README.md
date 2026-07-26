@@ -92,10 +92,10 @@ packages:
 
 ```text
 output\current\win-x64\
-output\current\win-x64\DMDClock-win-x64-portable.zip
+output\current\win-x64\DMDClock-<version>-build<build-number>-win-x64-portable.zip
 output\current\win-x64-standalone\
-output\current\win-x64-standalone\DMDClock-win-x64-standalone.zip
-output\current\win-x64-installer\DMDClock-win-x64-setup.exe
+output\current\win-x64-standalone\DMDClock-<version>-build<build-number>-win-x64-standalone.zip
+output\current\win-x64-installer\DMDClock-<version>-build<build-number>-win-x64-setup.exe
 ```
 
 It also archives the previous builds, runs the SCN compatibility scan, creates

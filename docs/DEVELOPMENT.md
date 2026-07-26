@@ -67,6 +67,16 @@ Create and validate the installer:
 .\scripts\Test-Installer.ps1
 ```
 
+`Directory.Build.props` is the single source of truth for the semantic
+`VersionPrefix`. Use `-Version 1.2.0` only for an intentional one-off override.
+Every invocation adds a new UTC millisecond build number and source commit to the
+build ID and uses that build number in the ZIP and setup filenames.
+
+`Build-Installer.ps1` also writes
+`output\current\release\release-manifest.json`. Installer testing and GitHub
+publication resolve the current artifacts from their metadata and this manifest;
+they do not depend on hard-coded ZIP or setup filenames.
+
 Build output is generated below `output\` and is intentionally excluded from Git.
 Every package contains the tracked `scenes\scene-metadata.json`; downloaded `.scn`
 animations are never packaged.

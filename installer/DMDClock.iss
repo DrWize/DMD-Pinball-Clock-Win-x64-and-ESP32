@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.0.0"
+  #error AppVersion must be supplied by Build-Installer.ps1.
 #endif
 #ifndef BuildId
   #define BuildId AppVersion
@@ -12,6 +12,9 @@
 #endif
 #ifndef OutputDir
   #error OutputDir must point to the installer staging directory.
+#endif
+#ifndef OutputBaseFilename
+  #error OutputBaseFilename must be supplied by Build-Installer.ps1.
 #endif
 
 #define AppGuid "{{D01CC10C-1283-4C72-AD7C-BEA19B81B762}"
@@ -44,7 +47,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.17763
 OutputDir={#OutputDir}
-OutputBaseFilename=DMDClock-win-x64-setup
+OutputBaseFilename={#OutputBaseFilename}
 SetupIconFile={#ProjectRoot}\assets\icons\dmdclock.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 Compression=lzma2/max

@@ -6,6 +6,9 @@ param(
     [ValidateSet('win-x64', 'linux-arm64', 'linux-arm')]
     [string]$Runtime = 'win-x64',
 
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$Version,
+
     [switch]$NoStart,
 
     [ValidateRange(1, 100)]
@@ -18,16 +21,30 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $outputRoot = Join-Path $projectRoot 'output'
 $currentDirectory = Join-Path $outputRoot "current\$Runtime"
 $archiveRoot = Join-Path $outputRoot 'archive'
-$timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$buildId = "1.0.0+$timestamp.$Runtime"
+$buildNumber = (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmssfff')
+$timestamp = $buildNumber
+$sourceRevision = (& git -C $projectRoot rev-parse --short=12 HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($sourceRevision)) {
+    throw 'Unable to determine the Git source revision.'
+}
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    [xml]$buildProperties = Get-Content -LiteralPath (
+        Join-Path $projectRoot 'Directory.Build.props') -Raw
+    $Version = [string]$buildProperties.Project.PropertyGroup.VersionPrefix
+    if ($Version -notmatch '^\d+\.\d+\.\d+$') {
+        throw 'Directory.Build.props must define a semantic VersionPrefix, or pass -Version x.y.z.'
+    }
+}
+$buildId = "$Version+$buildNumber.$Runtime.$sourceRevision"
+$artifactStem = "DMDClock-$Version-build$buildNumber-$Runtime"
 $archiveDirectory = Join-Path $archiveRoot "$timestamp-$Runtime"
 $stagingDirectory = Join-Path $outputRoot ".staging\$timestamp-$Runtime"
-$portableZipName = "DMDClock-$Runtime-portable.zip"
+$portableZipName = "$artifactStem-portable.zip"
 $stagingZipPath = Join-Path $outputRoot ".staging\$timestamp-$portableZipName"
 $standaloneCurrentDirectory = Join-Path $outputRoot "current\$Runtime-standalone"
 $standaloneArchiveDirectory = Join-Path $archiveRoot "$timestamp-$Runtime-standalone"
 $standaloneStagingDirectory = Join-Path $outputRoot ".staging\$timestamp-$Runtime-standalone"
-$standaloneZipName = "DMDClock-$Runtime-standalone.zip"
+$standaloneZipName = "$artifactStem-standalone.zip"
 $standaloneStagingZipPath = Join-Path $outputRoot ".staging\$timestamp-$standaloneZipName"
 $projectFile = Join-Path $projectRoot 'src\DmdClock.App\DmdClock.App.csproj'
 
@@ -108,6 +125,7 @@ try {
         --configuration $Configuration `
         --runtime $Runtime `
         --self-contained true `
+        "-p:Version=$Version" `
         "-p:InformationalVersion=$buildId" `
         --output $stagingDirectory
 
@@ -179,6 +197,11 @@ try {
 
     $buildInfo = [ordered]@{
         buildId = $buildId
+        buildNumber = $buildNumber
+        version = $Version
+        sourceRevision = $sourceRevision
+        artifactStem = $artifactStem
+        artifactFile = $portableZipName
         builtAt = (Get-Date).ToString('o')
         runtime = $Runtime
         configuration = $Configuration
@@ -209,6 +232,7 @@ try {
             --configuration $Configuration `
             --runtime $Runtime `
             --self-contained true `
+            "-p:Version=$Version" `
             "-p:InformationalVersion=$buildId" `
             "-p:PublishSingleFile=true" `
             "-p:IncludeNativeLibrariesForSelfExtract=true" `
@@ -236,6 +260,11 @@ try {
 
         $standaloneBuildInfo = [ordered]@{
             buildId = $buildId
+            buildNumber = $buildNumber
+            version = $Version
+            sourceRevision = $sourceRevision
+            artifactStem = $artifactStem
+            artifactFile = $standaloneZipName
             builtAt = (Get-Date).ToString('o')
             runtime = $Runtime
             configuration = $Configuration

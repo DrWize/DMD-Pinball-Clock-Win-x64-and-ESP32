@@ -3,6 +3,9 @@ param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
 
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$Version,
+
     [switch]$SkipApplicationBuild,
 
     [string]$InnoCompiler,
@@ -22,7 +25,6 @@ $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $stagingDirectory = Join-Path $outputRoot ".installer-staging\$timestamp-win-x64-installer"
 $archiveDirectory = Join-Path $archiveRoot "$timestamp-win-x64-installer"
 $installerScript = Join-Path $projectRoot 'installer\DMDClock.iss'
-$setupFileName = 'DMDClock-win-x64-setup.exe'
 
 function Assert-WithinOutputRoot([string]$Path) {
     $resolvedOutput = [IO.Path]::GetFullPath($outputRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
@@ -70,11 +72,16 @@ Assert-WithinOutputRoot $archiveDirectory
 Assert-WithinOutputRoot $installerCurrentDirectory
 
 if (-not $SkipApplicationBuild) {
-    & (Join-Path $PSScriptRoot 'Build.ps1') `
-        -Configuration $Configuration `
-        -Runtime win-x64 `
-        -NoStart `
-        -MaxArchivedBuilds $MaxArchivedBuilds
+    $buildArguments = @{
+        Configuration = $Configuration
+        Runtime = 'win-x64'
+        NoStart = $true
+        MaxArchivedBuilds = $MaxArchivedBuilds
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Version)) {
+        $buildArguments.Version = $Version
+    }
+    & (Join-Path $PSScriptRoot 'Build.ps1') @buildArguments
     if ($LASTEXITCODE -ne 0) {
         throw "Application build failed with exit code $LASTEXITCODE."
     }
@@ -104,6 +111,8 @@ if ($buildInfo.buildId -notmatch '^(?<version>\d+\.\d+\.\d+)') {
     throw "Unable to derive installer version from build ID '$($buildInfo.buildId)'."
 }
 $appVersion = $Matches.version
+$setupFileName = "$($buildInfo.artifactStem)-setup.exe"
+$setupBaseName = [IO.Path]::GetFileNameWithoutExtension($setupFileName)
 $compiler = Resolve-InnoCompiler
 
 New-Item -ItemType Directory -Force -Path $stagingDirectory | Out-Null
@@ -113,6 +122,7 @@ try {
         '/Qp' `
         "/DAppVersion=$appVersion" `
         "/DBuildId=$($buildInfo.buildId)" `
+        "/DOutputBaseFilename=$setupBaseName" `
         "/DSourceDir=$([IO.Path]::GetFullPath($standaloneDirectory))" `
         "/DProjectRoot=$([IO.Path]::GetFullPath($projectRoot))" `
         "/DOutputDir=$([IO.Path]::GetFullPath($stagingDirectory))" `
@@ -138,6 +148,8 @@ try {
         installerSha256 = $setupHash
         appVersion = $appVersion
         applicationBuildId = $buildInfo.buildId
+        buildNumber = $buildInfo.buildNumber
+        sourceRevision = $buildInfo.sourceRevision
         builtAt = (Get-Date).ToString('o')
         configuration = $Configuration
         runtime = 'win-x64'
@@ -165,6 +177,30 @@ try {
     }
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $installerCurrentDirectory) | Out-Null
     Move-Item -LiteralPath $stagingDirectory -Destination $installerCurrentDirectory
+
+    $releaseDirectory = Join-Path $outputRoot 'current\release'
+    New-Item -ItemType Directory -Force -Path $releaseDirectory | Out-Null
+    $portableInfo = Get-Content -LiteralPath (
+        Join-Path $outputRoot 'current\win-x64\build-info.json') -Raw | ConvertFrom-Json
+    $portablePath = Join-Path $outputRoot "current\win-x64\$($portableInfo.artifactFile)"
+    $standalonePath = Join-Path $standaloneDirectory $buildInfo.artifactFile
+    $installerPath = Join-Path $installerCurrentDirectory $setupFileName
+    $installerInfoPath = Join-Path $installerCurrentDirectory 'installer-build-info.json'
+    $releaseManifest = [ordered]@{
+        schemaVersion = 1
+        buildId = $buildInfo.buildId
+        buildNumber = $buildInfo.buildNumber
+        version = $appVersion
+        sourceRevision = $buildInfo.sourceRevision
+        artifacts = @(
+            [ordered]@{ kind = 'installer'; path = [IO.Path]::GetRelativePath($projectRoot, $installerPath); fileName = $setupFileName; sha256 = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash },
+            [ordered]@{ kind = 'portable'; path = [IO.Path]::GetRelativePath($projectRoot, $portablePath); fileName = $portableInfo.artifactFile; sha256 = (Get-FileHash -LiteralPath $portablePath -Algorithm SHA256).Hash },
+            [ordered]@{ kind = 'standalone'; path = [IO.Path]::GetRelativePath($projectRoot, $standalonePath); fileName = $buildInfo.artifactFile; sha256 = (Get-FileHash -LiteralPath $standalonePath -Algorithm SHA256).Hash },
+            [ordered]@{ kind = 'installerInfo'; path = [IO.Path]::GetRelativePath($projectRoot, $installerInfoPath); fileName = 'installer-build-info.json'; sha256 = (Get-FileHash -LiteralPath $installerInfoPath -Algorithm SHA256).Hash }
+        )
+    } | ConvertTo-Json -Depth 5
+    Set-Content -LiteralPath (Join-Path $releaseDirectory 'release-manifest.json') `
+        -Value $releaseManifest -Encoding utf8
 
     Write-Host "Installer available at: $(Join-Path $installerCurrentDirectory $setupFileName)"
     Write-Host "Installer SHA-256: $setupHash"

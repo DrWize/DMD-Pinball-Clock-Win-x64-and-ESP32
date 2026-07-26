@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using System.Diagnostics;
 using DmdClock.App.Controls;
 using DmdClock.Core;
 using DmdClock.Core.Clock;
@@ -37,6 +38,7 @@ public sealed class SceneReviewerWindow : Window
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private readonly List<TileSession> _tiles = [];
     private readonly IReadOnlyList<GameOption> _games;
+    private readonly Stopwatch _effectClock = Stopwatch.StartNew();
     private CancellationTokenSource _pageCancellation = new();
     private AnimationSelectionDocument _document;
     private int _page;
@@ -147,6 +149,7 @@ public sealed class SceneReviewerWindow : Window
         pause.Click += (_, _) =>
         {
             _paused = !_paused;
+            if (_paused) _effectClock.Stop(); else _effectClock.Start();
             pause.Content = _paused ? "Resume all" : "Pause all";
         };
 
@@ -347,6 +350,7 @@ public sealed class SceneReviewerWindow : Window
         var localNow = DateTimeOffset.Now;
         foreach (var tile in _tiles)
         {
+            tile.Display.SetEffectTime(_effectClock.ElapsedMilliseconds);
             if (tile.Scene is null || tile.Playback is null) continue;
             var changed = tile.Playback.Advance(now);
             if (tile.Playback.IsComplete)
@@ -474,7 +478,10 @@ public sealed class SceneReviewerWindow : Window
             _settings.BrightnessPercent ?? 100,
             _settings.GlowEnabled ?? true,
             _settings.ForegroundColor,
-            _settings.BackgroundColor);
+            _settings.BackgroundColor,
+            _settings.PlasmaPalette ?? PlasmaPalettePreset.Neon,
+            _settings.PlasmaCustomColors,
+            _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds);
 
     private void OnClosed(object? sender, EventArgs e)
     {
