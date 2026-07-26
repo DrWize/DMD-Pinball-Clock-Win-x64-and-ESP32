@@ -6,8 +6,8 @@ Windows computer. You do not need Git, Visual Studio, PowerShell, or the .NET SD
 ## What you need
 
 - Windows 10 or Windows 11 x64
-- `DMDClock-win-x64-setup.exe` (recommended) or
-  `DMDClock-win-x64-standalone.zip`
+- the versioned `DMDClock-…-win-x64-setup.exe` (recommended), or
+- the matching versioned `DMDClock-…-win-x64-standalone.zip`
 - your own DotClk `.scn` animation files if you want animations
 
 Animations are not included with DMDClock.
@@ -16,7 +16,7 @@ Animations are not included with DMDClock.
 
 ### Recommended: setup EXE
 
-1. Download `DMDClock-win-x64-setup.exe` from the current
+1. Download the `DMDClock-…-win-x64-setup.exe` asset from the current
    [`v1.0.0` pre-release](https://github.com/DrWize/DMDClock-Windows-x64/releases/tag/v1.0.0).
 2. Run the setup EXE.
 3. Keep the default per-user installation directory unless you have a reason to
@@ -29,7 +29,7 @@ administrator rights or an installed .NET runtime.
 
 ### Alternative: standalone ZIP
 
-1. Download `DMDClock-win-x64-standalone.zip` from the project's
+1. Download the `DMDClock-…-win-x64-standalone.zip` asset from the project's
    [GitHub Releases page](https://github.com/DrWize/DMDClock-Windows-x64/releases).
 2. Right-click the ZIP, choose **Properties**, and select **Unblock** if Windows
    shows that option.

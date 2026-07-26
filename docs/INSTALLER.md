@@ -78,7 +78,7 @@ $env:DMD_ISCC = 'C:\Path\To\Inno Setup 7\ISCC.exe'
 Output:
 
 ```text
-output\current\win-x64-installer\DMDClock-win-x64-setup.exe
+output\current\win-x64-installer\DMDClock-<version>-build<build-number>-win-x64-setup.exe
 output\current\win-x64-installer\SHA256SUMS.txt
 output\current\win-x64-installer\installer-build-info.json
 ```
@@ -91,13 +91,13 @@ Previous installer packages are archived under
 Default silent per-user install:
 
 ```powershell
-.\DMDClock-win-x64-setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+.\DMDClock-*-win-x64-setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ```
 
 Select optional tasks:
 
 ```powershell
-.\DMDClock-win-x64-setup.exe `
+.\DMDClock-*-win-x64-setup.exe `
   /VERYSILENT /SUPPRESSMSGBOXES /NORESTART `
   /TASKS="desktopicon,autostart,activatescreensaver"
 ```

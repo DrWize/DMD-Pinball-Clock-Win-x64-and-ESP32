@@ -22,10 +22,7 @@ $portableDirectory = Join-Path $projectRoot 'output\current\win-x64'
 $standaloneDirectory = Join-Path $projectRoot 'output\current\win-x64-standalone'
 $installerDirectory = Join-Path $projectRoot 'output\current\win-x64-installer'
 $releaseDirectory = Join-Path $projectRoot 'output\current\release'
-
-$portableZip = Join-Path $portableDirectory 'DMDClock-win-x64-portable.zip'
-$standaloneZip = Join-Path $standaloneDirectory 'DMDClock-win-x64-standalone.zip'
-$installer = Join-Path $installerDirectory 'DMDClock-win-x64-setup.exe'
+$releaseManifestPath = Join-Path $releaseDirectory 'release-manifest.json'
 $installerInfoPath = Join-Path $installerDirectory 'installer-build-info.json'
 $portableInfoPath = Join-Path $portableDirectory 'build-info.json'
 $standaloneInfoPath = Join-Path $standaloneDirectory 'build-info.json'
@@ -42,6 +39,29 @@ function Assert-File([string]$Path) {
     }
 }
 
+function Resolve-ManifestArtifact([object]$Manifest, [string]$Kind) {
+    $matches = @($Manifest.artifacts | Where-Object { $_.kind -eq $Kind })
+    if ($matches.Count -ne 1) {
+        throw "Release manifest must contain exactly one '$Kind' artifact."
+    }
+    $resolved = [IO.Path]::GetFullPath((Join-Path $projectRoot $matches[0].path))
+    $resolvedRoot = [IO.Path]::GetFullPath($projectRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
+    if (-not $resolved.StartsWith(
+        "$resolvedRoot$([IO.Path]::DirectorySeparatorChar)",
+        [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Release manifest artifact escapes the project directory: $resolved"
+    }
+    Assert-File $resolved
+    if ((Split-Path -Leaf $resolved) -ne $matches[0].fileName) {
+        throw "Release manifest filename does not match its path for '$Kind'."
+    }
+    $actualHash = (Get-FileHash -LiteralPath $resolved -Algorithm SHA256).Hash
+    if ($actualHash -ne $matches[0].sha256) {
+        throw "Release manifest checksum mismatch for '$Kind': $resolved"
+    }
+    return $resolved
+}
+
 Assert-Command 'git'
 Assert-Command 'gh'
 
@@ -51,6 +71,13 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw 'GitHub CLI is not authenticated. Run gh auth login first.'
     }
+
+    Assert-File $releaseManifestPath
+    $releaseManifest = Get-Content -LiteralPath $releaseManifestPath -Raw | ConvertFrom-Json
+    $installer = Resolve-ManifestArtifact $releaseManifest 'installer'
+    $portableZip = Resolve-ManifestArtifact $releaseManifest 'portable'
+    $standaloneZip = Resolve-ManifestArtifact $releaseManifest 'standalone'
+    $installerInfoPath = Resolve-ManifestArtifact $releaseManifest 'installerInfo'
 
     foreach ($path in @(
         $portableZip,
@@ -68,12 +95,14 @@ try {
     $installerInfo = Get-Content -LiteralPath $installerInfoPath -Raw | ConvertFrom-Json
 
     if ($portableInfo.buildId -ne $standaloneInfo.buildId -or
-        $portableInfo.buildId -ne $installerInfo.applicationBuildId) {
+        $portableInfo.buildId -ne $installerInfo.applicationBuildId -or
+        $portableInfo.buildId -ne $releaseManifest.buildId) {
         throw @"
 Release artifacts do not come from the same application build:
 Portable:   $($portableInfo.buildId)
 Standalone: $($standaloneInfo.buildId)
 Installer:  $($installerInfo.applicationBuildId)
+Manifest:   $($releaseManifest.buildId)
 "@
     }
     $actualInstallerHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash

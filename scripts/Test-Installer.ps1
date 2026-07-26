@@ -12,7 +12,13 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $outputRoot = Join-Path $projectRoot 'output'
 if ([string]::IsNullOrWhiteSpace($InstallerPath)) {
-    $InstallerPath = Join-Path $outputRoot 'current\win-x64-installer\DMDClock-win-x64-setup.exe'
+    $installerDirectory = Join-Path $outputRoot 'current\win-x64-installer'
+    $installerInfoPath = Join-Path $installerDirectory 'installer-build-info.json'
+    if (-not (Test-Path -LiteralPath $installerInfoPath -PathType Leaf)) {
+        throw "Installer metadata not found: $installerInfoPath"
+    }
+    $installerInfo = Get-Content -LiteralPath $installerInfoPath -Raw | ConvertFrom-Json
+    $InstallerPath = Join-Path $installerDirectory $installerInfo.installer
 }
 if ([string]::IsNullOrWhiteSpace($StandaloneDirectory)) {
     $StandaloneDirectory = Join-Path $outputRoot 'current\win-x64-standalone'
