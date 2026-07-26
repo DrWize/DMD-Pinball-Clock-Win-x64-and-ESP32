@@ -53,6 +53,14 @@
                             <MenuItem x:Name="AppearanceOrangeMenuItem" Header="Classic orange" Click="AppearanceOrange_Click" />
                             <MenuItem x:Name="AppearanceRedMenuItem" Header="Red" Click="AppearanceRed_Click" />
                             <MenuItem x:Name="AppearancePlasmaMenuItem" Header="Plasma" Click="AppearancePlasma_Click" />
+                            <MenuItem Header="Plasma palette">
+                                <MenuItem x:Name="PlasmaNeonMenuItem" Header="Neon" Click="PlasmaNeon_Click" />
+                                <MenuItem x:Name="PlasmaLavaMenuItem" Header="Lava" Click="PlasmaLava_Click" />
+                                <MenuItem x:Name="PlasmaOceanMenuItem" Header="Ocean" Click="PlasmaOcean_Click" />
+                                <MenuItem x:Name="PlasmaAuroraMenuItem" Header="Aurora" Click="PlasmaAurora_Click" />
+                                <Separator />
+                                <MenuItem x:Name="PlasmaCustomMenuItem" Header="Custom…" Click="PlasmaCustom_Click" />
+                            </MenuItem>
                             <MenuItem x:Name="AppearanceMonochromeMenuItem" Header="Monochrome" Click="AppearanceMonochrome_Click" />
                             <Separator />
                             <MenuItem x:Name="AppearanceNeonSunsetMenuItem" Header="Neon sunset" Click="AppearanceNeonSunset_Click" />

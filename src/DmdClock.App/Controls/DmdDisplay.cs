@@ -37,14 +37,20 @@ public sealed class DmdDisplay : Control
         }
     }
 
-    public void SetAppearance(DmdColorPreset preset, int brightnessPercent, bool glowEnabled,
-        string? foregroundColor, string? backgroundColor)
+    public void SetAppearance(
+        DmdColorPreset preset,
+        int brightnessPercent,
+        bool glowEnabled,
+        string? foregroundColor,
+        string? backgroundColor,
+        PlasmaPalettePreset plasmaPalette = PlasmaPalettePreset.Neon,
+        IReadOnlyList<string>? plasmaCustomColors = null)
     {
         brightnessPercent = Math.Clamp(brightnessPercent, 25, 100);
         var palette = preset switch
         {
             DmdColorPreset.Red => Solid(Color.FromRgb(255, 32, 16)),
-            DmdColorPreset.Plasma => PlasmaPalette(),
+            DmdColorPreset.Plasma => PlasmaPalette(plasmaPalette, plasmaCustomColors),
             DmdColorPreset.Monochrome => Solid(Color.FromRgb(235, 235, 235)),
             DmdColorPreset.NeonSunset => Gradient(Color.FromRgb(255, 43, 214), Color.FromRgb(255, 209, 102)),
             DmdColorPreset.CyberOcean => Gradient(Color.FromRgb(38, 123, 255), Color.FromRgb(94, 255, 255)),
@@ -191,16 +197,15 @@ public sealed class DmdDisplay : Control
         .Select(index => bands[Math.Min((index * bands.Length) / PaletteColumns, bands.Length - 1)])
         .ToArray();
 
-    private static Color[] PlasmaPalette()
+    private static Color[] PlasmaPalette(
+        PlasmaPalettePreset preset,
+        IReadOnlyList<string>? customColors)
     {
-        Color[] stops =
-        [
-            Color.FromRgb(45, 12, 110),
-            Color.FromRgb(50, 80, 255),
-            Color.FromRgb(30, 235, 255),
-            Color.FromRgb(255, 65, 220),
-            Color.FromRgb(45, 12, 110)
-        ];
+        var stopValues = PlasmaPaletteDefinition.GetStops(preset, customColors);
+        var stops = stopValues
+            .Select(value => ParseColor(value, Color.FromRgb(120, 100, 255)))
+            .Append(ParseColor(stopValues[0], Color.FromRgb(120, 100, 255)))
+            .ToArray();
         var palette = new Color[PaletteColumns];
         var segmentLength = PaletteColumns / (stops.Length - 1d);
         for (var index = 0; index < palette.Length; index++)

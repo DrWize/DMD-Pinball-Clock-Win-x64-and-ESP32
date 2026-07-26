@@ -478,7 +478,9 @@ public sealed class SceneReviewerWindow : Window
             _settings.BrightnessPercent ?? 100,
             _settings.GlowEnabled ?? true,
             _settings.ForegroundColor,
-            _settings.BackgroundColor);
+            _settings.BackgroundColor,
+            _settings.PlasmaPalette ?? PlasmaPalettePreset.Neon,
+            _settings.PlasmaCustomColors);
 
     private void OnClosed(object? sender, EventArgs e)
     {

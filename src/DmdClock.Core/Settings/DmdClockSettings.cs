@@ -22,6 +22,15 @@ public enum DmdColorPreset
     C64Rainbow
 }
 
+public enum PlasmaPalettePreset
+{
+    Neon,
+    Lava,
+    Ocean,
+    Aurora,
+    Custom
+}
+
 public sealed record DmdClockSettings(
     int SchemaVersion,
     bool AutomaticCycle,
@@ -44,7 +53,9 @@ public sealed record DmdClockSettings(
     string? BackgroundColor,
     int? WindowScalePercent,
     int? FullscreenZoomPercent,
-    string? AnimationDirectory = null)
+    string? AnimationDirectory = null,
+    PlasmaPalettePreset? PlasmaPalette = null,
+    string[]? PlasmaCustomColors = null)
 {
     public const int CurrentSchemaVersion = 1;
 
@@ -72,7 +83,11 @@ public sealed record DmdClockSettings(
         BackgroundColor = NormalizeColor(BackgroundColor) ?? "#000000",
         WindowScalePercent = NormalizeScale(WindowScalePercent),
         FullscreenZoomPercent = NormalizeScale(FullscreenZoomPercent),
-        AnimationDirectory = NormalizeDirectory(AnimationDirectory)
+        AnimationDirectory = NormalizeDirectory(AnimationDirectory),
+        PlasmaPalette = PlasmaPalette is { } plasmaPalette && Enum.IsDefined(plasmaPalette)
+            ? plasmaPalette
+            : PlasmaPalettePreset.Neon,
+        PlasmaCustomColors = NormalizePlasmaColors(PlasmaCustomColors)
     };
 
     private static string? NormalizeFontFile(string? value)
@@ -113,4 +128,33 @@ public sealed record DmdClockSettings(
             return null;
         }
     }
+
+    private static string[] NormalizePlasmaColors(string[]? colors)
+    {
+        var fallback = PlasmaPaletteDefinition.GetStops(PlasmaPalettePreset.Neon);
+        if (colors is not { Length: PlasmaPaletteDefinition.ColorStopCount })
+            return fallback;
+
+        var normalized = colors.Select(NormalizeColor).ToArray();
+        return normalized.All(static color => color is not null)
+            ? normalized.Select(static color => color!).ToArray()
+            : fallback;
+    }
+}
+
+public static class PlasmaPaletteDefinition
+{
+    public const int ColorStopCount = 4;
+
+    public static string[] GetStops(
+        PlasmaPalettePreset preset,
+        IReadOnlyList<string>? customColors = null) => preset switch
+    {
+        PlasmaPalettePreset.Lava => ["#4A0010", "#E02020", "#FF7A00", "#FFE060"],
+        PlasmaPalettePreset.Ocean => ["#001040", "#0055D8", "#00C8FF", "#B8FFFF"],
+        PlasmaPalettePreset.Aurora => ["#180050", "#7A38FF", "#20E8A0", "#D8FF70"],
+        PlasmaPalettePreset.Custom when customColors is { Count: ColorStopCount } =>
+            customColors.ToArray(),
+        _ => ["#2D0C6E", "#3250FF", "#1EEBFF", "#FF41DC"]
+    };
 }
