@@ -76,13 +76,13 @@ animations are never packaged.
 After building and validating all packages, preview release publication:
 
 ```powershell
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.0.0 -Prerelease -WhatIf
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.1.0 -Prerelease -WhatIf
 ```
 
 Publish after reviewing the preflight output:
 
 ```powershell
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.0.0 -Prerelease
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.1.0 -Prerelease
 ```
 
 The script requires an authenticated GitHub CLI, a clean working tree whose `HEAD`
@@ -90,7 +90,9 @@ exactly matches `origin/master`, matching portable/standalone/installer build ID
 and a tag that does not already exist. It uploads the setup EXE, portable ZIP,
 standalone ZIP, installer build information, and a generated SHA-256 file covering
 all uploaded build artifacts. Use `-NotesPath path\to\notes.md` for curated release
-notes; otherwise GitHub generates notes from the repository history.
+notes; otherwise GitHub generates notes from the repository history. The first
+published run is available as the
+[`v1.0.0` pre-release](https://github.com/DrWize/DMDClock-Windows-x64/releases/tag/v1.0.0).
 
 ## Work with Git
 

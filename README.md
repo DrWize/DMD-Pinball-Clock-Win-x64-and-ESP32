@@ -19,7 +19,8 @@ Windows screensaver.
 ## Current status
 
 The Windows application, `.scr` screensaver, portable ZIP, standalone single-file
-ZIP, and per-user setup EXE are functional.
+ZIP, and per-user setup EXE are functional. The current tested build is published
+as the [`v1.0.0` pre-release](https://github.com/DrWize/DMDClock-Windows-x64/releases/tag/v1.0.0).
 
 Main features:
 
@@ -46,20 +47,20 @@ directory.
 
 ## Quick user start
 
-1. Download `DMDClock-win-x64-setup.exe` from
-   [GitHub Releases](https://github.com/DrWize/DMDClock-Windows-x64/releases).
+1. Download `DMDClock-win-x64-setup.exe` from the
+   [`v1.0.0` release](https://github.com/DrWize/DMDClock-Windows-x64/releases/tag/v1.0.0).
 2. Run the installer and keep the default per-user directory.
 3. Start DMDClock from the Start Menu.
 4. Right-click and choose **Download DotClk scenes…**, or press `Ctrl+Shift+O`
    to select an existing `.scn` folder.
-5. Choose **Review and choose scenes…** or press `Ctrl+Shift+R`, enable a game,
-   and allow the scenes you want the clock and screensaver to play.
+5. Choose **Review and choose scenes…** or press `Ctrl+Shift+R`. Everything starts
+   Allowed; disable a game or right-click only scenes you do not want.
 6. Right-click the display to configure the clock, scenes, and appearance.
 
 See [DMDClock user setup](docs/USER-SETUP.md) for screenshots, screensaver
 installation, upgrades, and troubleshooting.
 
-![DMDClock Scene Reviewer showing 40 live scenes](docs/screenshots/setup/scene-reviewer.png)
+![DMDClock Scene Reviewer with live allowed scenes and bulk controls](docs/screenshots/setup/scene-reviewer.png)
 
 ## Build from source
 

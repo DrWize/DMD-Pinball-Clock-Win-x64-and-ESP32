@@ -30,7 +30,7 @@ page simultaneously with the real clock compositor. The default `5 × 8` layout
 shows 40 live scenes; the Columns and Rows controls independently support values
 from 1 through 20.
 
-![DMDClock Scene Reviewer showing 40 live scenes](screenshots/setup/scene-reviewer.png)
+![DMDClock Scene Reviewer with live allowed scenes and bulk controls](screenshots/setup/scene-reviewer.png)
 
 - On a new installation, every valid scene and game starts **Allowed**.
 - Right-click a scene to toggle **Disallowed** and **Allowed**.

@@ -8,6 +8,10 @@ checksums into one setup EXE.
 It uses [Inno Setup](https://jrsoftware.org/isinfo.php) and installs per user without
 an administrator prompt.
 
+The current installer, portable ZIP, standalone ZIP, build information, and
+checksums are published together in the
+[`v1.0.0` pre-release](https://github.com/DrWize/DMDClock-Windows-x64/releases/tag/v1.0.0).
+
 ## User-visible behavior
 
 - Default installation directory:
@@ -157,14 +161,16 @@ uninstalls, checks restoration and AppData preservation, and writes a JSON repor
 
 ### Phase 4 — release validation
 
-- [ ] Test the interactive wizard on clean Windows 10 x64
-- [ ] Test the interactive wizard on clean Windows 11 x64
-- [ ] Test without an installed .NET runtime
-- [ ] Verify Start Menu, Desktop, startup, configuration, preview, and uninstall shortcuts
-- [ ] Verify add/remove programs metadata and icon
+- [x] Test the interactive wizard on clean Windows 10 x64
+- [x] Test the interactive wizard on clean Windows 11 x64
+- [x] Test without an installed .NET runtime
+- [x] Verify Start Menu, Desktop, startup, configuration, preview, and uninstall shortcuts
+- [x] Verify add/remove programs metadata and icon
 - [ ] Check SmartScreen and antivirus results
 - [ ] Decide and implement Authenticode code signing
-- [ ] Add the setup EXE and checksum to the GitHub release workflow
+- [x] Add the setup EXE, portable and standalone ZIPs, build information, and
+      generated checksums to the repeatable `Publish-GitHubRelease.ps1` workflow
+- [x] Publish and verify the `v1.0.0` GitHub pre-release
 - [ ] Confirm redistribution terms for the embedded DotClk fonts before a public release
 
 ## Completion criteria

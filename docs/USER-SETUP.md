@@ -16,8 +16,8 @@ Animations are not included with DMDClock.
 
 ### Recommended: setup EXE
 
-1. Download `DMDClock-win-x64-setup.exe` from the project's
-   [GitHub Releases page](https://github.com/DrWize/DMDClock-Windows-x64/releases).
+1. Download `DMDClock-win-x64-setup.exe` from the current
+   [`v1.0.0` pre-release](https://github.com/DrWize/DMDClock-Windows-x64/releases/tag/v1.0.0).
 2. Run the setup EXE.
 3. Keep the default per-user installation directory unless you have a reason to
    change it.
@@ -124,7 +124,7 @@ Press `Ctrl+Shift+R` or choose **Review and choose scenes…** from the right-cl
 menu. The reviewer plays every visible scene at the same time, using the same DMD
 renderer and working clock as normal playback.
 
-![DMDClock Scene Reviewer showing 40 live scenes](screenshots/setup/scene-reviewer.png)
+![DMDClock Scene Reviewer with live allowed scenes and bulk controls](screenshots/setup/scene-reviewer.png)
 
 Every valid game and scene starts Allowed. Choose a game, set the number of columns
 and rows, then right-click only scenes that do not work on the clock. Green scenes

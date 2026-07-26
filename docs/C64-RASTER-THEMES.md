@@ -23,7 +23,12 @@ The following themes use a C64-like fixed 16-color RGB palette and map the selec
 6. Extruded cyan
 7. C64 rainbow
 
-They are available under **Appearance → Color theme**. The experimental Secret Purple Mix is intentionally not implemented. Current app screenshots for Blue round raster and C64 rainbow are included in the main README.
+They are available under **Appearance → Color theme**. The experimental Secret
+Purple Mix is intentionally not implemented.
+
+![C64 blue round raster theme](screenshots/colors/c64-blue-round.png)
+
+![C64 rainbow theme](screenshots/colors/c64-rainbow.png)
 
 ## Recommended implementation order
 

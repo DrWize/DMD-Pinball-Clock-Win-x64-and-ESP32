@@ -29,9 +29,11 @@ Automated tests cover SCN parsing/playback, settings, embedded DotClk fonts,
 screensaver arguments, library indexing, selection persistence, scene downloads,
 and compatibility reporting.
 
-The remaining release blockers are manual Windows validation, read-only-directory
-testing, translation fallback behavior, and confirmation that the original DotClk
-fonts can be redistributed publicly.
+The interactive installer is verified on clean Windows 10 and 11 systems without
+an installed .NET runtime. Remaining release work is in-place upgrade testing,
+read-only-directory testing, translation fallback behavior, SmartScreen/antivirus
+review, Authenticode signing, and confirmation that the original DotClk fonts can
+be redistributed publicly.
 
 ## End-user setup — no source code or SDK required
 
@@ -464,7 +466,7 @@ Screensaver checks:
 - [ ] Verify `/s` opens fullscreen and exits on keyboard, click, or deliberate mouse movement
 - [ ] Right-click `DMDClock.scr`, choose **Install**, and select it in Windows Screen Saver Settings
 - [ ] Verify the Control Panel `/p <HWND>` preview is embedded and closes cleanly
-- [ ] Repeat standalone tests on clean Windows 10 and Windows 11 x64 machines
+- [x] Repeat standalone tests on clean Windows 10 and Windows 11 x64 machines
       without an installed .NET runtime
 
 ## Definition of done
@@ -656,9 +658,12 @@ Acceptance criteria:
 - [x] Complete automated silent install, screensaver registration, repeat-install,
       checksum, AppData-preservation, and uninstall tests
 - [ ] Test an in-place upgrade from an older installer build
-- [ ] Test the interactive installer on clean Windows 10 and Windows 11 without .NET
-- [ ] Decide code-signing and release-checksum procedures
-- [ ] Add the signed setup EXE to a repeatable GitHub release workflow
+- [x] Test the interactive installer on clean Windows 10 and Windows 11 without .NET
+- [x] Add `scripts\Publish-GitHubRelease.ps1` with build-ID checks, release asset
+      validation, generated SHA-256 checksums, dry-run support, and GitHub upload
+- [x] Publish the installer, portable ZIP, standalone ZIP, build information, and
+      release checksums as the `v1.0.0` GitHub pre-release
+- [ ] Decide and implement Authenticode code signing
 
 Detailed status, commands, and acceptance criteria:
 [`docs/INSTALLER.md`](docs/INSTALLER.md).
