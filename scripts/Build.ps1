@@ -28,11 +28,12 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($sourceRevision)) {
     throw 'Unable to determine the Git source revision.'
 }
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $versionTag = (& git -C $projectRoot describe --tags --abbrev=0 --match 'v[0-9]*' 2>$null).Trim()
-    if ($LASTEXITCODE -ne 0 -or $versionTag -notmatch '^v(?<version>\d+\.\d+\.\d+)') {
-        throw 'Unable to derive a version from Git tags. Pass -Version x.y.z explicitly.'
+    [xml]$buildProperties = Get-Content -LiteralPath (
+        Join-Path $projectRoot 'Directory.Build.props') -Raw
+    $Version = [string]$buildProperties.Project.PropertyGroup.VersionPrefix
+    if ($Version -notmatch '^\d+\.\d+\.\d+$') {
+        throw 'Directory.Build.props must define a semantic VersionPrefix, or pass -Version x.y.z.'
     }
-    $Version = $Matches.version
 }
 $buildId = "$Version+$buildNumber.$Runtime.$sourceRevision"
 $artifactStem = "DMDClock-$Version-build$buildNumber-$Runtime"
@@ -124,6 +125,7 @@ try {
         --configuration $Configuration `
         --runtime $Runtime `
         --self-contained true `
+        "-p:Version=$Version" `
         "-p:InformationalVersion=$buildId" `
         --output $stagingDirectory
 
@@ -230,6 +232,7 @@ try {
             --configuration $Configuration `
             --runtime $Runtime `
             --self-contained true `
+            "-p:Version=$Version" `
             "-p:InformationalVersion=$buildId" `
             "-p:PublishSingleFile=true" `
             "-p:IncludeNativeLibrariesForSelfExtract=true" `
