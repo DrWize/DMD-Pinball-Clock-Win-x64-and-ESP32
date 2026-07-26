@@ -5,6 +5,13 @@ scenes. It recreates a scalable 128×32, four-bit dot-matrix display with clocks
 dates, original scene timing, masks, metadata, configurable colors, and an optional
 Windows screensaver.
 
+> ☕ Enjoying DMDClock? If it brings a little color or nostalgia to your day, you
+> can [buy me a coffee](https://buymeacoffee.com/drwize). Your support helps me
+> keep improving DMDClock and creating more projects like it—thank you!
+>
+> **Looking for the latest version?**
+> [Download DMDClock from the Releases page](https://github.com/DrWize/DMDClock-Windows-x64/releases).
+
 ![DMDClock using the Neon sunset theme](docs/screenshots/colors/neon-sunset.png)
 
 ## Start here
