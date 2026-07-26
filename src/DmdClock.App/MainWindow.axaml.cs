@@ -52,6 +52,7 @@ public partial class MainWindow : Window
     private readonly List<AnimationCatalogItem> _catalogItems = [];
     private readonly Dictionary<MenuItem, string?> _clockFontItems = [];
     private readonly Dictionary<MenuItem, string?> _dateFontItems = [];
+    private readonly Stopwatch _effectClock = Stopwatch.StartNew();
     private readonly DateTimeOffset _startedUtc = DateTimeOffset.UtcNow;
     private readonly string _buildId = GetBuildId();
     private readonly ScreenSaverLaunchOptions _launchOptions;
@@ -161,6 +162,7 @@ public partial class MainWindow : Window
         }
         if (_isPaused) return;
         var now = DateTimeOffset.UtcNow;
+        Display.SetEffectTime(_effectClock.ElapsedMilliseconds);
 
         if (_displayMode == DisplayMode.Animation && _playback is not null)
         {
@@ -422,6 +424,7 @@ public partial class MainWindow : Window
     private void TogglePause()
     {
         _isPaused = !_isPaused;
+        if (_isPaused) _effectClock.Stop(); else _effectClock.Start();
         var now = DateTimeOffset.UtcNow;
         if (_playback is not null)
         {

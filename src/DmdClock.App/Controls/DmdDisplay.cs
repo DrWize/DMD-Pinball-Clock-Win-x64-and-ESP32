@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using DmdClock.Core;
+using DmdClock.Core.Rendering;
 using DmdClock.Core.Settings;
 
 namespace DmdClock.App.Controls;
@@ -15,6 +16,8 @@ public sealed class DmdDisplay : Control
     private bool _glowEnabled = true;
     private IBrush _backgroundBrush = Brushes.Black;
     private bool _paletteByRow;
+    private bool _plasmaEnabled;
+    private byte _plasmaPhase;
 
     private double _zoom = 1d;
 
@@ -41,7 +44,7 @@ public sealed class DmdDisplay : Control
         var palette = preset switch
         {
             DmdColorPreset.Red => Solid(Color.FromRgb(255, 32, 16)),
-            DmdColorPreset.Plasma => Solid(Color.FromRgb(120, 100, 255)),
+            DmdColorPreset.Plasma => PlasmaPalette(),
             DmdColorPreset.Monochrome => Solid(Color.FromRgb(235, 235, 235)),
             DmdColorPreset.NeonSunset => Gradient(Color.FromRgb(255, 43, 214), Color.FromRgb(255, 209, 102)),
             DmdColorPreset.CyberOcean => Gradient(Color.FromRgb(38, 123, 255), Color.FromRgb(94, 255, 255)),
@@ -57,6 +60,8 @@ public sealed class DmdDisplay : Control
             DmdColorPreset.C64Rainbow => Raster(C64Red, C64Orange, C64Yellow, C64LightGreen, C64Green, C64Cyan, C64LightBlue, C64Blue, C64Purple, C64LightRed),
             _ => Solid(Color.FromRgb(255, 112, 14))
         };
+        _plasmaEnabled = preset == DmdColorPreset.Plasma &&
+            string.IsNullOrWhiteSpace(foregroundColor);
         _paletteByRow = IsC64RasterPreset(preset);
         if (!string.IsNullOrWhiteSpace(foregroundColor))
         {
@@ -73,6 +78,19 @@ public sealed class DmdDisplay : Control
                 palette[column], brightnessPercent / 100d))
             .ToArray();
         _glowEnabled = glowEnabled;
+        InvalidateVisual();
+    }
+
+    public void SetEffectTime(long elapsedMilliseconds)
+    {
+        if (!_plasmaEnabled)
+            return;
+
+        var phase = PlasmaField.PhaseAtMilliseconds(elapsedMilliseconds);
+        if (phase == _plasmaPhase)
+            return;
+
+        _plasmaPhase = phase;
         InvalidateVisual();
     }
 
@@ -112,9 +130,21 @@ public sealed class DmdDisplay : Control
                 continue;
 
             var center = new Point(originX + ((x + 0.5) * cellSize), originY + ((y + 0.5) * cellSize));
-            var paletteCoordinate = _paletteByRow ? y : x;
-            var paletteExtent = _paletteByRow ? frame.Height : frame.Width;
-            var paletteColumn = Math.Clamp((paletteCoordinate * PaletteColumns) / paletteExtent, 0, PaletteColumns - 1);
+            int paletteColumn;
+            if (_plasmaEnabled)
+            {
+                paletteColumn = PlasmaField.GetPaletteIndex(
+                    x, y, frame.Width, frame.Height, _plasmaPhase);
+            }
+            else
+            {
+                var paletteCoordinate = _paletteByRow ? y : x;
+                var paletteExtent = _paletteByRow ? frame.Height : frame.Width;
+                paletteColumn = Math.Clamp(
+                    (paletteCoordinate * PaletteColumns) / paletteExtent,
+                    0,
+                    PaletteColumns - 1);
+            }
             if (_glowEnabled)
                 context.DrawEllipse(_glowBrushes[paletteColumn][intensity], null, center, glowRadius, glowRadius);
             context.DrawEllipse(_dotBrushes[paletteColumn][intensity], null, center, radius, radius);
@@ -160,6 +190,28 @@ public sealed class DmdDisplay : Control
     private static Color[] Raster(params Color[] bands) => Enumerable.Range(0, PaletteColumns)
         .Select(index => bands[Math.Min((index * bands.Length) / PaletteColumns, bands.Length - 1)])
         .ToArray();
+
+    private static Color[] PlasmaPalette()
+    {
+        Color[] stops =
+        [
+            Color.FromRgb(45, 12, 110),
+            Color.FromRgb(50, 80, 255),
+            Color.FromRgb(30, 235, 255),
+            Color.FromRgb(255, 65, 220),
+            Color.FromRgb(45, 12, 110)
+        ];
+        var palette = new Color[PaletteColumns];
+        var segmentLength = PaletteColumns / (stops.Length - 1d);
+        for (var index = 0; index < palette.Length; index++)
+        {
+            var position = index / segmentLength;
+            var segment = Math.Min((int)position, stops.Length - 2);
+            palette[index] = Interpolate(stops[segment], stops[segment + 1], position - segment);
+        }
+
+        return palette;
+    }
 
     private static bool IsC64RasterPreset(DmdColorPreset preset) => preset is
         DmdColorPreset.C64BlueRound or DmdColorPreset.C64RedRound or DmdColorPreset.C64Earthtone or
