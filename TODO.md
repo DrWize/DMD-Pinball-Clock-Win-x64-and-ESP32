@@ -695,6 +695,138 @@ Detailed status, commands, and acceptance criteria:
 - [ ] Per-manufacturer or per-game color palettes
 - [ ] Pixel-perfect integer scaling when the available display size permits it
 
+### ESP32-S3 web management
+
+- [x] Build the first host-verified ESP32-S3 firmware slice with the 800×480 RGB
+      panel, exact 6× DMD, brightness, clock, 11 embedded test scenes, persistent
+      settings, recovery access point, and embedded web remote
+- [x] Add all eight Basic, eight Gradient, and sixteen Raster themes with the same
+      stable preset IDs used by Windows
+- [x] Port the frozen 256-step integer Plasma field, phase calculation, 128-colour
+      cyclic interpolation, and the four existing Windows reference vectors
+- [x] Add all eight Plasma presets plus Custom, persistent 1–60 second cycle
+      timing, custom RGB stops, API state/settings, animated web preview, and
+      Plasma selection through the shared colour controls
+- [x] Schedule Plasma independently at a maximum of 30 FPS while preserving SCN
+      intensity, masks, clock layers, glow, web, touch, and NTP responsiveness
+- [ ] Add cross-platform palette/framebuffer hashes for every Plasma palette,
+      custom stops, 4-bit intensity, glow, clock, and representative SCN frames
+- [x] Add a lightweight per-dot glow halo with persistent 0–100% strength,
+      matching transient touchscreen/web toggles, and a web strength slider
+- [x] Show the full device-local timestamp, browser clock difference, time source,
+      NTP progress, configured servers, and successful synchronization state in
+      the web remote
+- [x] Add automatic NTP through `pool.ntp.org` and `time.cloudflare.com`, a manual
+      NTP action, and browser-time fallback
+- [x] Match the Windows scene-session behavior for first-frame timing, regular
+      frames, masks, blank first/last steps, clock layers, final holds, one-shot
+      return to clock, sequential/random order, scenes per cycle, and scene gaps
+- [x] Add matching local/web actions for previous/next colour, animation
+      information on/off, and manual NTP sync; also expose previous/next scene and
+      return-to-clock in the web remote
+- [x] Add the original board's GT911 touch implementation using GPIO4,
+      GPIO8/GPIO9, and CH422G EXIO1, while allowing non-touch boards to boot
+- [x] Keep the on-screen touch buttons visible for eight seconds after
+      interaction, fade them out, and use the first touch only to reveal fully
+      hidden controls
+- [ ] Verify GT911 detection, coordinate orientation, debounce, and all five
+      bottom-row touch targets on the physical 800×480 board
+- [ ] Run physical rendering, persistence, responsiveness, and one-hour soak
+      tests for Basic, Gradient, Raster, glow, clock/scene cycling, NTP, and touch
+- [ ] Serve a first-run setup page that creates the web administrator password
+      before normal controls become available
+- [ ] Use `admin` as the initial username, but never ship a reusable
+      `admin/admin` password; use a temporary per-device setup code shown on the
+      local display and require replacement on first login
+- [ ] Store only a salted password verifier in NVS, use expiring authenticated
+      sessions plus CSRF protection, and provide a physical-button/USB recovery
+      path for a forgotten password
+- [x] Define a single `/dmd` TF-card root for scenes, fonts, Plasma assets,
+      extended web assets, exported configuration, backups, bounded logs,
+      rebuildable caches, and verified downloads
+- [x] Add non-fatal SPI TF mounting on GPIO11/12/13 with CH422G EXIO4 enable,
+      create the `/dmd` content root, load the known scene catalog into PSRAM,
+      and retain a 6 KB internal scene fallback when storage is unavailable
+- [x] Make Windows and ESP32 resolve scene titles, games, manufacturers, years,
+      prefix rules, and exact overrides from the same schema-1
+      `scene-metadata.json`; keep SCN storyboard timing authoritative
+- [x] Keep the 243 KB shared metadata catalog on TF storage in production,
+      embed an automatically generated 11-scene projection in QEMU for
+      deterministic tests, and release its parsed JSON tree after the ESP32
+      scene records have been resolved
+- [ ] Verify FAT32 mounting, card removal/failure behavior, PSRAM scene loading,
+      shared metadata loading, and `/dmd` directory creation on the physical
+      board and 64 GB card
+- [ ] Let the ESP32 web server download SCN files directly over HTTPS into the TF
+      card, with progress, cancellation, free-space checks, maximum-size limits,
+      format validation, optional manifest hashes, temporary files, and atomic
+      installation
+- [ ] Add a one-click **Download complete DotClk scene set** action equivalent to
+      the Windows downloader, sourcing the files from the original
+      `sigmafx/DotClk-Resources` repository and installing them on the TF card
+- [ ] Make complete-set installation resumable and repairable, show total/file
+      progress and estimated storage, verify every downloaded scene, and activate
+      the new set only after the complete snapshot is valid
+- [ ] Support `Install`, `Update`, and `Repair` for the complete set without
+      deleting unrelated user-uploaded scenes or the last usable scene snapshot
+- [ ] Provide a curated/source-configurable SCN catalog without embedding or
+      redistributing scene files whose licenses do not permit it
+- [ ] Retain browser-to-device SCN upload as an offline fallback and automatically
+      rescan the library after a successful import
+- [ ] Add an authenticated browser log viewer that follows new records
+      automatically using Server-Sent Events, without polling or blocking display
+      rendering
+- [ ] Add log level/source filters, pause/resume, search, clear-view, and download
+      actions for the current and rotated log files
+- [ ] Bound and rotate log storage, fall back to a RAM ring buffer when the TF card
+      is unavailable, and redact Wi-Fi passwords, web credentials, session tokens,
+      and other secrets
+- [ ] Cover first-login enforcement, password reset, unauthorized access, failed/
+      interrupted downloads, full or removed TF cards, log rotation, and live-log
+      reconnects with host and hardware tests
+- [ ] Measure total and per-core CPU utilization plus per-task FreeRTOS run time;
+      expose frame time/FPS, dropped frames, heap/PSRAM, stack high-water marks,
+      Wi-Fi RSSI, TF-card state, reset reason, and NTP state
+- [ ] Add an authenticated **Statistics** web page with live cards and short
+      history charts for system, temperature, memory, display, storage, network,
+      time, web/MQTT, and OTA measurements
+- [ ] Label the built-in ESP32-S3 temperature explicitly as **Chip temperature
+      (approximate)**; never present it as room/ambient temperature
+- [ ] Auto-update the Statistics page through a bounded low-rate Server-Sent
+      Events stream, support pause/resume and JSON snapshot download, and ensure
+      closed pages create no ongoing browser-stream work
+- [ ] Track current/minimum/maximum chip temperature and configurable diagnostic
+      warning thresholds only after a safe baseline is measured on the real board
+- [ ] State clearly that ambient temperature, supply voltage, current, and power
+      consumption require external sensor hardware and are unavailable by default
+- [ ] Add optional Home Assistant support through local MQTT device discovery,
+      birth/LWT availability, and broker credentials stored in NVS
+- [ ] Expose Home Assistant controls for display power, brightness, fixed color,
+      mode, playlist, next/previous scene, NTP sync, and temporary DMD text
+      notifications
+- [ ] Expose Home Assistant diagnostic sensors for CPU, memory, frame rate,
+      dropped frames, Wi-Fi, time sync, current scene, firmware, uptime, and
+      TF-card capacity
+- [ ] Ensure broker or Home Assistant failure never stops standalone clock,
+      touchscreen, SCN playback, web settings, or local logging
+- [ ] Later project: evaluate TTF/OTF font support on ESP32-S3 only after the
+      bitmap-font clock, SCN playback, web interface, and performance budgets are
+      stable
+- [ ] For the ESP32 TTF/OTF project, compare on-device rasterization with
+      build-time conversion to compact bitmap glyphs; measure flash, PSRAM, CPU,
+      startup, cache, and rendering costs before choosing an implementation
+- [ ] Prefer a deterministic converter that takes an approved TTF/OTF file,
+      explicit point/pixel sizes, and an explicit Unicode subset, then generates a
+      compact four-bit intensity atlas, masks, glyph metrics, kerning, manifest,
+      and identical C++/test fixtures for ESP32
+- [ ] Permit direct on-device outline rendering only if measurements demonstrate a
+      material benefit over generated atlases without violating clock,
+      responsiveness, memory, or recovery budgets
+- [ ] Add authenticated web upload and management only for validated font files,
+      enforce size/glyph limits, and preserve a built-in fallback font
+- [ ] Keep the detailed implementation and acceptance criteria synchronized with
+      the [ESP32-S3 roadmap](docs/ESP32-S3-ROADMAP.md)
+
 ## Deferred future work
 
 Do not connect these items to the active application until the classic Windows
@@ -702,7 +834,8 @@ release criteria are complete:
 
 - Raspberry Pi builds and shared cross-platform packaging
 - a versioned platform-independent `DmdFrame` interchange format
-- ESP32-S3 conversion, manifests, SD-card packages, rollback, and network updates
+- ESP32-S3 conversion, manifests, SD-card packages, rollback, and network updates;
+  see the separate [ESP32-S3 roadmap](docs/ESP32-S3-ROADMAP.md)
 - Serum, cRom, VNI/PAL/PAC, indexed color, RGB24, and DMD Extensions validation
 - 192×64 and 256×64 displays
 - physical LED matrix, Pin2DMD, and network-adapter output

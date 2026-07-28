@@ -137,6 +137,7 @@ screensaver use the same selection file. The four DotClk clock fonts are embedde
 - [Scene metadata](docs/SCENE-METADATA.md)
 - [Source references](docs/SOURCES.md)
 - [C64 raster themes](docs/C64-RASTER-THEMES.md)
+- [ESP32-S3 roadmap](docs/ESP32-S3-ROADMAP.md)
 - [Future DMD Extensions work](docs/FUTURE-DMD-EXTENSIONS.md)
 
 ## Project scope
