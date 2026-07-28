@@ -1,0 +1,15 @@
+{
+  "schema": "dmdclock-storage",
+  "version": 1,
+  "directories": {
+    "scenes": "/dmd/scenes",
+    "fonts": "/dmd/fonts",
+    "plasma": "/dmd/plasma",
+    "web": "/dmd/web",
+    "config": "/dmd/config",
+    "backups": "/dmd/backups",
+    "logs": "/dmd/logs",
+    "cache": "/dmd/cache",
+    "downloads": "/dmd/downloads"
+  }
+}

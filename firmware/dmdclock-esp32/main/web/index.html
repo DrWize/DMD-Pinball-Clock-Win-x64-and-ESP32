@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#110700">
+  <title>DMDClock Remote</title>
+  <style>
+    :root{color-scheme:dark;--orange:#ff700e;--amber:#ffad42;--ink:#fff4e8;--muted:#bca998;--panel:#1b1009;--line:#3d2414}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% -20%,#4b2009 0,#160b05 42%,#080503 100%);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{width:min(720px,100%);margin:auto;padding:28px 18px 56px}
+    header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}
+    h1{font-size:clamp(1.55rem,5vw,2.3rem);line-height:1;margin:0;letter-spacing:-.04em}
+    .eyebrow{color:var(--orange);font-size:.72rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;margin-bottom:10px}
+    .status{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:.78rem;white-space:nowrap}
+    .status-dot{width:9px;height:9px;border-radius:50%;background:#777;box-shadow:0 0 0 4px #7772}
+    .status-dot.ok{background:#56dc8b;box-shadow:0 0 0 4px #56dc8b22}
+    .display{position:relative;overflow:hidden;border:1px solid #6f3718;border-radius:18px;background:#030201;padding:30px 12px;text-align:center;box-shadow:inset 0 0 45px #ff640012,0 22px 70px #0008;margin-bottom:18px}
+    .display:before{content:"";position:absolute;inset:0;opacity:.2;background-image:radial-gradient(circle,#ff700e 1px,transparent 1.5px);background-size:6px 6px}
+    #clock{position:relative;color:var(--orange);font:800 clamp(3rem,15vw,6.3rem)/1 ui-monospace,"SFMono-Regular",Consolas,monospace;letter-spacing:-.08em;text-shadow:0 0 8px #ff700e99,0 0 24px #ff5a0044}
+    .device-time{position:relative;margin-top:14px;color:var(--ink);font:650 .9rem/1.4 ui-monospace,"SFMono-Regular",Consolas,monospace;letter-spacing:.02em}
+    .device-time small{display:inline;color:var(--muted)}
+    .panel{background:linear-gradient(145deg,#21130b,#160d08);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:14px;box-shadow:0 14px 40px #0005}
+    .panel h2{font-size:.95rem;margin:0 0 16px;letter-spacing:.02em}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid #382115}
+    .row:first-of-type{border-top:0;padding-top:0}
+    .row:last-child{padding-bottom:0}
+    label{font-size:.9rem;font-weight:650}
+    small{display:block;color:var(--muted);font-weight:450;margin-top:4px}
+    input,select,button{font:inherit}
+    input[type=range]{width:min(260px,45vw);accent-color:var(--orange)}
+    input[type=color]{width:48px;height:38px;padding:2px;border:1px solid #56331e;border-radius:8px;background:#0d0805}
+    input[type=text],input[type=password],select{width:100%;border:1px solid #56331e;background:#0d0805;color:var(--ink);border-radius:10px;padding:11px 12px;outline:none}
+    input:focus,select:focus{border-color:var(--orange);box-shadow:0 0 0 3px #ff700e22}
+    .switch{position:relative;width:48px;height:28px;flex:none}
+    .switch input{position:absolute;opacity:0}
+    .switch span{position:absolute;inset:0;border-radius:99px;background:#50372a;transition:.18s}
+    .switch span:after{content:"";position:absolute;width:20px;height:20px;left:4px;top:4px;border-radius:50%;background:#eadfd5;transition:.18s}
+    .switch input:checked+span{background:var(--orange)}
+    .switch input:checked+span:after{transform:translateX(20px);background:#fff}
+    .fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .field label{display:block;margin:0 0 7px}
+    button{border:0;border-radius:11px;padding:11px 16px;background:var(--orange);color:#1a0900;font-weight:800;cursor:pointer}
+    button.secondary{background:#392217;color:var(--ink);border:1px solid #5a3420}
+    .quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+    .quick-actions button{min-height:46px}
+    .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
+    #message{min-height:1.2em;color:var(--amber);font-size:.82rem;margin-top:12px;text-align:right}
+    .network{color:var(--muted);font-size:.8rem;line-height:1.5;margin-top:15px}
+    footer{margin-top:24px;text-align:center;color:var(--muted);font-size:.8rem}
+    footer a{color:var(--amber);font-weight:700;text-decoration:none}
+    footer a:hover,footer a:focus{text-decoration:underline}
+    code{color:#ffd0a9}
+    .color-stops{display:flex;gap:8px;flex-wrap:wrap}
+    @keyframes plasmaShift{to{background-position:300% 50%}}
+    @media(max-width:560px){header{display:block}.status{margin-top:14px}.fields{grid-template-columns:1fr}.row{gap:10px}.display{padding:25px 6px}.quick-actions{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div><div class="eyebrow">ESP32-S3 · Basic · Gradient · Raster</div><h1>DMDClock Remote</h1></div>
+      <div class="status"><span id="statusDot" class="status-dot"></span><span id="statusText">Connecting…</span></div>
+    </header>
+
+    <section class="display" aria-label="Clock preview">
+      <div id="clock">--:--</div>
+      <div class="device-time"><span id="deviceTime">Device: not synchronized</span><br><small id="clockDrift"></small></div>
+    </section>
+
+    <section class="panel">
+      <h2>Quick controls — same as the touchscreen</h2>
+      <div class="quick-actions">
+        <button class="secondary" type="button" data-action="colorPrevious">Colour −</button>
+        <button class="secondary" type="button" data-action="colorNext">Colour +</button>
+        <button id="toggleInformation" class="secondary" type="button" data-action="toggleInformation">Information on</button>
+        <button id="toggleGlow" class="secondary" type="button" data-action="toggleGlow">Glow on</button>
+        <button class="secondary" type="button" data-action="syncNtp">Sync NTP</button>
+        <button class="secondary" type="button" data-action="scenePrevious">Previous scene</button>
+        <button class="secondary" type="button" data-action="sceneNext">Next scene</button>
+        <button class="secondary" type="button" data-action="showClock">Show clock</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Display</h2>
+      <div class="row">
+        <label for="displayOn">Screen<small>Show or blank the DMD</small></label>
+        <label class="switch"><input id="displayOn" type="checkbox"><span></span></label>
+      </div>
+      <div class="row">
+        <label for="displayMode">Content<small>Embedded scene or clock</small></label>
+        <select id="displayMode" style="width:min(260px,48vw)">
+          <option value="scene">Scene</option>
+          <option value="clock">Clock</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="sceneIndex">Scene<small>Uses the shared scene metadata catalog</small></label>
+        <select id="sceneIndex" style="width:min(260px,48vw)">
+          <option value="0">GOT06 · Game of Thrones</option>
+          <option value="1">AFM01 · Attack from Mars</option>
+          <option value="2">RD0868</option>
+          <option value="3">RD0959</option>
+          <option value="4">RD1116</option>
+          <option value="5">RD1385</option>
+          <option value="6">RD1448</option>
+          <option value="7">RD1474</option>
+          <option value="8">RD1695</option>
+          <option value="9">RD1701</option>
+          <option value="10">RD1891</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="brightness">Brightness <small><span id="brightnessValue">100</span>%</small></label>
+        <input id="brightness" type="range" min="0" max="100" step="5">
+      </div>
+      <div class="row">
+        <label for="glowStrength">Dot glow <small><span id="glowStrengthValue">35</span>% halo strength</small></label>
+        <input id="glowStrength" type="range" min="0" max="100" step="5">
+      </div>
+      <div class="row">
+        <label for="colorPreset">Colour theme<small id="colorFamily">Basic · Classic orange</small></label>
+        <select id="colorPreset" style="width:min(260px,48vw)">
+          <optgroup label="Basic colours">
+            <option value="0">Classic orange</option>
+            <option value="16">Golden amber</option>
+            <option value="1">Pinball red</option>
+            <option value="17">Arcade green</option>
+            <option value="18">Electric blue</option>
+            <option value="19">Ice cyan</option>
+            <option value="20">Hot magenta</option>
+            <option value="3">Warm white</option>
+          </optgroup>
+          <optgroup label="Plasma">
+            <option value="2">Plasma</option>
+          </optgroup>
+          <optgroup label="Gradient themes">
+            <option value="4">Neon sunset</option>
+            <option value="5">Cyber ocean</option>
+            <option value="6">Toxic arcade</option>
+            <option value="7">Vaporwave</option>
+            <option value="8">Aurora</option>
+            <option value="21">Firestorm</option>
+            <option value="22">Electric violet</option>
+            <option value="23">Arctic glow</option>
+          </optgroup>
+          <optgroup label="Raster themes">
+            <option value="9">Blue halo</option>
+            <option value="10">Red halo</option>
+            <option value="11">Earthtone</option>
+            <option value="12">Metal</option>
+            <option value="13">Interlaced blue</option>
+            <option value="14">Extruded cyan</option>
+            <option value="15">Rainbow</option>
+            <option value="24">Purple halo</option>
+            <option value="25">Green halo</option>
+            <option value="26">Amber halo</option>
+            <option value="27">Purple pulse</option>
+            <option value="28">Ocean depth</option>
+            <option value="29">Sunset bands</option>
+            <option value="30">Forest layers</option>
+            <option value="31">Arctic bands</option>
+            <option value="32">Candy stripe</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="row">
+        <label for="plasmaPalette">Plasma palette<small id="plasmaPaletteSummary">Neon pulse</small></label>
+        <select id="plasmaPalette" style="width:min(260px,48vw)">
+          <option value="0">Neon pulse</option>
+          <option value="1">Lava flow</option>
+          <option value="2">Deep ocean</option>
+          <option value="3">Aurora drift</option>
+          <option value="4">Custom</option>
+          <option value="5">Toxic slime</option>
+          <option value="6">Vapor dream</option>
+          <option value="7">Solar flare</option>
+          <option value="8">Arctic ice</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="plasmaCycle">Plasma cycle<small><span id="plasmaCycleValue">8</span> seconds</small></label>
+        <input id="plasmaCycle" type="range" min="1000" max="60000" step="250">
+      </div>
+      <div class="row">
+        <label>Custom Plasma stops<small>Used when the Custom palette is selected</small></label>
+        <div class="color-stops">
+          <input id="plasmaColor0" type="color" aria-label="Plasma color 1">
+          <input id="plasmaColor1" type="color" aria-label="Plasma color 2">
+          <input id="plasmaColor2" type="color" aria-label="Plasma color 3">
+          <input id="plasmaColor3" type="color" aria-label="Plasma color 4">
+        </div>
+      </div>
+      <div class="row">
+        <label for="use24Hour">24-hour clock</label>
+        <label class="switch"><input id="use24Hour" type="checkbox"><span></span></label>
+      </div>
+      <div class="row">
+        <label for="showSeconds">Show seconds</label>
+        <label class="switch"><input id="showSeconds" type="checkbox"><span></span></label>
+      </div>
+      <div class="row">
+        <label for="showInformation">Animation information<small>Scene, frame, and colour on screen</small></label>
+        <label class="switch"><input id="showInformation" type="checkbox"><span></span></label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Windows-style scene cycle</h2>
+      <div class="row">
+        <label for="automaticCycle">Automatic clock/scene cycle</label>
+        <label class="switch"><input id="automaticCycle" type="checkbox"><span></span></label>
+      </div>
+      <div class="row">
+        <label for="randomPlayback">Random scene order</label>
+        <label class="switch"><input id="randomPlayback" type="checkbox"><span></span></label>
+      </div>
+      <div class="row">
+        <label for="animationsPerCycle">Scenes per cycle</label>
+        <select id="animationsPerCycle" style="width:min(180px,42vw)">
+          <option value="1">1 scene</option>
+          <option value="3">3 scenes</option>
+          <option value="5">5 scenes</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="clockDisplaySeconds">Clock duration</label>
+        <select id="clockDisplaySeconds" style="width:min(180px,42vw)">
+          <option value="10">10 seconds</option>
+          <option value="30">30 seconds</option>
+          <option value="60">60 seconds</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="animationGapSeconds">Time between scenes</label>
+        <select id="animationGapSeconds" style="width:min(180px,42vw)">
+          <option value="0">No pause</option>
+          <option value="5">5 seconds</option>
+          <option value="10">10 seconds</option>
+          <option value="30">30 seconds</option>
+        </select>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Time and network</h2>
+      <div class="fields">
+        <div class="field">
+          <label for="timezone">Timezone</label>
+          <select id="timezone">
+            <option value="CET-1CEST,M3.5.0,M10.5.0/3">Stockholm / Central Europe</option>
+            <option value="GMT0BST,M3.5.0/1,M10.5.0">London</option>
+            <option value="UTC0">UTC</option>
+            <option value="EST5EDT,M3.2.0,M11.1.0">New York</option>
+            <option value="CST6CDT,M3.2.0,M11.1.0">Chicago</option>
+            <option value="MST7MDT,M3.2.0,M11.1.0">Denver</option>
+            <option value="PST8PDT,M3.2.0,M11.1.0">Los Angeles</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="wifiSsid">Home Wi-Fi name</label>
+          <input id="wifiSsid" type="text" maxlength="32" autocomplete="off" placeholder="Optional">
+        </div>
+        <div class="field">
+          <label for="wifiPassword">Home Wi-Fi password</label>
+          <input id="wifiPassword" type="password" maxlength="64" autocomplete="new-password" placeholder="Leave blank to keep saved password">
+        </div>
+      </div>
+      <div class="actions">
+        <button id="syncTime" class="secondary" type="button">Use browser time as fallback</button>
+        <button id="save" type="button">Save changes</button>
+      </div>
+      <div id="message" role="status"></div>
+      <div id="network" class="network"></div>
+    </section>
+
+    <footer>
+      Source code, documentation and releases:
+      <a href="https://github.com/DrWize/DMDClock-Windows-x64"
+         target="_blank" rel="noopener noreferrer">DMDClock on GitHub</a>
+    </footer>
+  </main>
+
+  <script>
+    const $=id=>document.getElementById(id);
+    let loaded=false;
+    let refreshing=false;
+    const basicThemes={
+      0:"#ff700e",1:"#ff2010",3:"#ebebeb",16:"#ffb000",
+      17:"#39ff5a",18:"#3a7bff",19:"#25e6ff",20:"#ff3fcb"
+    };
+    const gradientThemes={
+      4:["#ff2bd6","#ffd166"],5:["#267bff","#5effff"],
+      6:["#2eff6a","#f5ff57"],7:["#8a4dff","#ff5ce1"],
+      8:["#34ffbe","#b470ff"],21:["#ff3218","#ffd23f"],
+      22:["#4f46e5","#ff35c8"],23:["#20cfff","#e8ffff"]
+    };
+    const rasterThemes={
+      9:["#352879","#6c5eb5","#70a4b2","#fff","#70a4b2","#6c5eb5","#352879"],
+      10:["#68372b","#9a6759","#6f4f25","#b8c76f","#fff","#b8c76f","#6f4f25","#9a6759","#68372b"],
+      11:["#433900","#68372b","#6f4f25","#9a6759","#b8c76f","#9a6759","#6f4f25","#68372b","#433900"],
+      12:["#444","#6c6c6c","#959595","#fff","#959595","#6c6c6c","#444"],
+      13:["#352879","#6c5eb5","#352879","#70a4b2","#352879","#fff","#352879","#70a4b2","#352879","#6c5eb5","#352879"],
+      14:["#352879","#70a4b2","#fff","#70a4b2","#352879","#6c5eb5","#352879","#70a4b2","#6c5eb5","#70a4b2","#352879"],
+      15:["#68372b","#6f4f25","#b8c76f","#9ad284","#588d43","#70a4b2","#6c5eb5","#352879","#6f3d86","#9a6759"],
+      24:["#352879","#6f3d86","#9a6759","#fff","#9a6759","#6f3d86","#352879"],
+      25:["#588d43","#9ad284","#b8c76f","#fff","#b8c76f","#9ad284","#588d43"],
+      26:["#433900","#6f4f25","#b8c76f","#fff","#b8c76f","#6f4f25","#433900"],
+      27:["#6f3d86","#9a6759","#6f3d86","#fff","#6f3d86","#9a6759","#6f3d86"],
+      28:["#352879","#6c5eb5","#70a4b2","#6c5eb5","#fff","#6c5eb5","#70a4b2","#352879"],
+      29:["#6f3d86","#68372b","#9a6759","#6f4f25","#b8c76f","#9a6759","#68372b"],
+      30:["#433900","#588d43","#9ad284","#b8c76f","#9ad284","#588d43","#433900"],
+      31:["#352879","#70a4b2","#959595","#fff","#959595","#70a4b2","#352879"],
+      32:["#68372b","#9a6759","#fff","#70a4b2","#fff","#9a6759","#6f3d86"]
+    };
+    const plasmaStops={
+      0:["#2d0c6e","#3250ff","#1eebff","#ff41dc"],
+      1:["#4a0010","#e02020","#ff7a00","#ffe060"],
+      2:["#001040","#0055d8","#00c8ff","#b8ffff"],
+      3:["#180050","#7a38ff","#20e8a0","#d8ff70"],
+      5:["#082a12","#16a34a","#a3ff12","#f5ff75"],
+      6:["#24005e","#7a38ff","#ff41dc","#41e9ff"],
+      7:["#3d0500","#d82900","#ff8a00","#fff0a0"],
+      8:["#001b3d","#0077b6","#48cae4","#e0fbff"]
+    };
+    function currentPlasmaStops(){
+      const preset=Number($("plasmaPalette").value);
+      return preset===4
+        ?[0,1,2,3].map(index=>$(`plasmaColor${index}`).value)
+        :(plasmaStops[preset]||plasmaStops[0]);
+    }
+    function bandGradient(colors){
+      const stops=colors.flatMap((color,index)=>[
+        `${color} ${(index/colors.length)*100}%`,
+        `${color} ${((index+1)/colors.length)*100}%`
+      ]);
+      return `linear-gradient(180deg,${stops.join(",")})`;
+    }
+    function applyPreviewTheme(preset){
+      const clock=$("clock");
+      if(preset===2){
+        const colors=currentPlasmaStops();
+        clock.style.color="transparent";
+        clock.style.backgroundImage=`linear-gradient(90deg,${colors.join(",")},${colors[0]})`;
+        clock.style.backgroundSize="300% 100%";
+        clock.style.backgroundClip="text";
+        clock.style.webkitBackgroundClip="text";
+        clock.style.textShadow="none";
+        clock.style.animation=`plasmaShift ${Number($("plasmaCycle").value||8000)/1000}s linear infinite`;
+      }else if(basicThemes[preset]){
+        clock.style.color=basicThemes[preset];
+        clock.style.backgroundImage="none";
+        clock.style.backgroundSize="";
+        clock.style.textShadow=`0 0 8px ${basicThemes[preset]}99`;
+        clock.style.animation="none";
+      }else{
+        clock.style.color="transparent";
+        clock.style.backgroundImage=gradientThemes[preset]
+          ?`linear-gradient(90deg,${gradientThemes[preset].join(",")})`
+          :bandGradient(rasterThemes[preset]||["#ff700e"]);
+        clock.style.backgroundClip="text";
+        clock.style.webkitBackgroundClip="text";
+        clock.style.textShadow="none";
+        clock.style.animation="none";
+      }
+    }
+    async function request(url,options){
+      const response=await fetch(url,options);
+      if(!response.ok)throw new Error((await response.text())||`HTTP ${response.status}`);
+      return response.headers.get("content-type")?.includes("json")?response.json():null;
+    }
+    function message(text,error=false){
+      $("message").textContent=text;
+      $("message").style.color=error?"#ff786d":"var(--amber)";
+    }
+    function render(state){
+      $("clock").textContent=state.playScene?state.scene:state.time;
+      $("deviceTime").textContent=`Device: ${state.deviceDateTime}`;
+      const drift=Math.round(state.epoch-(state.browserSampleEpoch??Date.now()/1000));
+      $("clockDrift").textContent=state.timeValid
+        ?(Math.abs(drift)<=3
+          ?`Source: ${state.timeSource} · browser comparison in sync (±3s transport tolerance)`
+          :`Source: ${state.timeSource} · browser difference ${drift>=0?"+":""}${drift}s`)
+        :"Waiting for browser or NTP time";
+      $("statusDot").classList.toggle("ok",state.timeValid);
+      $("statusText").textContent=state.ntpSynced
+        ?"NTP synchronized"
+        :(state.ntpSyncing?"NTP synchronizing…":(state.timeValid?"Clock running":"Time not set"));
+      $("brightnessValue").textContent=state.brightness;
+      if(document.activeElement!==$("glowStrength")){
+        $("glowStrength").value=state.glowStrength;
+        $("glowStrengthValue").textContent=state.glowStrength;
+      }
+      $("colorFamily").textContent=`${state.colorFamily} · ${state.color}`;
+      $("plasmaPaletteSummary").textContent=
+        `${state.plasmaPaletteName} · ${(state.plasmaCycleMilliseconds/1000).toFixed(2).replace(/\.?0+$/,"")}s`;
+      $("toggleInformation").textContent=state.showInformation?"Information on":"Information off";
+      $("toggleGlow").textContent=state.glowStrength>0?`Glow on · ${state.glowStrength}%`:"Glow off";
+      if(!loaded){
+        $("displayOn").checked=state.displayOn;
+        $("displayMode").value=state.playScene?"scene":"clock";
+        if(Array.isArray(state.scenes)){
+          $("sceneIndex").replaceChildren(...state.scenes.map(scene=>{
+            const option=document.createElement("option");
+            option.value=String(scene.index);
+            option.textContent=scene.game&&scene.title
+              ?`${scene.game} — ${scene.title}`
+              :scene.name;
+            option.title=[
+              scene.game,
+              scene.year||"",
+              scene.manufacturer
+            ].filter(Boolean).join(" · ");
+            return option;
+          }));
+        }
+        $("sceneIndex").value=String(state.sceneIndex);
+        $("brightness").value=state.brightness;
+        $("glowStrength").value=state.glowStrength;
+        $("colorPreset").value=String(state.colorPreset);
+        $("plasmaPalette").value=String(state.plasmaPalette);
+        $("plasmaCycle").value=String(state.plasmaCycleMilliseconds);
+        $("plasmaCycleValue").textContent=(state.plasmaCycleMilliseconds/1000).toFixed(2).replace(/\.?0+$/,"");
+        state.plasmaCustomColors.forEach((value,index)=>{$(`plasmaColor${index}`).value=value});
+        applyPreviewTheme(state.colorPreset);
+        $("use24Hour").checked=state.use24Hour;
+        $("showSeconds").checked=state.showSeconds;
+        $("showInformation").checked=state.showInformation;
+        $("automaticCycle").checked=state.automaticCycle;
+        $("randomPlayback").checked=state.randomPlayback;
+        $("animationsPerCycle").value=String(state.animationsPerCycle);
+        $("clockDisplaySeconds").value=String(state.clockDisplaySeconds);
+        $("animationGapSeconds").value=String(state.animationGapSeconds);
+        $("timezone").value=state.timezone;
+        $("wifiSsid").value=state.wifiSsid;
+        loaded=true;
+      }
+      const home=state.wifiConnected
+        ?`Home Wi-Fi connected at <code>http://${state.stationIp}/</code>.`
+        :state.wifiSsid?"Home Wi-Fi is reconnecting.":"Home Wi-Fi is not configured.";
+      const ntp=state.ntpSynced
+        ?`NTP synchronized via <code>${state.ntpServers}</code>.`
+        :(state.ntpSyncing?"NTP synchronization is in progress.":"NTP is waiting for a network connection.");
+      $("network").innerHTML=`Device network: <strong>${state.accessPointSsid}</strong> · <code>http://${state.accessPointIp}/</code><br>${home}<br>${ntp}<br>Touch controller: ${state.touchAvailable?"ready":"not detected / QEMU"}.`;
+      if(!state.timeValid)syncTime(true);
+    }
+    async function refresh(){
+      if(refreshing)return;
+      refreshing=true;
+      const browserSampleEpoch=Date.now()/1000;
+      try{
+        const state=await request("/api/state");
+        state.browserSampleEpoch=browserSampleEpoch;
+        render(state);
+      }
+      catch(error){$("statusText").textContent="Remote unavailable";$("statusDot").classList.remove("ok")}
+      finally{refreshing=false}
+    }
+    async function syncTime(silent=false){
+      try{
+        await request("/api/time",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({epoch:Math.floor(Date.now()/1000)})});
+        if(!silent)message("Clock synchronized from this device.");
+        setTimeout(refresh,250);
+      }catch(error){if(!silent)message(error.message,true)}
+    }
+    async function runAction(action){
+      try{
+        await request("/api/action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action})});
+        message(action==="syncNtp"?"NTP synchronization requested.":"Control applied.");
+        loaded=false;
+        setTimeout(refresh,150);
+      }catch(error){message(error.message,true)}
+    }
+    $("brightness").addEventListener("input",()=>{$("brightnessValue").textContent=$("brightness").value});
+    $("glowStrength").addEventListener("input",()=>{$("glowStrengthValue").textContent=$("glowStrength").value});
+    $("colorPreset").addEventListener("change",()=>applyPreviewTheme(Number($("colorPreset").value)));
+    $("plasmaPalette").addEventListener("change",()=>applyPreviewTheme(Number($("colorPreset").value)));
+    $("plasmaCycle").addEventListener("input",()=>{
+      $("plasmaCycleValue").textContent=(Number($("plasmaCycle").value)/1000).toFixed(2).replace(/\.?0+$/,"");
+      applyPreviewTheme(Number($("colorPreset").value));
+    });
+    [0,1,2,3].forEach(index=>$(`plasmaColor${index}`).addEventListener("input",()=>applyPreviewTheme(Number($("colorPreset").value))));
+    $("syncTime").addEventListener("click",()=>syncTime(false));
+    document.querySelectorAll("[data-action]").forEach(button=>{
+      button.addEventListener("click",()=>runAction(button.dataset.action));
+    });
+    $("save").addEventListener("click",async()=>{
+      const body={
+        displayOn:$("displayOn").checked,
+        playScene:$("displayMode").value==="scene",
+        sceneIndex:Number($("sceneIndex").value),
+        brightness:Number($("brightness").value),
+        glowStrength:Number($("glowStrength").value),
+        colorPreset:Number($("colorPreset").value),
+        plasmaPalette:Number($("plasmaPalette").value),
+        plasmaCycleMilliseconds:Number($("plasmaCycle").value),
+        plasmaCustomColors:[0,1,2,3].map(index=>$(`plasmaColor${index}`).value),
+        use24Hour:$("use24Hour").checked,
+        showSeconds:$("showSeconds").checked,
+        showInformation:$("showInformation").checked,
+        automaticCycle:$("automaticCycle").checked,
+        randomPlayback:$("randomPlayback").checked,
+        animationsPerCycle:Number($("animationsPerCycle").value),
+        clockDisplaySeconds:Number($("clockDisplaySeconds").value),
+        animationGapSeconds:Number($("animationGapSeconds").value),
+        timezone:$("timezone").value,
+        wifiSsid:$("wifiSsid").value.trim()
+      };
+      if($("wifiPassword").value)body.wifiPassword=$("wifiPassword").value;
+      try{
+        const result=await request("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+        $("wifiPassword").value="";
+        message(result.wifiReconnecting?"Saved. Home Wi-Fi is reconnecting…":"Changes saved.");
+        setTimeout(refresh,500);
+      }catch(error){message(error.message,true)}
+    });
+    refresh();
+    setInterval(refresh,1000);
+  </script>
+</body>
+</html>
