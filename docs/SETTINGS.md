@@ -83,18 +83,27 @@ before continuing with the next animation in the same cycle.
 
 ## Appearance
 
-### Color theme
+### Colors
 
 Color themes change how the same four-bit DMD frame is displayed. They do not alter
-the SCN file.
+the SCN file. The Colors menu summarizes the active family and preset, and every
+preset has a color swatch:
 
-- **Classic orange**, **Red**, **Plasma**, and **Monochrome** are simple themes.
-- **Neon sunset**, **Cyber ocean**, **Toxic arcade**, **Vaporwave**, and **Aurora**
-  use horizontal color gradients.
-- The C64 themes use fixed Commodore 64-inspired vertical raster colors.
+- **Basic colors** contains eight solid-dot presets plus a custom color.
+- **Plasma** contains eight animated four-color palettes, a custom palette, and
+  speed controls.
+- **Gradient themes** contains eight horizontal two-color gradients.
+- **Raster themes** contains sixteen fixed, C64-inspired vertical raster patterns.
 
-Selecting a theme restores that theme's foreground treatment. A separately selected
-background color is retained.
+The Background submenu makes background behavior explicit:
+
+- **Theme default** follows the recommended background for each selected preset.
+- **Black** keeps the display background black when presets change.
+- **Custom** keeps the selected custom background when presets change.
+
+**Reset custom colors** clears the active custom solid color, returns the background
+to Theme default, and changes an active custom Plasma palette to Neon pulse. The
+saved custom Plasma color stops are retained for later reuse.
 
 ### Brightness
 
@@ -106,15 +115,17 @@ change the stored four-bit frame values.
 Adds or removes the soft light around each illuminated dot. Individual dots remain
 separated in either mode.
 
-### Foreground color
+### Custom basic color
 
-Opens an RGB/hex color picker for a custom dot color. A custom foreground replaces
-the current theme foreground until another theme is selected.
+Choose **Colors > Basic colors > Custom** to open the RGB/hex picker. The custom
+choice is shown as a Basic color with its hex value, so the selected family always
+matches the rendered display.
 
-### Background color
+### Custom background
 
-Opens an RGB/hex color picker for the display background. Use a dark background
-that remains visibly different from the lit dots.
+Choose **Colors > Background > Custom** to open the RGB/hex picker. The custom
+background is retained while switching between Basic, Plasma, Gradient, and Raster
+presets.
 
 ### Show title bar
 

@@ -54,11 +54,19 @@ public sealed class DmdDisplay : Control
             DmdColorPreset.Red => Solid(Color.FromRgb(255, 32, 16)),
             DmdColorPreset.Plasma => PlasmaPalette(plasmaPalette, plasmaCustomColors),
             DmdColorPreset.Monochrome => Solid(Color.FromRgb(235, 235, 235)),
+            DmdColorPreset.Amber => Solid(Color.FromRgb(255, 176, 0)),
+            DmdColorPreset.Green => Solid(Color.FromRgb(57, 255, 90)),
+            DmdColorPreset.Blue => Solid(Color.FromRgb(58, 123, 255)),
+            DmdColorPreset.Cyan => Solid(Color.FromRgb(37, 230, 255)),
+            DmdColorPreset.Magenta => Solid(Color.FromRgb(255, 63, 203)),
             DmdColorPreset.NeonSunset => Gradient(Color.FromRgb(255, 43, 214), Color.FromRgb(255, 209, 102)),
             DmdColorPreset.CyberOcean => Gradient(Color.FromRgb(38, 123, 255), Color.FromRgb(94, 255, 255)),
             DmdColorPreset.ToxicArcade => Gradient(Color.FromRgb(46, 255, 106), Color.FromRgb(245, 255, 87)),
             DmdColorPreset.Vaporwave => Gradient(Color.FromRgb(138, 77, 255), Color.FromRgb(255, 92, 225)),
             DmdColorPreset.Aurora => Gradient(Color.FromRgb(52, 255, 190), Color.FromRgb(180, 112, 255)),
+            DmdColorPreset.Firestorm => Gradient(Color.FromRgb(255, 50, 24), Color.FromRgb(255, 210, 63)),
+            DmdColorPreset.ElectricViolet => Gradient(Color.FromRgb(79, 70, 229), Color.FromRgb(255, 53, 200)),
+            DmdColorPreset.ArcticGlow => Gradient(Color.FromRgb(32, 207, 255), Color.FromRgb(232, 255, 255)),
             DmdColorPreset.C64BlueRound => Raster(C64Blue, C64LightBlue, C64Cyan, C64White, C64Cyan, C64LightBlue, C64Blue),
             DmdColorPreset.C64RedRound => Raster(C64Red, C64LightRed, C64Orange, C64Yellow, C64White, C64Yellow, C64Orange, C64LightRed, C64Red),
             DmdColorPreset.C64Earthtone => Raster(C64Brown, C64Red, C64Orange, C64LightRed, C64Yellow, C64LightRed, C64Orange, C64Red, C64Brown),
@@ -66,6 +74,15 @@ public sealed class DmdDisplay : Control
             DmdColorPreset.C64InterlacedBlue => Raster(C64Blue, C64LightBlue, C64Blue, C64Cyan, C64Blue, C64White, C64Blue, C64Cyan, C64Blue, C64LightBlue, C64Blue),
             DmdColorPreset.C64ExtrudedCyan => Raster(C64Blue, C64Cyan, C64White, C64Cyan, C64Blue, C64LightBlue, C64Blue, C64Cyan, C64LightBlue, C64Cyan, C64Blue),
             DmdColorPreset.C64Rainbow => Raster(C64Red, C64Orange, C64Yellow, C64LightGreen, C64Green, C64Cyan, C64LightBlue, C64Blue, C64Purple, C64LightRed),
+            DmdColorPreset.C64PurpleHalo => Raster(C64Blue, C64Purple, C64LightRed, C64White, C64LightRed, C64Purple, C64Blue),
+            DmdColorPreset.RasterGreenHalo => Raster(C64Green, C64LightGreen, C64Yellow, C64White, C64Yellow, C64LightGreen, C64Green),
+            DmdColorPreset.RasterAmberHalo => Raster(C64Brown, C64Orange, C64Yellow, C64White, C64Yellow, C64Orange, C64Brown),
+            DmdColorPreset.RasterPurplePulse => Raster(C64Purple, C64LightRed, C64Purple, C64White, C64Purple, C64LightRed, C64Purple),
+            DmdColorPreset.RasterOceanDepth => Raster(C64Blue, C64LightBlue, C64Cyan, C64LightBlue, C64White, C64LightBlue, C64Cyan, C64Blue),
+            DmdColorPreset.RasterSunsetBands => Raster(C64Purple, C64Red, C64LightRed, C64Orange, C64Yellow, C64LightRed, C64Red),
+            DmdColorPreset.RasterForestLayers => Raster(C64Brown, C64Green, C64LightGreen, C64Yellow, C64LightGreen, C64Green, C64Brown),
+            DmdColorPreset.RasterArcticBands => Raster(C64Blue, C64Cyan, C64LightGray, C64White, C64LightGray, C64Cyan, C64Blue),
+            DmdColorPreset.RasterCandyStripe => Raster(C64Red, C64LightRed, C64White, C64Cyan, C64White, C64LightRed, C64Purple),
             _ => Solid(Color.FromRgb(255, 112, 14))
         };
         _plasmaEnabled = preset == DmdColorPreset.Plasma &&
@@ -226,7 +243,11 @@ public sealed class DmdDisplay : Control
     private static bool IsC64RasterPreset(DmdColorPreset preset) => preset is
         DmdColorPreset.C64BlueRound or DmdColorPreset.C64RedRound or DmdColorPreset.C64Earthtone or
         DmdColorPreset.C64Metal or DmdColorPreset.C64InterlacedBlue or DmdColorPreset.C64ExtrudedCyan or
-        DmdColorPreset.C64Rainbow;
+        DmdColorPreset.C64Rainbow or DmdColorPreset.C64PurpleHalo or
+        DmdColorPreset.RasterGreenHalo or DmdColorPreset.RasterAmberHalo or
+        DmdColorPreset.RasterPurplePulse or DmdColorPreset.RasterOceanDepth or
+        DmdColorPreset.RasterSunsetBands or DmdColorPreset.RasterForestLayers or
+        DmdColorPreset.RasterArcticBands or DmdColorPreset.RasterCandyStripe;
 
     // Colodore-style approximations of the fixed Commodore 64 palette.
     private static readonly Color C64White = Color.FromRgb(0xFF, 0xFF, 0xFF);

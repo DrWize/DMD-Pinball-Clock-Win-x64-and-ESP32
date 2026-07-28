@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -91,6 +92,7 @@ public partial class MainWindow : Window
     {
         _launchOptions = launchOptions;
         InitializeComponent();
+        ConfigureColorSwatches();
         ConfigureLaunchMode();
         LogStartup();
         _displayTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
@@ -939,28 +941,50 @@ public partial class MainWindow : Window
         RandomMenuItem.Header = Check(_settings.RandomPlayback, L("random"));
         AutomaticCycleMenuItem.Header = Check(_settings.AutomaticCycle, L("automatic"));
         var preset = _settings.ColorPreset ?? DmdColorPreset.Orange;
-        AppearanceOrangeMenuItem.Header = Check(preset == DmdColorPreset.Orange, L("orange"));
-        AppearanceRedMenuItem.Header = Check(preset == DmdColorPreset.Red, L("red"));
-        AppearancePlasmaMenuItem.Header = Check(preset == DmdColorPreset.Plasma, L("plasma"));
-        AppearanceMonochromeMenuItem.Header = Check(preset == DmdColorPreset.Monochrome, L("monochrome"));
+        var customSolid = !string.IsNullOrWhiteSpace(_settings.ForegroundColor);
+        AppearanceOrangeMenuItem.Header = Check(!customSolid && preset == DmdColorPreset.Orange, L("orange"));
+        AppearanceAmberMenuItem.Header = Check(!customSolid && preset == DmdColorPreset.Amber, L("goldenAmber"));
+        AppearanceRedMenuItem.Header = Check(!customSolid && preset == DmdColorPreset.Red, L("pinballRed"));
+        AppearanceGreenMenuItem.Header = Check(!customSolid && preset == DmdColorPreset.Green, L("arcadeGreen"));
+        AppearanceBlueMenuItem.Header = Check(!customSolid && preset == DmdColorPreset.Blue, L("electricBlue"));
+        AppearanceCyanMenuItem.Header = Check(!customSolid && preset == DmdColorPreset.Cyan, L("iceCyan"));
+        AppearanceMagentaMenuItem.Header = Check(!customSolid && preset == DmdColorPreset.Magenta, L("hotMagenta"));
+        AppearanceMonochromeMenuItem.Header = Check(!customSolid && preset == DmdColorPreset.Monochrome, L("warmWhite"));
+        BasicCustomMenuItem.Header = Check(customSolid, $"{L("custom")}: {_settings.ForegroundColor ?? string.Empty}");
         AppearanceNeonSunsetMenuItem.Header = Check(preset == DmdColorPreset.NeonSunset, L("neonSunset"));
         AppearanceCyberOceanMenuItem.Header = Check(preset == DmdColorPreset.CyberOcean, L("cyberOcean"));
         AppearanceToxicArcadeMenuItem.Header = Check(preset == DmdColorPreset.ToxicArcade, L("toxicArcade"));
         AppearanceVaporwaveMenuItem.Header = Check(preset == DmdColorPreset.Vaporwave, L("vaporwave"));
         AppearanceAuroraMenuItem.Header = Check(preset == DmdColorPreset.Aurora, L("aurora"));
-        AppearanceC64BlueRoundMenuItem.Header = Check(preset == DmdColorPreset.C64BlueRound, L("c64BlueRound"));
-        AppearanceC64RedRoundMenuItem.Header = Check(preset == DmdColorPreset.C64RedRound, L("c64RedRound"));
-        AppearanceC64EarthtoneMenuItem.Header = Check(preset == DmdColorPreset.C64Earthtone, L("c64Earthtone"));
-        AppearanceC64MetalMenuItem.Header = Check(preset == DmdColorPreset.C64Metal, L("c64Metal"));
-        AppearanceC64InterlacedBlueMenuItem.Header = Check(preset == DmdColorPreset.C64InterlacedBlue, L("c64InterlacedBlue"));
-        AppearanceC64ExtrudedCyanMenuItem.Header = Check(preset == DmdColorPreset.C64ExtrudedCyan, L("c64ExtrudedCyan"));
-        AppearanceC64RainbowMenuItem.Header = Check(preset == DmdColorPreset.C64Rainbow, L("c64Rainbow"));
+        AppearanceFirestormMenuItem.Header = Check(preset == DmdColorPreset.Firestorm, L("firestorm"));
+        AppearanceElectricVioletMenuItem.Header = Check(preset == DmdColorPreset.ElectricViolet, L("electricViolet"));
+        AppearanceArcticGlowMenuItem.Header = Check(preset == DmdColorPreset.ArcticGlow, L("arcticGlow"));
+        AppearanceC64BlueRoundMenuItem.Header = Check(preset == DmdColorPreset.C64BlueRound, L("blueHalo"));
+        AppearanceC64RedRoundMenuItem.Header = Check(preset == DmdColorPreset.C64RedRound, L("redHalo"));
+        AppearanceC64EarthtoneMenuItem.Header = Check(preset == DmdColorPreset.C64Earthtone, L("earthtone"));
+        AppearanceC64MetalMenuItem.Header = Check(preset == DmdColorPreset.C64Metal, L("metal"));
+        AppearanceC64InterlacedBlueMenuItem.Header = Check(preset == DmdColorPreset.C64InterlacedBlue, L("interlacedBlue"));
+        AppearanceC64ExtrudedCyanMenuItem.Header = Check(preset == DmdColorPreset.C64ExtrudedCyan, L("extrudedCyan"));
+        AppearanceC64RainbowMenuItem.Header = Check(preset == DmdColorPreset.C64Rainbow, L("rainbow"));
+        AppearanceC64PurpleHaloMenuItem.Header = Check(preset == DmdColorPreset.C64PurpleHalo, L("purpleHalo"));
+        AppearanceRasterGreenHaloMenuItem.Header = Check(preset == DmdColorPreset.RasterGreenHalo, L("greenHalo"));
+        AppearanceRasterAmberHaloMenuItem.Header = Check(preset == DmdColorPreset.RasterAmberHalo, L("amberHalo"));
+        AppearanceRasterPurplePulseMenuItem.Header = Check(preset == DmdColorPreset.RasterPurplePulse, L("purplePulse"));
+        AppearanceRasterOceanDepthMenuItem.Header = Check(preset == DmdColorPreset.RasterOceanDepth, L("oceanDepth"));
+        AppearanceRasterSunsetBandsMenuItem.Header = Check(preset == DmdColorPreset.RasterSunsetBands, L("sunsetBands"));
+        AppearanceRasterForestLayersMenuItem.Header = Check(preset == DmdColorPreset.RasterForestLayers, L("forestLayers"));
+        AppearanceRasterArcticBandsMenuItem.Header = Check(preset == DmdColorPreset.RasterArcticBands, L("arcticBands"));
+        AppearanceRasterCandyStripeMenuItem.Header = Check(preset == DmdColorPreset.RasterCandyStripe, L("candyStripe"));
         var plasmaPalette = _settings.PlasmaPalette ?? PlasmaPalettePreset.Neon;
-        PlasmaNeonMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Neon, "Neon");
-        PlasmaLavaMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Lava, "Lava");
-        PlasmaOceanMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Ocean, "Ocean");
-        PlasmaAuroraMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Aurora, "Aurora");
-        PlasmaCustomMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Custom, "Custom…");
+        PlasmaNeonMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Neon, L("neonPulse"));
+        PlasmaLavaMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Lava, L("lavaFlow"));
+        PlasmaOceanMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Ocean, L("deepOcean"));
+        PlasmaAuroraMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Aurora, L("auroraDrift"));
+        PlasmaToxicMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Toxic, L("toxicSlime"));
+        PlasmaVaporMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Vapor, L("vaporDream"));
+        PlasmaSolarMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Solar, L("solarFlare"));
+        PlasmaArcticMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Arctic, L("arcticIce"));
+        PlasmaCustomMenuItem.Header = Check(plasmaPalette == PlasmaPalettePreset.Custom, L("customPalette"));
         var plasmaCycle = _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds;
         PlasmaSlowMenuItem.Header = Check(plasmaCycle == 16_000, "Slow — 16 seconds");
         PlasmaNormalMenuItem.Header = Check(plasmaCycle == 8_000, "Normal — 8 seconds");
@@ -970,14 +994,31 @@ public partial class MainWindow : Window
         PlasmaCustomSpeedMenuItem.Header = Check(
             !isPresetSpeed,
             $"Custom… ({plasmaCycle / 1000d:0.##} seconds)");
+        var family = ColorFamilyName(preset, customSolid);
+        var choice = customSolid ? $"{L("custom")} {_settings.ForegroundColor}" : PresetName(preset);
+        ColorsMenuItem.Header = $"{L("colors")}: {family} · {choice}";
+        BasicColorsMenuItem.Header = Check(customSolid || IsBasicPreset(preset), L("basicColors"));
+        PlasmaMenuItem.Header = Check(!customSolid && preset == DmdColorPreset.Plasma, L("plasma"));
+        PlasmaPaletteMenuItem.Header = $"{L("palette")}: {PlasmaPaletteName(plasmaPalette)}";
+        PlasmaSpeedMenuItem.Header = $"{L("speed")}: {PlasmaSpeedName(plasmaCycle)}";
+        GradientThemesMenuItem.Header = Check(!customSolid && IsGradientPreset(preset), L("gradientThemes"));
+        RasterThemesMenuItem.Header = Check(!customSolid && IsRasterPreset(preset), L("rasterThemes"));
+        var backgroundMode = _settings.BackgroundMode ?? DmdBackgroundMode.Theme;
+        BackgroundMenuItem.Header = $"{L("background")}: {BackgroundModeName(backgroundMode)}";
+        BackgroundThemeMenuItem.Header = Check(backgroundMode == DmdBackgroundMode.Theme, L("themeDefault"));
+        BackgroundBlackMenuItem.Header = Check(backgroundMode == DmdBackgroundMode.Black, L("black"));
+        BackgroundCustomMenuItem.Header = Check(
+            backgroundMode == DmdBackgroundMode.Custom,
+            $"{L("custom")}: {_settings.BackgroundColor ?? "#000000"}");
+        ResetCustomColorsMenuItem.IsEnabled =
+            customSolid || backgroundMode == DmdBackgroundMode.Custom ||
+            (preset == DmdColorPreset.Plasma && plasmaPalette == PlasmaPalettePreset.Custom);
         var brightness = _settings.BrightnessPercent ?? 100;
         Brightness25MenuItem.Header = Check(brightness == 25, "25 %");
         Brightness50MenuItem.Header = Check(brightness == 50, "50 %");
         Brightness75MenuItem.Header = Check(brightness == 75, "75 %");
         Brightness100MenuItem.Header = Check(brightness == 100, "100 %");
         GlowMenuItem.Header = Check(_settings.GlowEnabled ?? true, L("glow"));
-        ForegroundColorMenuItem.Header = $"{L("foregroundColor")}: {_settings.ForegroundColor ?? L("colorThemeValue")}";
-        BackgroundColorMenuItem.Header = $"{L("backgroundColor")}: {_settings.BackgroundColor ?? "#000000"}";
         AnimationInfoMenuItem.Header = Check(_settings.ShowAnimationInfo ?? true, L("animationInfo"));
         EnglishLanguageMenuItem.Header = Check((_settings.Language ?? "en") == "en", L("english"));
         SwedishLanguageMenuItem.Header = Check(_settings.Language == "sv", L("swedish"));
@@ -1011,7 +1052,7 @@ public partial class MainWindow : Window
         AnimationGap10MenuItem.Header = Check(_settings.AnimationGapSeconds == 10, L("seconds10"));
         AnimationGap30MenuItem.Header = Check(_settings.AnimationGapSeconds == 30, L("seconds30"));
         Display.SetAppearance(preset, brightness, _settings.GlowEnabled ?? true,
-            _settings.ForegroundColor, _settings.BackgroundColor,
+            _settings.ForegroundColor, ResolveBackgroundColor(preset),
             _settings.PlasmaPalette ?? PlasmaPalettePreset.Neon,
             _settings.PlasmaCustomColors,
             _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds);
@@ -1203,18 +1244,7 @@ public partial class MainWindow : Window
         SetStatus($"Färgtema: {PresetName(preset)}");
     }
 
-    private void SetMultiColorTheme(DmdColorPreset preset, string backgroundColor)
-    {
-        _settings = (_settings with
-        {
-            ColorPreset = preset,
-            ForegroundColor = null,
-            BackgroundColor = backgroundColor
-        }).Normalize();
-        ApplySettingsToMenu();
-        SaveSettings();
-        SetStatus($"{L("colorTheme")}: {PresetName(preset)}");
-    }
+    private void SetMultiColorTheme(DmdColorPreset preset) => SetColorPreset(preset);
 
     private void SetPlasmaPalette(PlasmaPalettePreset palette)
     {
@@ -1275,15 +1305,19 @@ public partial class MainWindow : Window
     {
         var initial = foreground
             ? ParseDisplayColor(_settings.ForegroundColor, PresetColor(_settings.ColorPreset ?? DmdColorPreset.Orange))
-            : ParseDisplayColor(_settings.BackgroundColor, Colors.Black);
+            : ParseDisplayColor(ResolveBackgroundColor(_settings.ColorPreset ?? DmdColorPreset.Orange), Colors.Black);
         var dialog = new ColorPickerWindow(
             foreground ? L("foregroundColor") : L("backgroundColor"), initial, L("ok"), L("cancel"));
         var selected = await dialog.ShowDialog<Color?>(this);
         if (selected is not { } color) return;
         var value = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
         _settings = foreground
-            ? (_settings with { ForegroundColor = value }).Normalize()
-            : (_settings with { BackgroundColor = value }).Normalize();
+            ? (_settings with { ColorPreset = DmdColorPreset.Orange, ForegroundColor = value }).Normalize()
+            : (_settings with
+            {
+                BackgroundColor = value,
+                BackgroundMode = DmdBackgroundMode.Custom
+            }).Normalize();
         ApplySettingsToMenu();
         SaveSettings();
         SetStatus($"{(foreground ? L("foregroundColor") : L("backgroundColor"))}: {value}");
@@ -1300,11 +1334,19 @@ public partial class MainWindow : Window
         DmdColorPreset.Red => Color.FromRgb(255, 32, 16),
         DmdColorPreset.Plasma => Color.FromRgb(120, 100, 255),
         DmdColorPreset.Monochrome => Color.FromRgb(235, 235, 235),
+        DmdColorPreset.Amber => Color.FromRgb(255, 176, 0),
+        DmdColorPreset.Green => Color.FromRgb(57, 255, 90),
+        DmdColorPreset.Blue => Color.FromRgb(58, 123, 255),
+        DmdColorPreset.Cyan => Color.FromRgb(37, 230, 255),
+        DmdColorPreset.Magenta => Color.FromRgb(255, 63, 203),
         DmdColorPreset.NeonSunset => Color.FromRgb(255, 209, 102),
         DmdColorPreset.CyberOcean => Color.FromRgb(94, 255, 255),
         DmdColorPreset.ToxicArcade => Color.FromRgb(245, 255, 87),
         DmdColorPreset.Vaporwave => Color.FromRgb(255, 92, 225),
         DmdColorPreset.Aurora => Color.FromRgb(180, 112, 255),
+        DmdColorPreset.Firestorm => Color.FromRgb(255, 210, 63),
+        DmdColorPreset.ElectricViolet => Color.FromRgb(255, 53, 200),
+        DmdColorPreset.ArcticGlow => Color.FromRgb(232, 255, 255),
         DmdColorPreset.C64BlueRound => Color.FromRgb(0x6C, 0x5E, 0xB5),
         DmdColorPreset.C64RedRound => Color.FromRgb(0x9A, 0x67, 0x59),
         DmdColorPreset.C64Earthtone => Color.FromRgb(0xB8, 0xC7, 0x6F),
@@ -1312,6 +1354,15 @@ public partial class MainWindow : Window
         DmdColorPreset.C64InterlacedBlue => Color.FromRgb(0x70, 0xA4, 0xB2),
         DmdColorPreset.C64ExtrudedCyan => Color.FromRgb(0x70, 0xA4, 0xB2),
         DmdColorPreset.C64Rainbow => Color.FromRgb(0xB8, 0xC7, 0x6F),
+        DmdColorPreset.C64PurpleHalo => Color.FromRgb(0x6F, 0x3D, 0x86),
+        DmdColorPreset.RasterGreenHalo => Color.FromRgb(0x9A, 0xD2, 0x84),
+        DmdColorPreset.RasterAmberHalo => Color.FromRgb(0xB8, 0xC7, 0x6F),
+        DmdColorPreset.RasterPurplePulse => Color.FromRgb(0x9A, 0x67, 0x59),
+        DmdColorPreset.RasterOceanDepth => Color.FromRgb(0x70, 0xA4, 0xB2),
+        DmdColorPreset.RasterSunsetBands => Color.FromRgb(0x6F, 0x4F, 0x25),
+        DmdColorPreset.RasterForestLayers => Color.FromRgb(0x58, 0x8D, 0x43),
+        DmdColorPreset.RasterArcticBands => Color.FromRgb(0x95, 0x95, 0x95),
+        DmdColorPreset.RasterCandyStripe => Color.FromRgb(0x9A, 0x67, 0x59),
         _ => Color.FromRgb(255, 112, 14)
     };
 
@@ -1343,23 +1394,192 @@ public partial class MainWindow : Window
 
     private static string PresetName(DmdColorPreset preset) => preset switch
     {
-        DmdColorPreset.Red => "röd",
-        DmdColorPreset.Plasma => "plasma",
-        DmdColorPreset.Monochrome => "monokrom",
+        DmdColorPreset.Red => L("pinballRed"),
+        DmdColorPreset.Plasma => L("plasma"),
+        DmdColorPreset.Monochrome => L("warmWhite"),
+        DmdColorPreset.Amber => L("goldenAmber"),
+        DmdColorPreset.Green => L("arcadeGreen"),
+        DmdColorPreset.Blue => L("electricBlue"),
+        DmdColorPreset.Cyan => L("iceCyan"),
+        DmdColorPreset.Magenta => L("hotMagenta"),
         DmdColorPreset.NeonSunset => L("neonSunset"),
         DmdColorPreset.CyberOcean => L("cyberOcean"),
         DmdColorPreset.ToxicArcade => L("toxicArcade"),
         DmdColorPreset.Vaporwave => L("vaporwave"),
         DmdColorPreset.Aurora => L("aurora"),
-        DmdColorPreset.C64BlueRound => L("c64BlueRound"),
-        DmdColorPreset.C64RedRound => L("c64RedRound"),
-        DmdColorPreset.C64Earthtone => L("c64Earthtone"),
-        DmdColorPreset.C64Metal => L("c64Metal"),
-        DmdColorPreset.C64InterlacedBlue => L("c64InterlacedBlue"),
-        DmdColorPreset.C64ExtrudedCyan => L("c64ExtrudedCyan"),
-        DmdColorPreset.C64Rainbow => L("c64Rainbow"),
-        _ => "klassisk orange"
+        DmdColorPreset.Firestorm => L("firestorm"),
+        DmdColorPreset.ElectricViolet => L("electricViolet"),
+        DmdColorPreset.ArcticGlow => L("arcticGlow"),
+        DmdColorPreset.C64BlueRound => L("blueHalo"),
+        DmdColorPreset.C64RedRound => L("redHalo"),
+        DmdColorPreset.C64Earthtone => L("earthtone"),
+        DmdColorPreset.C64Metal => L("metal"),
+        DmdColorPreset.C64InterlacedBlue => L("interlacedBlue"),
+        DmdColorPreset.C64ExtrudedCyan => L("extrudedCyan"),
+        DmdColorPreset.C64Rainbow => L("rainbow"),
+        DmdColorPreset.C64PurpleHalo => L("purpleHalo"),
+        DmdColorPreset.RasterGreenHalo => L("greenHalo"),
+        DmdColorPreset.RasterAmberHalo => L("amberHalo"),
+        DmdColorPreset.RasterPurplePulse => L("purplePulse"),
+        DmdColorPreset.RasterOceanDepth => L("oceanDepth"),
+        DmdColorPreset.RasterSunsetBands => L("sunsetBands"),
+        DmdColorPreset.RasterForestLayers => L("forestLayers"),
+        DmdColorPreset.RasterArcticBands => L("arcticBands"),
+        DmdColorPreset.RasterCandyStripe => L("candyStripe"),
+        _ => L("orange")
     };
+
+    private string ResolveBackgroundColor(DmdColorPreset preset) =>
+        DmdThemeBackgroundDefinition.Resolve(_settings with { ColorPreset = preset });
+
+    private static bool IsBasicPreset(DmdColorPreset preset) => preset is
+        DmdColorPreset.Orange or DmdColorPreset.Amber or DmdColorPreset.Red or
+        DmdColorPreset.Green or DmdColorPreset.Blue or DmdColorPreset.Cyan or
+        DmdColorPreset.Magenta or DmdColorPreset.Monochrome;
+
+    private static bool IsGradientPreset(DmdColorPreset preset) => preset is
+        DmdColorPreset.NeonSunset or DmdColorPreset.CyberOcean or DmdColorPreset.ToxicArcade or
+        DmdColorPreset.Vaporwave or DmdColorPreset.Aurora or DmdColorPreset.Firestorm or
+        DmdColorPreset.ElectricViolet or DmdColorPreset.ArcticGlow;
+
+    private static bool IsRasterPreset(DmdColorPreset preset) => preset is
+        DmdColorPreset.C64BlueRound or DmdColorPreset.C64RedRound or DmdColorPreset.C64Earthtone or
+        DmdColorPreset.C64Metal or DmdColorPreset.C64InterlacedBlue or DmdColorPreset.C64ExtrudedCyan or
+        DmdColorPreset.C64Rainbow or DmdColorPreset.C64PurpleHalo or
+        DmdColorPreset.RasterGreenHalo or DmdColorPreset.RasterAmberHalo or
+        DmdColorPreset.RasterPurplePulse or DmdColorPreset.RasterOceanDepth or
+        DmdColorPreset.RasterSunsetBands or DmdColorPreset.RasterForestLayers or
+        DmdColorPreset.RasterArcticBands or DmdColorPreset.RasterCandyStripe;
+
+    private static string ColorFamilyName(DmdColorPreset preset, bool customSolid) =>
+        customSolid || IsBasicPreset(preset) ? L("basic") :
+        preset == DmdColorPreset.Plasma ? L("plasma") :
+        IsGradientPreset(preset) ? L("gradient") : L("raster");
+
+    private static string PlasmaPaletteName(PlasmaPalettePreset palette) => palette switch
+    {
+        PlasmaPalettePreset.Lava => L("lavaFlow"),
+        PlasmaPalettePreset.Ocean => L("deepOcean"),
+        PlasmaPalettePreset.Aurora => L("auroraDrift"),
+        PlasmaPalettePreset.Toxic => L("toxicSlime"),
+        PlasmaPalettePreset.Vapor => L("vaporDream"),
+        PlasmaPalettePreset.Solar => L("solarFlare"),
+        PlasmaPalettePreset.Arctic => L("arcticIce"),
+        PlasmaPalettePreset.Custom => L("custom"),
+        _ => L("neonPulse")
+    };
+
+    private static string PlasmaSpeedName(int cycleMilliseconds) => cycleMilliseconds switch
+    {
+        16_000 => L("slow"),
+        8_000 => L("normal"),
+        4_000 => L("fast"),
+        2_000 => L("veryFast"),
+        _ => $"{cycleMilliseconds / 1000d:0.##} s"
+    };
+
+    private static string BackgroundModeName(DmdBackgroundMode mode) => mode switch
+    {
+        DmdBackgroundMode.Black => L("black"),
+        DmdBackgroundMode.Custom => L("custom"),
+        _ => L("themeDefault")
+    };
+
+    private void SetBackgroundMode(DmdBackgroundMode mode)
+    {
+        _settings = (_settings with { BackgroundMode = mode }).Normalize();
+        ApplySettingsToMenu();
+        SaveSettings();
+        SetStatus($"{L("background")}: {BackgroundModeName(mode)}");
+    }
+
+    private void ResetCustomColors()
+    {
+        var palette = _settings.ColorPreset == DmdColorPreset.Plasma &&
+                      _settings.PlasmaPalette == PlasmaPalettePreset.Custom
+            ? PlasmaPalettePreset.Neon
+            : _settings.PlasmaPalette;
+        _settings = (_settings with
+        {
+            ForegroundColor = null,
+            BackgroundMode = DmdBackgroundMode.Theme,
+            PlasmaPalette = palette
+        }).Normalize();
+        ApplySettingsToMenu();
+        SaveSettings();
+        SetStatus(L("customColorsReset"));
+    }
+
+    private void ConfigureColorSwatches()
+    {
+        SetColorSwatch(AppearanceOrangeMenuItem, false, "#FF700E");
+        SetColorSwatch(AppearanceAmberMenuItem, false, "#FFB000");
+        SetColorSwatch(AppearanceRedMenuItem, false, "#FF2010");
+        SetColorSwatch(AppearanceGreenMenuItem, false, "#39FF5A");
+        SetColorSwatch(AppearanceBlueMenuItem, false, "#3A7BFF");
+        SetColorSwatch(AppearanceCyanMenuItem, false, "#25E6FF");
+        SetColorSwatch(AppearanceMagentaMenuItem, false, "#FF3FCB");
+        SetColorSwatch(AppearanceMonochromeMenuItem, false, "#EBEBEB");
+
+        SetColorSwatch(PlasmaNeonMenuItem, false, "#2D0C6E", "#3250FF", "#1EEBFF", "#FF41DC");
+        SetColorSwatch(PlasmaLavaMenuItem, false, "#4A0010", "#E02020", "#FF7A00", "#FFE060");
+        SetColorSwatch(PlasmaOceanMenuItem, false, "#001040", "#0055D8", "#00C8FF", "#B8FFFF");
+        SetColorSwatch(PlasmaAuroraMenuItem, false, "#180050", "#7A38FF", "#20E8A0", "#D8FF70");
+        SetColorSwatch(PlasmaToxicMenuItem, false, "#082A12", "#16A34A", "#A3FF12", "#F5FF75");
+        SetColorSwatch(PlasmaVaporMenuItem, false, "#24005E", "#7A38FF", "#FF41DC", "#41E9FF");
+        SetColorSwatch(PlasmaSolarMenuItem, false, "#3D0500", "#D82900", "#FF8A00", "#FFF0A0");
+        SetColorSwatch(PlasmaArcticMenuItem, false, "#001B3D", "#0077B6", "#48CAE4", "#E0FBFF");
+
+        SetColorSwatch(AppearanceNeonSunsetMenuItem, false, "#FF2BD6", "#FFD166");
+        SetColorSwatch(AppearanceCyberOceanMenuItem, false, "#267BFF", "#5EFFFF");
+        SetColorSwatch(AppearanceToxicArcadeMenuItem, false, "#2EFF6A", "#F5FF57");
+        SetColorSwatch(AppearanceVaporwaveMenuItem, false, "#8A4DFF", "#FF5CE1");
+        SetColorSwatch(AppearanceAuroraMenuItem, false, "#34FFBE", "#B470FF");
+        SetColorSwatch(AppearanceFirestormMenuItem, false, "#FF3218", "#FFD23F");
+        SetColorSwatch(AppearanceElectricVioletMenuItem, false, "#4F46E5", "#FF35C8");
+        SetColorSwatch(AppearanceArcticGlowMenuItem, false, "#20CFFF", "#E8FFFF");
+
+        SetColorSwatch(AppearanceC64BlueRoundMenuItem, true, "#352879", "#6C5EB5", "#70A4B2", "#FFFFFF", "#70A4B2", "#6C5EB5", "#352879");
+        SetColorSwatch(AppearanceC64RedRoundMenuItem, true, "#68372B", "#9A6759", "#6F4F25", "#B8C76F", "#FFFFFF", "#B8C76F", "#6F4F25", "#9A6759", "#68372B");
+        SetColorSwatch(AppearanceC64EarthtoneMenuItem, true, "#433900", "#68372B", "#6F4F25", "#9A6759", "#B8C76F", "#9A6759", "#6F4F25", "#68372B", "#433900");
+        SetColorSwatch(AppearanceC64MetalMenuItem, true, "#444444", "#6C6C6C", "#959595", "#FFFFFF", "#959595", "#6C6C6C", "#444444");
+        SetColorSwatch(AppearanceC64InterlacedBlueMenuItem, true, "#352879", "#6C5EB5", "#352879", "#70A4B2", "#352879", "#FFFFFF", "#352879", "#70A4B2");
+        SetColorSwatch(AppearanceC64ExtrudedCyanMenuItem, true, "#352879", "#70A4B2", "#FFFFFF", "#70A4B2", "#352879", "#6C5EB5");
+        SetColorSwatch(AppearanceC64RainbowMenuItem, true, "#68372B", "#6F4F25", "#B8C76F", "#9AD284", "#588D43", "#70A4B2", "#6C5EB5", "#352879", "#6F3D86", "#9A6759");
+        SetColorSwatch(AppearanceC64PurpleHaloMenuItem, true, "#352879", "#6F3D86", "#9A6759", "#FFFFFF", "#9A6759", "#6F3D86", "#352879");
+        SetColorSwatch(AppearanceRasterGreenHaloMenuItem, true, "#588D43", "#9AD284", "#B8C76F", "#FFFFFF", "#B8C76F", "#9AD284", "#588D43");
+        SetColorSwatch(AppearanceRasterAmberHaloMenuItem, true, "#433900", "#6F4F25", "#B8C76F", "#FFFFFF", "#B8C76F", "#6F4F25", "#433900");
+        SetColorSwatch(AppearanceRasterPurplePulseMenuItem, true, "#6F3D86", "#9A6759", "#6F3D86", "#FFFFFF", "#6F3D86", "#9A6759", "#6F3D86");
+        SetColorSwatch(AppearanceRasterOceanDepthMenuItem, true, "#352879", "#6C5EB5", "#70A4B2", "#6C5EB5", "#FFFFFF", "#6C5EB5", "#70A4B2", "#352879");
+        SetColorSwatch(AppearanceRasterSunsetBandsMenuItem, true, "#6F3D86", "#68372B", "#9A6759", "#6F4F25", "#B8C76F", "#9A6759", "#68372B");
+        SetColorSwatch(AppearanceRasterForestLayersMenuItem, true, "#433900", "#588D43", "#9AD284", "#B8C76F", "#9AD284", "#588D43", "#433900");
+        SetColorSwatch(AppearanceRasterArcticBandsMenuItem, true, "#352879", "#70A4B2", "#959595", "#FFFFFF", "#959595", "#70A4B2", "#352879");
+        SetColorSwatch(AppearanceRasterCandyStripeMenuItem, true, "#68372B", "#9A6759", "#FFFFFF", "#70A4B2", "#FFFFFF", "#9A6759", "#6F3D86");
+    }
+
+    private static void SetColorSwatch(MenuItem item, bool verticalBands, params string[] colors)
+    {
+        var panel = new StackPanel { Orientation = verticalBands ? Orientation.Vertical : Orientation.Horizontal };
+        foreach (var value in colors)
+        {
+            panel.Children.Add(new Border
+            {
+                Width = verticalBands ? 42 : 42d / colors.Length,
+                Height = verticalBands ? 12d / colors.Length : 12,
+                Background = new SolidColorBrush(Color.Parse(value))
+            });
+        }
+        item.Icon = new Border
+        {
+            Width = 42,
+            Height = 12,
+            CornerRadius = new CornerRadius(2),
+            BorderBrush = new SolidColorBrush(Color.Parse("#66FFFFFF")),
+            BorderThickness = new Thickness(1),
+            ClipToBounds = true,
+            Child = panel
+        };
+    }
 
     private static string ResolveScenesDirectory(string? savedDirectory)
     {
@@ -1419,12 +1639,20 @@ public partial class MainWindow : Window
     private void AnimationGap10_Click(object? sender, RoutedEventArgs e) => SetAnimationGapSeconds(10);
     private void AnimationGap30_Click(object? sender, RoutedEventArgs e) => SetAnimationGapSeconds(30);
     private void AppearanceOrange_Click(object? sender, RoutedEventArgs e) => SetColorPreset(DmdColorPreset.Orange);
+    private void AppearanceAmber_Click(object? sender, RoutedEventArgs e) => SetColorPreset(DmdColorPreset.Amber);
     private void AppearanceRed_Click(object? sender, RoutedEventArgs e) => SetColorPreset(DmdColorPreset.Red);
-    private void AppearancePlasma_Click(object? sender, RoutedEventArgs e) => SetColorPreset(DmdColorPreset.Plasma);
+    private void AppearanceGreen_Click(object? sender, RoutedEventArgs e) => SetColorPreset(DmdColorPreset.Green);
+    private void AppearanceBlue_Click(object? sender, RoutedEventArgs e) => SetColorPreset(DmdColorPreset.Blue);
+    private void AppearanceCyan_Click(object? sender, RoutedEventArgs e) => SetColorPreset(DmdColorPreset.Cyan);
+    private void AppearanceMagenta_Click(object? sender, RoutedEventArgs e) => SetColorPreset(DmdColorPreset.Magenta);
     private void PlasmaNeon_Click(object? sender, RoutedEventArgs e) => SetPlasmaPalette(PlasmaPalettePreset.Neon);
     private void PlasmaLava_Click(object? sender, RoutedEventArgs e) => SetPlasmaPalette(PlasmaPalettePreset.Lava);
     private void PlasmaOcean_Click(object? sender, RoutedEventArgs e) => SetPlasmaPalette(PlasmaPalettePreset.Ocean);
     private void PlasmaAurora_Click(object? sender, RoutedEventArgs e) => SetPlasmaPalette(PlasmaPalettePreset.Aurora);
+    private void PlasmaToxic_Click(object? sender, RoutedEventArgs e) => SetPlasmaPalette(PlasmaPalettePreset.Toxic);
+    private void PlasmaVapor_Click(object? sender, RoutedEventArgs e) => SetPlasmaPalette(PlasmaPalettePreset.Vapor);
+    private void PlasmaSolar_Click(object? sender, RoutedEventArgs e) => SetPlasmaPalette(PlasmaPalettePreset.Solar);
+    private void PlasmaArctic_Click(object? sender, RoutedEventArgs e) => SetPlasmaPalette(PlasmaPalettePreset.Arctic);
     private async void PlasmaCustom_Click(object? sender, RoutedEventArgs e) => await CustomizePlasmaPaletteAsync();
     private void PlasmaSlow_Click(object? sender, RoutedEventArgs e) => SetPlasmaSpeed(16_000);
     private void PlasmaNormal_Click(object? sender, RoutedEventArgs e) => SetPlasmaSpeed(8_000);
@@ -1432,18 +1660,30 @@ public partial class MainWindow : Window
     private void PlasmaVeryFast_Click(object? sender, RoutedEventArgs e) => SetPlasmaSpeed(2_000);
     private async void PlasmaCustomSpeed_Click(object? sender, RoutedEventArgs e) => await CustomizePlasmaSpeedAsync();
     private void AppearanceMonochrome_Click(object? sender, RoutedEventArgs e) => SetColorPreset(DmdColorPreset.Monochrome);
-    private void AppearanceNeonSunset_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.NeonSunset, "#180020");
-    private void AppearanceCyberOcean_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.CyberOcean, "#001528");
-    private void AppearanceToxicArcade_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.ToxicArcade, "#071B0F");
-    private void AppearanceVaporwave_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.Vaporwave, "#160B2D");
-    private void AppearanceAurora_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.Aurora, "#061A2B");
-    private void AppearanceC64BlueRound_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64BlueRound, "#000000");
-    private void AppearanceC64RedRound_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64RedRound, "#000000");
-    private void AppearanceC64Earthtone_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64Earthtone, "#000000");
-    private void AppearanceC64Metal_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64Metal, "#000000");
-    private void AppearanceC64InterlacedBlue_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64InterlacedBlue, "#000000");
-    private void AppearanceC64ExtrudedCyan_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64ExtrudedCyan, "#000000");
-    private void AppearanceC64Rainbow_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64Rainbow, "#000000");
+    private void AppearanceNeonSunset_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.NeonSunset);
+    private void AppearanceCyberOcean_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.CyberOcean);
+    private void AppearanceToxicArcade_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.ToxicArcade);
+    private void AppearanceVaporwave_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.Vaporwave);
+    private void AppearanceAurora_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.Aurora);
+    private void AppearanceFirestorm_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.Firestorm);
+    private void AppearanceElectricViolet_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.ElectricViolet);
+    private void AppearanceArcticGlow_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.ArcticGlow);
+    private void AppearanceC64BlueRound_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64BlueRound);
+    private void AppearanceC64RedRound_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64RedRound);
+    private void AppearanceC64Earthtone_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64Earthtone);
+    private void AppearanceC64Metal_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64Metal);
+    private void AppearanceC64InterlacedBlue_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64InterlacedBlue);
+    private void AppearanceC64ExtrudedCyan_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64ExtrudedCyan);
+    private void AppearanceC64Rainbow_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64Rainbow);
+    private void AppearanceC64PurpleHalo_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.C64PurpleHalo);
+    private void AppearanceRasterGreenHalo_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.RasterGreenHalo);
+    private void AppearanceRasterAmberHalo_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.RasterAmberHalo);
+    private void AppearanceRasterPurplePulse_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.RasterPurplePulse);
+    private void AppearanceRasterOceanDepth_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.RasterOceanDepth);
+    private void AppearanceRasterSunsetBands_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.RasterSunsetBands);
+    private void AppearanceRasterForestLayers_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.RasterForestLayers);
+    private void AppearanceRasterArcticBands_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.RasterArcticBands);
+    private void AppearanceRasterCandyStripe_Click(object? sender, RoutedEventArgs e) => SetMultiColorTheme(DmdColorPreset.RasterCandyStripe);
     private void Brightness25_Click(object? sender, RoutedEventArgs e) => SetBrightness(25);
     private void Brightness50_Click(object? sender, RoutedEventArgs e) => SetBrightness(50);
     private void Brightness75_Click(object? sender, RoutedEventArgs e) => SetBrightness(75);
@@ -1457,6 +1697,9 @@ public partial class MainWindow : Window
     }
     private async void ForegroundColor_Click(object? sender, RoutedEventArgs e) => await PickColorAsync(foreground: true);
     private async void BackgroundColor_Click(object? sender, RoutedEventArgs e) => await PickColorAsync(foreground: false);
+    private void BackgroundTheme_Click(object? sender, RoutedEventArgs e) => SetBackgroundMode(DmdBackgroundMode.Theme);
+    private void BackgroundBlack_Click(object? sender, RoutedEventArgs e) => SetBackgroundMode(DmdBackgroundMode.Black);
+    private void ResetCustomColors_Click(object? sender, RoutedEventArgs e) => ResetCustomColors();
     private void AnimationInfo_Click(object? sender, RoutedEventArgs e) => ToggleAnimationInformation();
     private void ShowTime_Click(object? sender, RoutedEventArgs e) => Show(DisplayMode.Time);
     private void ShowDate_Click(object? sender, RoutedEventArgs e) => Show(DisplayMode.Date);

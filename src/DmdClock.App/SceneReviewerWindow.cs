@@ -478,7 +478,7 @@ public sealed class SceneReviewerWindow : Window
             _settings.BrightnessPercent ?? 100,
             _settings.GlowEnabled ?? true,
             _settings.ForegroundColor,
-            _settings.BackgroundColor,
+            DmdThemeBackgroundDefinition.Resolve(_settings),
             _settings.PlasmaPalette ?? PlasmaPalettePreset.Neon,
             _settings.PlasmaCustomColors,
             _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds);

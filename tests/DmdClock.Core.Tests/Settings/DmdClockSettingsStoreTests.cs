@@ -4,12 +4,23 @@ namespace DmdClock.Core.Tests.Settings;
 
 public sealed class DmdClockSettingsStoreTests
 {
+    [Fact]
+    public void ExistingColorEnumValues_RemainSettingsCompatible()
+    {
+        Assert.Equal(4, (int)DmdColorPreset.NeonSunset);
+        Assert.Equal(15, (int)DmdColorPreset.C64Rainbow);
+        Assert.Equal(4, (int)PlasmaPalettePreset.Custom);
+    }
+
     [Theory]
     [InlineData(DmdColorPreset.NeonSunset)]
     [InlineData(DmdColorPreset.CyberOcean)]
     [InlineData(DmdColorPreset.ToxicArcade)]
     [InlineData(DmdColorPreset.Vaporwave)]
     [InlineData(DmdColorPreset.Aurora)]
+    [InlineData(DmdColorPreset.Firestorm)]
+    [InlineData(DmdColorPreset.ElectricViolet)]
+    [InlineData(DmdColorPreset.ArcticGlow)]
     [InlineData(DmdColorPreset.C64BlueRound)]
     [InlineData(DmdColorPreset.C64RedRound)]
     [InlineData(DmdColorPreset.C64Earthtone)]
@@ -17,6 +28,15 @@ public sealed class DmdClockSettingsStoreTests
     [InlineData(DmdColorPreset.C64InterlacedBlue)]
     [InlineData(DmdColorPreset.C64ExtrudedCyan)]
     [InlineData(DmdColorPreset.C64Rainbow)]
+    [InlineData(DmdColorPreset.C64PurpleHalo)]
+    [InlineData(DmdColorPreset.RasterGreenHalo)]
+    [InlineData(DmdColorPreset.RasterAmberHalo)]
+    [InlineData(DmdColorPreset.RasterPurplePulse)]
+    [InlineData(DmdColorPreset.RasterOceanDepth)]
+    [InlineData(DmdColorPreset.RasterSunsetBands)]
+    [InlineData(DmdColorPreset.RasterForestLayers)]
+    [InlineData(DmdColorPreset.RasterArcticBands)]
+    [InlineData(DmdColorPreset.RasterCandyStripe)]
     public void Normalize_PreservesMultiColorTheme(DmdColorPreset preset)
     {
         var normalized = (DmdClockSettings.Default with { ColorPreset = preset }).Normalize();
@@ -99,6 +119,10 @@ public sealed class DmdClockSettingsStoreTests
     [InlineData(PlasmaPalettePreset.Lava)]
     [InlineData(PlasmaPalettePreset.Ocean)]
     [InlineData(PlasmaPalettePreset.Aurora)]
+    [InlineData(PlasmaPalettePreset.Toxic)]
+    [InlineData(PlasmaPalettePreset.Vapor)]
+    [InlineData(PlasmaPalettePreset.Solar)]
+    [InlineData(PlasmaPalettePreset.Arctic)]
     public void PlasmaPaletteDefinition_ReturnsFourColorStops(PlasmaPalettePreset preset)
     {
         var colors = PlasmaPaletteDefinition.GetStops(preset);
@@ -117,6 +141,51 @@ public sealed class DmdClockSettingsStoreTests
         int expected)
     {
         Assert.Equal(expected, PlasmaSpeedDefinition.Normalize(value));
+    }
+
+    [Fact]
+    public void ThemeBackground_ChangesWithThemeWhenThemeModeIsSelected()
+    {
+        var settings = DmdClockSettings.Default with
+        {
+            ColorPreset = DmdColorPreset.NeonSunset,
+            BackgroundMode = DmdBackgroundMode.Theme,
+            BackgroundColor = "#123456"
+        };
+
+        Assert.Equal("#180020", DmdThemeBackgroundDefinition.Resolve(settings));
+        Assert.Equal(
+            "#220600",
+            DmdThemeBackgroundDefinition.Resolve(settings with { ColorPreset = DmdColorPreset.Firestorm }));
+    }
+
+    [Fact]
+    public void CustomBackground_IsPreservedAcrossThemeChanges()
+    {
+        var settings = DmdClockSettings.Default with
+        {
+            ColorPreset = DmdColorPreset.NeonSunset,
+            BackgroundMode = DmdBackgroundMode.Custom,
+            BackgroundColor = "#123456"
+        };
+
+        Assert.Equal("#123456", DmdThemeBackgroundDefinition.Resolve(settings));
+        Assert.Equal(
+            "#123456",
+            DmdThemeBackgroundDefinition.Resolve(settings with { ColorPreset = DmdColorPreset.C64Rainbow }));
+    }
+
+    [Fact]
+    public void BlackBackground_RemainsBlackAcrossThemeChanges()
+    {
+        var settings = DmdClockSettings.Default with
+        {
+            ColorPreset = DmdColorPreset.Plasma,
+            BackgroundMode = DmdBackgroundMode.Black,
+            BackgroundColor = "#123456"
+        };
+
+        Assert.Equal("#000000", DmdThemeBackgroundDefinition.Resolve(settings));
     }
 
     [Fact]
