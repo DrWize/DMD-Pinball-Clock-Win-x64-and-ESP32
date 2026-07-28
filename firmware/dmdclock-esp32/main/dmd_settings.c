@@ -33,6 +33,9 @@ static void set_defaults(void)
     s_settings.use_24_hour = true;
     s_settings.show_seconds = false;
     s_settings.display_on = true;
+    s_settings.reboot_weekday = 0;
+    s_settings.reboot_hour = 4;
+    s_settings.reboot_minute = 0;
     s_settings.play_scene = true;
     s_settings.automatic_cycle = true;
     s_settings.random_playback = false;
@@ -107,6 +110,36 @@ esp_err_t dmd_settings_init(void)
     }
     if (nvs_get_u8(handle, "display", &value) == ESP_OK) {
         s_settings.display_on = value != 0;
+    }
+    if (nvs_get_u8(handle, "sched_on", &value) == ESP_OK) {
+        s_settings.screen_schedule_enabled = value != 0;
+    }
+    size_t schedule_size = sizeof(s_settings.screen_off_schedule);
+    if (nvs_get_blob(
+            handle,
+            "sched_off",
+            s_settings.screen_off_schedule,
+            &schedule_size) != ESP_OK ||
+        schedule_size != sizeof(s_settings.screen_off_schedule)) {
+        memset(
+            s_settings.screen_off_schedule,
+            0,
+            sizeof(s_settings.screen_off_schedule));
+    }
+    if (nvs_get_u8(handle, "reboot_on", &value) == ESP_OK) {
+        s_settings.reboot_schedule_enabled = value != 0;
+    }
+    if (nvs_get_u8(handle, "reboot_day", &value) == ESP_OK &&
+        value < DMD_SCHEDULE_DAY_COUNT) {
+        s_settings.reboot_weekday = value;
+    }
+    if (nvs_get_u8(handle, "reboot_hr", &value) == ESP_OK &&
+        value < DMD_SCHEDULE_HOUR_COUNT) {
+        s_settings.reboot_hour = value;
+    }
+    if (nvs_get_u8(handle, "reboot_min", &value) == ESP_OK &&
+        value < 60) {
+        s_settings.reboot_minute = value;
     }
     if (nvs_get_u8(handle, "scene", &value) == ESP_OK) {
         s_settings.play_scene = value != 0;
@@ -235,6 +268,15 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
     if (normalized.animation_gap_seconds > 3600) {
         normalized.animation_gap_seconds = 3600;
     }
+    if (normalized.reboot_weekday >= DMD_SCHEDULE_DAY_COUNT) {
+        normalized.reboot_weekday = 0;
+    }
+    if (normalized.reboot_hour >= DMD_SCHEDULE_HOUR_COUNT) {
+        normalized.reboot_hour = 4;
+    }
+    if (normalized.reboot_minute >= 60) {
+        normalized.reboot_minute = 0;
+    }
     normalized.timezone[DMD_TIMEZONE_MAX - 1] = '\0';
     normalized.wifi_ssid[DMD_WIFI_SSID_MAX] = '\0';
     normalized.wifi_password[DMD_WIFI_PASSWORD_MAX] = '\0';
@@ -263,6 +305,31 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
         (error = nvs_set_u8(handle, "hour24", normalized.use_24_hour)) == ESP_OK &&
         (error = nvs_set_u8(handle, "seconds", normalized.show_seconds)) == ESP_OK &&
         (error = nvs_set_u8(handle, "display", normalized.display_on)) == ESP_OK &&
+        (error = nvs_set_u8(
+            handle,
+            "sched_on",
+            normalized.screen_schedule_enabled)) == ESP_OK &&
+        (error = nvs_set_blob(
+            handle,
+            "sched_off",
+            normalized.screen_off_schedule,
+            sizeof(normalized.screen_off_schedule))) == ESP_OK &&
+        (error = nvs_set_u8(
+            handle,
+            "reboot_on",
+            normalized.reboot_schedule_enabled)) == ESP_OK &&
+        (error = nvs_set_u8(
+            handle,
+            "reboot_day",
+            normalized.reboot_weekday)) == ESP_OK &&
+        (error = nvs_set_u8(
+            handle,
+            "reboot_hr",
+            normalized.reboot_hour)) == ESP_OK &&
+        (error = nvs_set_u8(
+            handle,
+            "reboot_min",
+            normalized.reboot_minute)) == ESP_OK &&
         (error = nvs_set_u8(handle, "scene", normalized.play_scene)) == ESP_OK &&
         (error = nvs_set_u8(handle, "auto_cycle", normalized.automatic_cycle)) == ESP_OK &&
         (error = nvs_set_u8(handle, "random", normalized.random_playback)) == ESP_OK &&
@@ -290,6 +357,75 @@ bool dmd_settings_time_is_valid(void)
     struct tm value;
     localtime_r(&now, &value);
     return value.tm_year + 1900 >= 2024;
+}
+
+bool dmd_settings_screen_scheduled_off(
+    const dmd_settings_t *settings,
+    time_t now)
+{
+    if (settings == NULL ||
+        !settings->screen_schedule_enabled) {
+        return false;
+    }
+
+    struct tm local;
+    localtime_r(&now, &local);
+    if (local.tm_year + 1900 < 2024) {
+        return false;
+    }
+    size_t slot =
+        (size_t)local.tm_wday * DMD_SCHEDULE_HOUR_COUNT +
+        (size_t)local.tm_hour;
+    return (
+        settings->screen_off_schedule[slot / 8] &
+        (uint8_t)(1U << (slot % 8))) != 0;
+}
+
+bool dmd_settings_claim_scheduled_reboot(
+    const dmd_settings_t *settings,
+    time_t now)
+{
+    if (settings == NULL ||
+        !settings->reboot_schedule_enabled) {
+        return false;
+    }
+
+    struct tm local;
+    localtime_r(&now, &local);
+    if (local.tm_year + 1900 < 2024 ||
+        local.tm_wday != settings->reboot_weekday ||
+        local.tm_hour != settings->reboot_hour ||
+        local.tm_min != settings->reboot_minute) {
+        return false;
+    }
+
+    uint32_t today =
+        (uint32_t)(local.tm_year + 1900) * 10000U +
+        (uint32_t)(local.tm_mon + 1) * 100U +
+        (uint32_t)local.tm_mday;
+    nvs_handle_t handle;
+    if (nvs_open(NAMESPACE, NVS_READWRITE, &handle) != ESP_OK) {
+        return false;
+    }
+    uint32_t previous = 0;
+    if (nvs_get_u32(handle, "reboot_mark", &previous) == ESP_OK &&
+        previous == today) {
+        nvs_close(handle);
+        return false;
+    }
+    esp_err_t error = nvs_set_u32(handle, "reboot_mark", today);
+    if (error == ESP_OK) {
+        error = nvs_commit(handle);
+    }
+    nvs_close(handle);
+    if (error != ESP_OK) {
+        ESP_LOGE(
+            TAG,
+            "Could not persist scheduled reboot marker: %s",
+            esp_err_to_name(error));
+        return false;
+    }
+    return true;
 }
 
 void dmd_settings_apply_timezone(const char *timezone)

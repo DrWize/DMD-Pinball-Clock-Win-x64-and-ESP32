@@ -89,9 +89,10 @@ static esp_err_t state_get(httpd_req_t *request)
     time_t now = time(NULL);
     struct tm local;
     localtime_r(&now, &local);
+    bool time_valid = dmd_settings_time_is_valid();
     char time_text[24] = "--:--";
     char date_time_text[32] = "Not synchronized";
-    if (dmd_settings_time_is_valid()) {
+    if (time_valid) {
         const char *format = settings.show_seconds
             ? (settings.use_24_hour ? "%H:%M:%S" : "%I:%M:%S")
             : (settings.use_24_hour ? "%H:%M" : "%I:%M");
@@ -133,6 +134,56 @@ static esp_err_t state_get(httpd_req_t *request)
     cJSON_AddBoolToObject(json, "use24Hour", settings.use_24_hour);
     cJSON_AddBoolToObject(json, "showSeconds", settings.show_seconds);
     cJSON_AddBoolToObject(json, "displayOn", settings.display_on);
+    cJSON_AddBoolToObject(
+        json,
+        "screenScheduleEnabled",
+        settings.screen_schedule_enabled);
+    cJSON_AddBoolToObject(
+        json,
+        "screenScheduledOff",
+        dmd_settings_screen_scheduled_off(&settings, now));
+    cJSON_AddBoolToObject(
+        json,
+        "rebootScheduleEnabled",
+        settings.reboot_schedule_enabled);
+    cJSON_AddNumberToObject(
+        json,
+        "rebootWeekday",
+        settings.reboot_weekday);
+    cJSON_AddNumberToObject(
+        json,
+        "rebootHour",
+        settings.reboot_hour);
+    cJSON_AddNumberToObject(
+        json,
+        "rebootMinute",
+        settings.reboot_minute);
+    cJSON_AddNumberToObject(
+        json,
+        "deviceWeekday",
+        time_valid ? local.tm_wday : -1);
+    cJSON_AddNumberToObject(
+        json,
+        "deviceHour",
+        time_valid ? local.tm_hour : -1);
+    cJSON *screen_schedule =
+        cJSON_AddArrayToObject(json, "screenOffSchedule");
+    for (uint8_t day = 0; day < DMD_SCHEDULE_DAY_COUNT; day++) {
+        char hours[DMD_SCHEDULE_HOUR_COUNT + 1];
+        for (uint8_t hour = 0; hour < DMD_SCHEDULE_HOUR_COUNT; hour++) {
+            size_t slot =
+                (size_t)day * DMD_SCHEDULE_HOUR_COUNT + hour;
+            hours[hour] =
+                (settings.screen_off_schedule[slot / 8] &
+                 (uint8_t)(1U << (slot % 8))) != 0
+                    ? '1'
+                    : '0';
+        }
+        hours[DMD_SCHEDULE_HOUR_COUNT] = '\0';
+        cJSON_AddItemToArray(
+            screen_schedule,
+            cJSON_CreateString(hours));
+    }
     cJSON_AddBoolToObject(json, "playScene", display.playing_scene);
     cJSON_AddBoolToObject(json, "waitingForScene", display.waiting_for_scene);
     cJSON_AddNumberToObject(json, "sceneIndex", display.scene_index);
@@ -147,6 +198,10 @@ static esp_err_t state_get(httpd_req_t *request)
         json,
         "plasmaFramesRendered",
         display.plasma_frames_rendered);
+    cJSON_AddNumberToObject(
+        json,
+        "scheduleOverrideSecondsRemaining",
+        display.schedule_override_seconds_remaining);
     cJSON_AddBoolToObject(json, "automaticCycle", settings.automatic_cycle);
     cJSON_AddBoolToObject(json, "randomPlayback", settings.random_playback);
     cJSON_AddBoolToObject(json, "showInformation", settings.show_information);
@@ -168,7 +223,7 @@ static esp_err_t state_get(httpd_req_t *request)
     cJSON_AddStringToObject(json, "stationIp", network.station_ip);
     cJSON_AddStringToObject(json, "accessPointSsid", network.access_point_ssid);
     cJSON_AddStringToObject(json, "accessPointIp", network.access_point_ip);
-    cJSON_AddBoolToObject(json, "timeValid", dmd_settings_time_is_valid());
+    cJSON_AddBoolToObject(json, "timeValid", time_valid);
     cJSON_AddStringToObject(json, "time", time_text);
     cJSON_AddStringToObject(json, "deviceDateTime", date_time_text);
     cJSON_AddNumberToObject(json, "epoch", (double)now);
@@ -321,10 +376,106 @@ static esp_err_t settings_post(httpd_req_t *request)
     update_bool(json, "use24Hour", &updated.use_24_hour);
     update_bool(json, "showSeconds", &updated.show_seconds);
     update_bool(json, "displayOn", &updated.display_on);
+    update_bool(
+        json,
+        "screenScheduleEnabled",
+        &updated.screen_schedule_enabled);
+    update_bool(
+        json,
+        "rebootScheduleEnabled",
+        &updated.reboot_schedule_enabled);
     update_bool(json, "playScene", &updated.play_scene);
     update_bool(json, "automaticCycle", &updated.automatic_cycle);
     update_bool(json, "randomPlayback", &updated.random_playback);
     update_bool(json, "showInformation", &updated.show_information);
+
+    cJSON *screen_schedule =
+        cJSON_GetObjectItemCaseSensitive(json, "screenOffSchedule");
+    if (screen_schedule != NULL) {
+        if (!cJSON_IsArray(screen_schedule) ||
+            cJSON_GetArraySize(screen_schedule) != DMD_SCHEDULE_DAY_COUNT) {
+            cJSON_Delete(json);
+            return httpd_resp_send_err(
+                request,
+                HTTPD_400_BAD_REQUEST,
+                "Schedule must contain seven 24-hour rows");
+        }
+        uint8_t parsed_schedule[DMD_SCHEDULE_BYTES] = {0};
+        for (uint8_t day = 0; day < DMD_SCHEDULE_DAY_COUNT; day++) {
+            cJSON *row = cJSON_GetArrayItem(screen_schedule, day);
+            if (!cJSON_IsString(row) ||
+                strlen(row->valuestring) != DMD_SCHEDULE_HOUR_COUNT) {
+                cJSON_Delete(json);
+                return httpd_resp_send_err(
+                    request,
+                    HTTPD_400_BAD_REQUEST,
+                    "Each schedule row must be 24 zero/one characters");
+            }
+            for (uint8_t hour = 0; hour < DMD_SCHEDULE_HOUR_COUNT; hour++) {
+                char value = row->valuestring[hour];
+                if (value != '0' && value != '1') {
+                    cJSON_Delete(json);
+                    return httpd_resp_send_err(
+                        request,
+                        HTTPD_400_BAD_REQUEST,
+                        "Schedule rows may contain only zero and one");
+                }
+                if (value == '1') {
+                    size_t slot =
+                        (size_t)day * DMD_SCHEDULE_HOUR_COUNT + hour;
+                    parsed_schedule[slot / 8] |=
+                        (uint8_t)(1U << (slot % 8));
+                }
+            }
+        }
+        memcpy(
+            updated.screen_off_schedule,
+            parsed_schedule,
+            sizeof(parsed_schedule));
+    }
+
+    cJSON *reboot_weekday =
+        cJSON_GetObjectItemCaseSensitive(json, "rebootWeekday");
+    if (reboot_weekday != NULL) {
+        if (!cJSON_IsNumber(reboot_weekday) ||
+            reboot_weekday->valueint < 0 ||
+            reboot_weekday->valueint >= DMD_SCHEDULE_DAY_COUNT) {
+            cJSON_Delete(json);
+            return httpd_resp_send_err(
+                request,
+                HTTPD_400_BAD_REQUEST,
+                "Reboot weekday must be between 0 and 6");
+        }
+        updated.reboot_weekday = (uint8_t)reboot_weekday->valueint;
+    }
+    cJSON *reboot_hour =
+        cJSON_GetObjectItemCaseSensitive(json, "rebootHour");
+    if (reboot_hour != NULL) {
+        if (!cJSON_IsNumber(reboot_hour) ||
+            reboot_hour->valueint < 0 ||
+            reboot_hour->valueint >= DMD_SCHEDULE_HOUR_COUNT) {
+            cJSON_Delete(json);
+            return httpd_resp_send_err(
+                request,
+                HTTPD_400_BAD_REQUEST,
+                "Reboot hour must be between 0 and 23");
+        }
+        updated.reboot_hour = (uint8_t)reboot_hour->valueint;
+    }
+    cJSON *reboot_minute =
+        cJSON_GetObjectItemCaseSensitive(json, "rebootMinute");
+    if (reboot_minute != NULL) {
+        if (!cJSON_IsNumber(reboot_minute) ||
+            reboot_minute->valueint < 0 ||
+            reboot_minute->valueint >= 60) {
+            cJSON_Delete(json);
+            return httpd_resp_send_err(
+                request,
+                HTTPD_400_BAD_REQUEST,
+                "Reboot minute must be between 0 and 59");
+        }
+        updated.reboot_minute = (uint8_t)reboot_minute->valueint;
+    }
 
     cJSON *animations =
         cJSON_GetObjectItemCaseSensitive(json, "animationsPerCycle");
@@ -402,10 +553,13 @@ static esp_err_t settings_post(httpd_req_t *request)
             HTTPD_500_INTERNAL_SERVER_ERROR,
             esp_err_to_name(error));
     }
-    if (updated.play_scene) {
-        dmd_display_play_scene(updated.scene_index);
-    } else {
-        dmd_display_show_clock();
+    if (updated.play_scene != before.play_scene ||
+        (updated.play_scene && updated.scene_index != before.scene_index)) {
+        if (updated.play_scene) {
+            dmd_display_play_scene(updated.scene_index);
+        } else {
+            dmd_display_show_clock();
+        }
     }
     if (wifi_changed) {
         error = dmd_network_apply_credentials(

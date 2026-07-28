@@ -32,7 +32,7 @@
     input,select,button{font:inherit}
     input[type=range]{width:min(260px,45vw);accent-color:var(--orange)}
     input[type=color]{width:48px;height:38px;padding:2px;border:1px solid #56331e;border-radius:8px;background:#0d0805}
-    input[type=text],input[type=password],select{width:100%;border:1px solid #56331e;background:#0d0805;color:var(--ink);border-radius:10px;padding:11px 12px;outline:none}
+    input[type=text],input[type=password],input[type=time],select{width:100%;border:1px solid #56331e;background:#0d0805;color:var(--ink);border-radius:10px;padding:11px 12px;outline:none}
     input:focus,select:focus{border-color:var(--orange);box-shadow:0 0 0 3px #ff700e22}
     .switch{position:relative;width:48px;height:28px;flex:none}
     .switch input{position:absolute;opacity:0}
@@ -79,6 +79,19 @@
     .scene-details span[hidden]{display:none}
     .scene-details small{margin:0 0 3px;color:#8f7e70;font-size:.65rem;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
     .scene-details strong{display:block;overflow:hidden;color:var(--ink);font-size:.78rem;line-height:1.3;text-overflow:ellipsis}
+    .schedule-tools{display:flex;gap:9px;flex-wrap:wrap;margin:2px 0 13px}
+    .schedule-tool{display:flex;align-items:center;gap:8px;background:#24150d;color:var(--muted);border:1px solid #4b2c1b}
+    .schedule-tool.active{color:var(--ink);border-color:var(--orange);background:#4b260f}
+    .schedule-key{width:15px;height:15px;border-radius:4px;background:#18a8ff;box-shadow:inset 0 0 0 1px #fff2}
+    .schedule-tool[data-schedule-tool="off"] .schedule-key{background:#25150d;box-shadow:inset 0 0 0 2px #ff8b3d}
+    .schedule-scroll{overflow-x:auto;padding:2px 0 7px}
+    .schedule-grid{display:grid;grid-template-columns:42px repeat(24,24px);gap:2px;width:max-content;touch-action:none;user-select:none}
+    .schedule-hour,.schedule-day{display:grid;place-items:center;color:var(--muted);font-size:.67rem;font-weight:750}
+    .schedule-day{justify-content:start;color:var(--ink)}
+    .schedule-cell{width:24px;height:27px;min-height:0;padding:0;border-radius:4px;background:#159fe9;border:1px solid #34baff}
+    .schedule-cell.off{background:#25150d;border-color:#f27a31;box-shadow:inset 0 0 0 1px #ff8b3d44}
+    .schedule-cell.current{outline:2px solid #fff;outline-offset:1px;z-index:1}
+    .schedule-cell:focus-visible{outline:3px solid #ffd28c;outline-offset:1px}
     .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
     #message{min-height:1.2em;color:var(--amber);font-size:.82rem;margin-top:12px;text-align:right}
     .network{color:var(--muted);font-size:.8rem;line-height:1.5;margin-top:15px}
@@ -227,6 +240,57 @@
       </div>
     </section>
 
+    <section class="panel" aria-labelledby="scheduleHeading">
+      <h2 id="scheduleHeading">Weekly screen schedule</h2>
+      <p class="panel-intro">Paint the hours when the DMD should be on or off. The schedule follows the device timezone and repeats every week.</p>
+      <div class="row">
+        <label for="screenScheduleEnabled">Use weekly schedule<small id="scheduleStatus">Schedule disabled</small></label>
+        <label class="switch"><input id="screenScheduleEnabled" type="checkbox"><span></span></label>
+      </div>
+      <div class="schedule-tools" role="group" aria-label="Schedule drawing mode">
+        <button class="schedule-tool" type="button" data-schedule-tool="on" aria-pressed="false"><span class="schedule-key"></span>Screen on</button>
+        <button class="schedule-tool active" type="button" data-schedule-tool="off" aria-pressed="true"><span class="schedule-key"></span>Screen off</button>
+      </div>
+      <div class="schedule-scroll">
+        <div id="scheduleGrid" class="schedule-grid" role="grid" aria-label="Weekly screen schedule"></div>
+      </div>
+      <div class="inline-actions">
+        <span id="scheduleMessage" class="inline-message" role="status">Choose a mode, then click or drag across hours.</span>
+        <button id="saveSchedule" type="button">Save schedule</button>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="rebootHeading">
+      <h2 id="rebootHeading">Automatic weekly reboot</h2>
+      <p class="panel-intro">Restart the ESP32 once each week at the selected local device time. The display and web remote return automatically after boot.</p>
+      <div class="row">
+        <label for="rebootScheduleEnabled">Use reboot schedule<small id="rebootScheduleStatus">Schedule disabled</small></label>
+        <label class="switch"><input id="rebootScheduleEnabled" type="checkbox"><span></span></label>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <label for="rebootWeekday">Weekday</label>
+          <select id="rebootWeekday">
+            <option value="0">Sunday</option>
+            <option value="1">Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5">Friday</option>
+            <option value="6">Saturday</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="rebootTime">Restart time</label>
+          <input id="rebootTime" type="time" value="04:00" step="60">
+        </div>
+      </div>
+      <div class="inline-actions">
+        <span id="rebootMessage" class="inline-message" role="status">Default: Sunday at 04:00.</span>
+        <button id="saveRebootSchedule" type="button">Save reboot schedule</button>
+      </div>
+    </section>
+
     <section class="panel">
       <h2>Windows-style scene cycle</h2>
       <div class="row">
@@ -307,6 +371,10 @@
     const $=id=>document.getElementById(id);
     let loaded=false;
     let refreshing=false;
+    const scheduleDays=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    let screenOffSchedule=Array(7).fill("0".repeat(24));
+    let scheduleTool="off";
+    let scheduleDrawing=false;
     const basicThemes={
       0:"#ff700e",1:"#ff2010",3:"#ebebeb",16:"#ffb000",
       17:"#39ff5a",18:"#3a7bff",19:"#25e6ff",20:"#ff3fcb"
@@ -374,6 +442,94 @@
     }
     function secondsLabel(milliseconds){
       return `${(milliseconds/1000).toFixed(2).replace(/\.?0+$/,"")} s`;
+    }
+    function setScheduleTool(tool){
+      scheduleTool=tool;
+      document.querySelectorAll("[data-schedule-tool]").forEach(button=>{
+        const active=button.dataset.scheduleTool===tool;
+        button.classList.toggle("active",active);
+        button.setAttribute("aria-pressed",String(active));
+      });
+    }
+    function scheduleCellLabel(day,hour,isOff){
+      const end=(hour+1)%24;
+      return `${scheduleDays[day]} ${String(hour).padStart(2,"0")}:00–${String(end).padStart(2,"0")}:00, screen ${isOff?"off":"on"}`;
+    }
+    function paintScheduleCell(cell){
+      if(!cell?.matches(".schedule-cell"))return;
+      const day=Number(cell.dataset.day);
+      const hour=Number(cell.dataset.hour);
+      const isOff=scheduleTool==="off";
+      const row=screenOffSchedule[day].split("");
+      row[hour]=isOff?"1":"0";
+      screenOffSchedule[day]=row.join("");
+      cell.classList.toggle("off",isOff);
+      cell.setAttribute("aria-label",scheduleCellLabel(day,hour,isOff));
+      $("scheduleMessage").textContent="Schedule changed — save it when ready.";
+    }
+    function renderScheduleGrid(){
+      const corner=document.createElement("span");
+      corner.className="schedule-hour";
+      corner.setAttribute("aria-hidden","true");
+      const items=[corner];
+      for(let hour=0;hour<24;hour++){
+        const label=document.createElement("span");
+        label.className="schedule-hour";
+        label.textContent=String(hour);
+        label.setAttribute("aria-hidden","true");
+        items.push(label);
+      }
+      scheduleDays.forEach((name,day)=>{
+        const label=document.createElement("span");
+        label.className="schedule-day";
+        label.textContent=name;
+        label.setAttribute("role","rowheader");
+        items.push(label);
+        for(let hour=0;hour<24;hour++){
+          const isOff=screenOffSchedule[day]?.[hour]==="1";
+          const cell=document.createElement("button");
+          cell.type="button";
+          cell.className=`schedule-cell${isOff?" off":""}`;
+          cell.dataset.day=String(day);
+          cell.dataset.hour=String(hour);
+          cell.setAttribute("role","gridcell");
+          cell.setAttribute("aria-label",scheduleCellLabel(day,hour,isOff));
+          cell.addEventListener("pointerdown",event=>{
+            event.preventDefault();
+            scheduleDrawing=true;
+            paintScheduleCell(cell);
+          });
+          cell.addEventListener("pointerenter",()=>{
+            if(scheduleDrawing)paintScheduleCell(cell);
+          });
+          cell.addEventListener("keydown",event=>{
+            if(event.key==="Enter"||event.key===" "){
+              event.preventDefault();
+              paintScheduleCell(cell);
+            }
+          });
+          items.push(cell);
+        }
+      });
+      $("scheduleGrid").replaceChildren(...items);
+    }
+    function markCurrentScheduleCell(state){
+      document.querySelectorAll(".schedule-cell.current").forEach(cell=>cell.classList.remove("current"));
+      if(!state.timeValid)return;
+      document.querySelector(
+        `.schedule-cell[data-day="${state.deviceWeekday}"][data-hour="${state.deviceHour}"]`
+      )?.classList.add("current");
+    }
+    function rebootTimeParts(){
+      const [hour,minute]=$("rebootTime").value.split(":").map(Number);
+      return {
+        rebootHour:Number.isInteger(hour)?hour:4,
+        rebootMinute:Number.isInteger(minute)?minute:0
+      };
+    }
+    function touchWakeLabel(seconds){
+      const minutes=Math.max(1,Math.ceil(seconds/60));
+      return `Touch wake active · ${minutes} minute${minutes===1?"":"s"} remaining`;
     }
     function currentPlasmaStops(){
       const preset=Number($("plasmaPalette").value);
@@ -575,6 +731,21 @@
       });
       $("toggleInformation").textContent=state.showInformation?"Information on":"Information off";
       $("toggleGlow").textContent=state.glowStrength>0?`Glow on · ${state.glowStrength}%`:"Glow off";
+      $("scheduleStatus").textContent=state.scheduleOverrideSecondsRemaining>0
+        ?(state.displayOn
+          ?touchWakeLabel(state.scheduleOverrideSecondsRemaining)
+          :"Touch wake active, but the master Screen switch is off")
+        :(!state.screenScheduleEnabled
+          ?"Schedule disabled"
+          :(!state.timeValid
+            ?"Waiting for synchronized device time"
+            :(state.screenScheduledOff
+              ?"Screen is off for the current scheduled hour"
+              :"Screen is on for the current scheduled hour")));
+      const rebootTime=`${String(state.rebootHour).padStart(2,"0")}:${String(state.rebootMinute).padStart(2,"0")}`;
+      $("rebootScheduleStatus").textContent=state.rebootScheduleEnabled
+        ?`Every ${scheduleDays[state.rebootWeekday]} at ${rebootTime}`
+        :"Schedule disabled";
       if(!loaded){
         $("displayOn").checked=state.displayOn;
         $("displayMode").value=state.playScene?"scene":"clock";
@@ -608,6 +779,14 @@
         $("use24Hour").checked=state.use24Hour;
         $("showSeconds").checked=state.showSeconds;
         $("showInformation").checked=state.showInformation;
+        $("screenScheduleEnabled").checked=state.screenScheduleEnabled;
+        screenOffSchedule=Array.isArray(state.screenOffSchedule)
+          ?state.screenOffSchedule.slice(0,7)
+          :Array(7).fill("0".repeat(24));
+        renderScheduleGrid();
+        $("rebootScheduleEnabled").checked=state.rebootScheduleEnabled;
+        $("rebootWeekday").value=String(state.rebootWeekday);
+        $("rebootTime").value=rebootTime;
         $("automaticCycle").checked=state.automaticCycle;
         $("randomPlayback").checked=state.randomPlayback;
         $("animationsPerCycle").value=String(state.animationsPerCycle);
@@ -617,6 +796,7 @@
         $("wifiSsid").value=state.wifiSsid;
         loaded=true;
       }
+      markCurrentScheduleCell(state);
       const home=state.wifiConnected
         ?`Home Wi-Fi connected at <code>http://${state.stationIp}/</code>.`
         :state.wifiSsid?"Home Wi-Fi is reconnecting.":"Home Wi-Fi is not configured.";
@@ -661,6 +841,16 @@
         renderThemePicker();
       });
     });
+    document.querySelectorAll("[data-schedule-tool]").forEach(button=>{
+      button.addEventListener("click",()=>setScheduleTool(button.dataset.scheduleTool));
+    });
+    document.addEventListener("pointermove",event=>{
+      if(!scheduleDrawing)return;
+      paintScheduleCell(
+        document.elementFromPoint(event.clientX,event.clientY)?.closest(".schedule-cell"));
+    });
+    document.addEventListener("pointerup",()=>{scheduleDrawing=false});
+    document.addEventListener("pointercancel",()=>{scheduleDrawing=false});
     $("plasmaCycle").addEventListener("input",()=>{
       $("plasmaCycleValue").textContent=secondsLabel(Number($("plasmaCycle").value));
       applyPreviewTheme(Number($("colorPreset").value));
@@ -689,6 +879,7 @@
       button.addEventListener("click",()=>runAction(button.dataset.action));
     });
     async function saveSettings(){
+      const reboot=rebootTimeParts();
       const body={
         displayOn:$("displayOn").checked,
         playScene:$("displayMode").value==="scene",
@@ -702,6 +893,11 @@
         use24Hour:$("use24Hour").checked,
         showSeconds:$("showSeconds").checked,
         showInformation:$("showInformation").checked,
+        screenScheduleEnabled:$("screenScheduleEnabled").checked,
+        screenOffSchedule,
+        rebootScheduleEnabled:$("rebootScheduleEnabled").checked,
+        rebootWeekday:Number($("rebootWeekday").value),
+        ...reboot,
         automaticCycle:$("automaticCycle").checked,
         randomPlayback:$("randomPlayback").checked,
         animationsPerCycle:Number($("animationsPerCycle").value),
@@ -718,6 +914,50 @@
         setTimeout(refresh,500);
       }catch(error){message(error.message,true)}
     }
+    async function saveSchedule(){
+      $("scheduleMessage").textContent="Saving schedule…";
+      $("scheduleMessage").style.color="var(--muted)";
+      try{
+        await request("/api/settings",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            screenScheduleEnabled:$("screenScheduleEnabled").checked,
+            screenOffSchedule
+          })
+        });
+        $("scheduleMessage").textContent="Weekly schedule saved.";
+        $("scheduleMessage").style.color="var(--amber)";
+        setTimeout(refresh,250);
+      }catch(error){
+        $("scheduleMessage").textContent=error.message;
+        $("scheduleMessage").style.color="#ff786d";
+      }
+    }
+    $("saveSchedule").addEventListener("click",saveSchedule);
+    async function saveRebootSchedule(){
+      const reboot=rebootTimeParts();
+      $("rebootMessage").textContent="Saving reboot schedule…";
+      $("rebootMessage").style.color="var(--muted)";
+      try{
+        await request("/api/settings",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            rebootScheduleEnabled:$("rebootScheduleEnabled").checked,
+            rebootWeekday:Number($("rebootWeekday").value),
+            ...reboot
+          })
+        });
+        $("rebootMessage").textContent="Weekly reboot schedule saved.";
+        $("rebootMessage").style.color="var(--amber)";
+        setTimeout(refresh,250);
+      }catch(error){
+        $("rebootMessage").textContent=error.message;
+        $("rebootMessage").style.color="#ff786d";
+      }
+    }
+    $("saveRebootSchedule").addEventListener("click",saveRebootSchedule);
     $("save").addEventListener("click",saveSettings);
     refresh();
     setInterval(refresh,1000);

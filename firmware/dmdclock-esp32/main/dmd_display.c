@@ -15,6 +15,7 @@
 #include "esp_check.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_random.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -32,6 +33,7 @@
 #define LCD_WIDTH 800
 #define LCD_HEIGHT 480
 #define LCD_PIXEL_CLOCK_HZ (16 * 1000 * 1000)
+#define TOUCH_SCHEDULE_OVERRIDE_US (INT64_C(60) * 60 * 1000000)
 
 #define DMD_WIDTH 128
 #define DMD_HEIGHT 32
@@ -501,11 +503,14 @@ static void paint_dmd(
     const dmd_display_state_t *display,
     const dmd_scene_info_t *scene,
     time_t now,
+    bool schedule_override_active,
     uint8_t controls_opacity_value,
     uint8_t plasma_phase)
 {
     memset(s_framebuffer, 0, LCD_WIDTH * LCD_HEIGHT * sizeof(uint16_t));
-    if (!settings->display_on) {
+    if (!settings->display_on ||
+        (dmd_settings_screen_scheduled_off(settings, now) &&
+         !schedule_override_active)) {
         return;
     }
 
@@ -696,7 +701,8 @@ static void publish_state(
     uint16_t scene_frame,
     uint8_t animations_remaining,
     uint8_t plasma_phase,
-    uint32_t plasma_frames_rendered)
+    uint32_t plasma_frames_rendered,
+    uint32_t schedule_override_seconds_remaining)
 {
     xSemaphoreTake(s_state_lock, portMAX_DELAY);
     s_state.playing_scene = playing_scene;
@@ -707,6 +713,8 @@ static void publish_state(
     s_state.animations_remaining = animations_remaining;
     s_state.plasma_phase = plasma_phase;
     s_state.plasma_frames_rendered = plasma_frames_rendered;
+    s_state.schedule_override_seconds_remaining =
+        schedule_override_seconds_remaining;
     xSemaphoreGive(s_state_lock);
 }
 
@@ -790,6 +798,10 @@ void dmd_display_task(void *context)
     uint32_t previous_revision = 0;
     uint32_t handled_command_revision = 0;
     time_t previous_second = 0;
+    time_t previous_reboot_minute = -1;
+    int64_t schedule_awake_until = 0;
+    bool previous_schedule_override_active = false;
+    bool previous_scheduled_off = false;
     int64_t monotonic_now = esp_timer_get_time();
     int64_t next_scene_frame_at = 0;
     int64_t next_mode_at =
@@ -815,8 +827,39 @@ void dmd_display_task(void *context)
     while (true) {
         dmd_settings_get(&settings);
         time_t now = time(NULL);
+        time_t reboot_minute = now / 60;
+        if (reboot_minute != previous_reboot_minute ||
+            settings.revision != previous_revision) {
+            previous_reboot_minute = reboot_minute;
+            if (dmd_settings_claim_scheduled_reboot(&settings, now)) {
+#if CONFIG_DMD_QEMU
+                ESP_LOGW(
+                    TAG,
+                    "Weekly scheduled reboot simulated; QEMU cannot recover "
+                    "its network adapter after esp_restart()");
+#else
+                ESP_LOGI(TAG, "Weekly scheduled reboot is due");
+                vTaskDelay(pdMS_TO_TICKS(250));
+                esp_restart();
+#endif
+            }
+        }
+        bool scheduled_off =
+            dmd_settings_screen_scheduled_off(&settings, now);
+        if (scheduled_off != previous_scheduled_off) {
+            force_render = true;
+        }
         monotonic_now = esp_timer_get_time();
+        bool schedule_override_active =
+            monotonic_now < schedule_awake_until;
         if (handle_touch(monotonic_now)) {
+            schedule_awake_until =
+                monotonic_now + TOUCH_SCHEDULE_OVERRIDE_US;
+            schedule_override_active = true;
+            force_render = true;
+        }
+        if (schedule_override_active !=
+            previous_schedule_override_active) {
             force_render = true;
         }
         uint8_t current_controls_opacity = controls_opacity(monotonic_now);
@@ -962,6 +1005,12 @@ void dmd_display_task(void *context)
         if (force_render && settings.color_preset == DMD_COLOR_PLASMA) {
             plasma_frames_rendered++;
         }
+        uint32_t schedule_override_seconds_remaining =
+            schedule_override_active
+                ? (uint32_t)(
+                    (schedule_awake_until - monotonic_now + 999999) /
+                    1000000)
+                : 0;
         publish_state(
             playing_scene,
             waiting_for_scene,
@@ -970,19 +1019,24 @@ void dmd_display_task(void *context)
             scene_frame,
             animations_remaining,
             plasma_phase,
-            plasma_frames_rendered);
+            plasma_frames_rendered,
+            schedule_override_seconds_remaining);
         if (force_render) {
             paint_dmd(
                 &settings,
                 &s_state,
                 &scene,
                 now,
+                schedule_override_active,
                 current_controls_opacity,
                 plasma_phase);
             refresh_display();
             force_render = false;
         }
         previous_second = now;
+        previous_scheduled_off = scheduled_off;
+        previous_schedule_override_active =
+            schedule_override_active;
         previous_revision = settings.revision;
         previous_controls_opacity = current_controls_opacity;
         vTaskDelay(pdMS_TO_TICKS(5));

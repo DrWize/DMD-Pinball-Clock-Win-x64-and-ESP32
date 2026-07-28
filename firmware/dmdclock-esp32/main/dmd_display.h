@@ -14,6 +14,7 @@ typedef struct {
     uint8_t animations_remaining;
     uint8_t plasma_phase;
     uint32_t plasma_frames_rendered;
+    uint32_t schedule_override_seconds_remaining;
 } dmd_display_state_t;
 
 esp_err_t dmd_display_init(void);

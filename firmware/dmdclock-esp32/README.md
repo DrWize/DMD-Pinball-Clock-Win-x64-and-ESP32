@@ -21,9 +21,13 @@ This is the first working firmware slice for the original Waveshare
   configurable scene count, and gaps;
 - large 5×7 clock digits, optional seconds, and 12/24-hour display;
 - persistent brightness, clock, timezone, and Wi-Fi settings in NVS;
+- persistent weekly screen-off painting and a weekly weekday/time reboot
+  appointment with reboot-loop protection;
 - an always-available `DMDClock-xxxx` access point and embedded web remote;
 - browser time fallback plus automatic and manual NTP synchronization;
 - GT911 touch buttons for previous/next colour, information, glow, and NTP sync;
+- a one-hour temporary wake override whenever the physical screen is pressed,
+  even during a scheduled screen-off period;
 - an eight-second transient touch-button row with a short fade and safe
   reveal-only first touch after it has hidden.
 
@@ -114,6 +118,9 @@ hardware, or Wi-Fi radio behavior.
 
 The web remote footer links to the same canonical GitHub repository so source,
 documentation, issues, and releases are reachable from the device interface.
+QEMU records and reports a due scheduled reboot without calling `esp_restart()`
+because its emulated network adapter does not recover from an in-process reset.
+The production ESP32-S3 build performs the real restart.
 
 ## Flash
 
