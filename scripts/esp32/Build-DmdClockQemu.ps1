@@ -13,6 +13,7 @@ $projectPath = Join-Path $repoRoot 'firmware\dmdclock-esp32'
     '-DIDF_TARGET=esp32' `
     '-DSDKCONFIG=sdkconfig.qemu-esp32' `
     '-DSDKCONFIG_DEFAULTS=sdkconfig.qemu.defaults' `
+    '-DDMD_BOOTSTRAP_WIFI_HEADER=OFF' `
     build
 
 $binary = Join-Path $projectPath 'build-qemu-esp32\dmdclock_esp32.bin'

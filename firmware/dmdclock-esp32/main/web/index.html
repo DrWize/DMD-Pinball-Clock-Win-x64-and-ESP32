@@ -23,6 +23,7 @@
     .device-time small{display:inline;color:var(--muted)}
     .panel{background:linear-gradient(145deg,#21130b,#160d08);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:14px;box-shadow:0 14px 40px #0005}
     .panel h2{font-size:.95rem;margin:0 0 16px;letter-spacing:.02em}
+    .panel-intro{color:var(--muted);font-size:.82rem;line-height:1.5;margin:-8px 0 16px}
     .row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid #382115}
     .row:first-of-type{border-top:0;padding-top:0}
     .row:last-child{padding-bottom:0}
@@ -43,8 +44,26 @@
     .field label{display:block;margin:0 0 7px}
     button{border:0;border-radius:11px;padding:11px 16px;background:var(--orange);color:#1a0900;font-weight:800;cursor:pointer}
     button.secondary{background:#392217;color:var(--ink);border:1px solid #5a3420}
+    button:focus-visible{outline:3px solid #ffad4266;outline-offset:2px}
     .quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
     .quick-actions button{min-height:46px}
+    .theme-family{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+    .theme-family button{min-height:44px;padding:9px 6px;background:#24150d;color:var(--muted);border:1px solid #4b2c1b}
+    .theme-family button.active{background:#4b260f;color:var(--ink);border-color:var(--orange);box-shadow:inset 0 0 0 1px #ff700e55}
+    .theme-choice{display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,260px);align-items:center;gap:16px;padding:14px;border:1px solid #4b2c1b;border-radius:12px;background:#0e0906}
+    .theme-current{display:flex;align-items:center;gap:11px;min-width:0}
+    .theme-swatch{width:42px;height:42px;flex:none;border-radius:10px;background:var(--orange);box-shadow:0 0 18px #ff700e55}
+    .theme-current strong{display:block;font-size:.94rem}
+    .theme-current small{white-space:normal}
+    .plasma-box{margin-top:14px;border:1px solid #58341f;border-radius:12px;background:linear-gradient(135deg,#150b22,#12100a);padding:15px}
+    .plasma-box[hidden],.custom-stops[hidden]{display:none}
+    .plasma-heading{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:2px}
+    .plasma-heading strong{font-size:.92rem}
+    .plasma-badge{border:1px solid #7b3ca0;border-radius:99px;color:#eca9ff;background:#331344;padding:4px 8px;font-size:.68rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+    .plasma-box .row{border-color:#3d2443}
+    .speed-readout{min-width:58px;text-align:right;color:var(--amber);font:750 .88rem/1 ui-monospace,"SFMono-Regular",Consolas,monospace}
+    .inline-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px}
+    .inline-message{color:var(--muted);font-size:.78rem;line-height:1.35}
     .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
     #message{min-height:1.2em;color:var(--amber);font-size:.82rem;margin-top:12px;text-align:right}
     .network{color:var(--muted);font-size:.8rem;line-height:1.5;margin-top:15px}
@@ -54,7 +73,7 @@
     code{color:#ffd0a9}
     .color-stops{display:flex;gap:8px;flex-wrap:wrap}
     @keyframes plasmaShift{to{background-position:300% 50%}}
-    @media(max-width:560px){header{display:block}.status{margin-top:14px}.fields{grid-template-columns:1fr}.row{gap:10px}.display{padding:25px 6px}.quick-actions{grid-template-columns:1fr 1fr}}
+    @media(max-width:560px){header{display:block}.status{margin-top:14px}.fields{grid-template-columns:1fr}.row{gap:10px}.display{padding:25px 6px}.quick-actions{grid-template-columns:1fr 1fr}.theme-family{grid-template-columns:1fr 1fr}.theme-choice{grid-template-columns:1fr}.theme-choice select{width:100%!important}}
   </style>
 </head>
 <body>
@@ -120,9 +139,23 @@
         <label for="glowStrength">Dot glow <small><span id="glowStrengthValue">35</span>% halo strength</small></label>
         <input id="glowStrength" type="range" min="0" max="100" step="5">
       </div>
-      <div class="row">
-        <label for="colorPreset">Colour theme<small id="colorFamily">Basic · Classic orange</small></label>
-        <select id="colorPreset" style="width:min(260px,48vw)">
+    </section>
+
+    <section class="panel" aria-labelledby="colourHeading">
+      <h2 id="colourHeading">Colour theme</h2>
+      <p class="panel-intro">Choose how the clock and scenes are coloured. Plasma is the animated option; its motion settings appear only when Plasma is selected.</p>
+      <div class="theme-family" role="group" aria-label="Colour theme family">
+        <button class="secondary active" type="button" data-theme-family="Basic">Basic</button>
+        <button class="secondary" type="button" data-theme-family="Gradient">Gradient</button>
+        <button class="secondary" type="button" data-theme-family="Raster">Raster</button>
+        <button class="secondary" type="button" data-theme-family="Plasma">Plasma</button>
+      </div>
+      <div class="theme-choice">
+        <div class="theme-current">
+          <span id="themeSwatch" class="theme-swatch" aria-hidden="true"></span>
+          <div><strong id="themeName">Classic orange</strong><small id="colorFamily">Basic · Single colour</small></div>
+        </div>
+        <select id="colorPreset" aria-label="Colour theme">
           <optgroup label="Basic colours">
             <option value="0">Classic orange</option>
             <option value="16">Golden amber</option>
@@ -166,33 +199,50 @@
           </optgroup>
         </select>
       </div>
-      <div class="row">
-        <label for="plasmaPalette">Plasma palette<small id="plasmaPaletteSummary">Neon pulse</small></label>
-        <select id="plasmaPalette" style="width:min(260px,48vw)">
-          <option value="0">Neon pulse</option>
-          <option value="1">Lava flow</option>
-          <option value="2">Deep ocean</option>
-          <option value="3">Aurora drift</option>
-          <option value="4">Custom</option>
-          <option value="5">Toxic slime</option>
-          <option value="6">Vapor dream</option>
-          <option value="7">Solar flare</option>
-          <option value="8">Arctic ice</option>
-        </select>
-      </div>
-      <div class="row">
-        <label for="plasmaCycle">Plasma cycle<small><span id="plasmaCycleValue">8</span> seconds</small></label>
-        <input id="plasmaCycle" type="range" min="1000" max="60000" step="250">
-      </div>
-      <div class="row">
-        <label>Custom Plasma stops<small>Used when the Custom palette is selected</small></label>
-        <div class="color-stops">
-          <input id="plasmaColor0" type="color" aria-label="Plasma color 1">
-          <input id="plasmaColor1" type="color" aria-label="Plasma color 2">
-          <input id="plasmaColor2" type="color" aria-label="Plasma color 3">
-          <input id="plasmaColor3" type="color" aria-label="Plasma color 4">
+      <div id="plasmaControls" class="plasma-box" hidden>
+        <div class="plasma-heading">
+          <div><strong>Plasma motion</strong><small>Animated colour flowing across the DMD; independent of the clock/scene cycle below.</small></div>
+          <span class="plasma-badge">Animated</span>
+        </div>
+        <div class="row">
+          <label for="plasmaPalette">Palette<small id="plasmaPaletteSummary">Neon pulse</small></label>
+          <select id="plasmaPalette" style="width:min(260px,48vw)">
+            <option value="0">Neon pulse</option>
+            <option value="1">Lava flow</option>
+            <option value="2">Deep ocean</option>
+            <option value="3">Aurora drift</option>
+            <option value="4">Custom</option>
+            <option value="5">Toxic slime</option>
+            <option value="6">Vapor dream</option>
+            <option value="7">Solar flare</option>
+            <option value="8">Arctic ice</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="plasmaCycle">Motion loop duration<small>Lower is faster; time for one complete colour loop</small></label>
+          <div>
+            <input id="plasmaCycle" type="range" min="1000" max="60000" step="250">
+            <div id="plasmaCycleValue" class="speed-readout">8 s</div>
+          </div>
+        </div>
+        <div id="customStops" class="row custom-stops" hidden>
+          <label>Custom palette colours<small>Four colours blended into the Plasma animation</small></label>
+          <div class="color-stops">
+            <input id="plasmaColor0" type="color" aria-label="Plasma colour 1">
+            <input id="plasmaColor1" type="color" aria-label="Plasma colour 2">
+            <input id="plasmaColor2" type="color" aria-label="Plasma colour 3">
+            <input id="plasmaColor3" type="color" aria-label="Plasma colour 4">
+          </div>
         </div>
       </div>
+      <div class="inline-actions">
+        <span id="colourMessage" class="inline-message">The preview changes immediately. Apply to save it on the DMD.</span>
+        <button id="saveColour" type="button">Apply theme</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Clock options</h2>
       <div class="row">
         <label for="use24Hour">24-hour clock</label>
         <label class="switch"><input id="use24Hour" type="checkbox"><span></span></label>
@@ -325,6 +375,18 @@
       7:["#3d0500","#d82900","#ff8a00","#fff0a0"],
       8:["#001b3d","#0077b6","#48cae4","#e0fbff"]
     };
+    const themeFamilies={
+      Basic:[0,16,1,17,18,19,20,3],
+      Gradient:[4,5,6,7,8,21,22,23],
+      Raster:[9,10,11,12,13,14,15,24,25,26,27,28,29,30,31,32],
+      Plasma:[2]
+    };
+    function themeFamilyFor(preset){
+      return Object.keys(themeFamilies).find(family=>themeFamilies[family].includes(preset))||"Basic";
+    }
+    function secondsLabel(milliseconds){
+      return `${(milliseconds/1000).toFixed(2).replace(/\.?0+$/,"")} s`;
+    }
     function currentPlasmaStops(){
       const preset=Number($("plasmaPalette").value);
       return preset===4
@@ -337,6 +399,36 @@
         `${color} ${((index+1)/colors.length)*100}%`
       ]);
       return `linear-gradient(180deg,${stops.join(",")})`;
+    }
+    function updateColourUi(preset){
+      const family=themeFamilyFor(preset);
+      const option=$("colorPreset").selectedOptions[0];
+      const description={
+        Basic:"Single colour",
+        Gradient:"Smooth colour blend",
+        Raster:"Classic colour bands",
+        Plasma:"Animated colour flow"
+      }[family];
+      $("themeName").textContent=option?.textContent||family;
+      $("colorFamily").textContent=`${family} · ${description}`;
+      document.querySelectorAll("[data-theme-family]").forEach(button=>{
+        const active=button.dataset.themeFamily===family;
+        button.classList.toggle("active",active);
+        button.setAttribute("aria-pressed",String(active));
+      });
+      $("plasmaControls").hidden=family!=="Plasma";
+      $("customStops").hidden=family!=="Plasma"||Number($("plasmaPalette").value)!==4;
+      const swatch=$("themeSwatch");
+      if(family==="Basic"){
+        swatch.style.background=basicThemes[preset];
+      }else if(family==="Gradient"){
+        swatch.style.background=`linear-gradient(135deg,${gradientThemes[preset].join(",")})`;
+      }else if(family==="Raster"){
+        swatch.style.background=bandGradient(rasterThemes[preset]);
+      }else{
+        const colors=currentPlasmaStops();
+        swatch.style.background=`linear-gradient(135deg,${colors.join(",")})`;
+      }
     }
     function applyPreviewTheme(preset){
       const clock=$("clock");
@@ -365,6 +457,7 @@
         clock.style.textShadow="none";
         clock.style.animation="none";
       }
+      updateColourUi(preset);
     }
     async function request(url,options){
       const response=await fetch(url,options);
@@ -374,6 +467,8 @@
     function message(text,error=false){
       $("message").textContent=text;
       $("message").style.color=error?"#ff786d":"var(--amber)";
+      $("colourMessage").textContent=text;
+      $("colourMessage").style.color=error?"#ff786d":"var(--amber)";
     }
     function render(state){
       $("clock").textContent=state.playScene?state.scene:state.time;
@@ -393,9 +488,6 @@
         $("glowStrength").value=state.glowStrength;
         $("glowStrengthValue").textContent=state.glowStrength;
       }
-      $("colorFamily").textContent=`${state.colorFamily} · ${state.color}`;
-      $("plasmaPaletteSummary").textContent=
-        `${state.plasmaPaletteName} · ${(state.plasmaCycleMilliseconds/1000).toFixed(2).replace(/\.?0+$/,"")}s`;
       $("toggleInformation").textContent=state.showInformation?"Information on":"Information off";
       $("toggleGlow").textContent=state.glowStrength>0?`Glow on · ${state.glowStrength}%`:"Glow off";
       if(!loaded){
@@ -422,7 +514,8 @@
         $("colorPreset").value=String(state.colorPreset);
         $("plasmaPalette").value=String(state.plasmaPalette);
         $("plasmaCycle").value=String(state.plasmaCycleMilliseconds);
-        $("plasmaCycleValue").textContent=(state.plasmaCycleMilliseconds/1000).toFixed(2).replace(/\.?0+$/,"");
+        $("plasmaPaletteSummary").textContent=state.plasmaPaletteName;
+        $("plasmaCycleValue").textContent=secondsLabel(state.plasmaCycleMilliseconds);
         state.plasmaCustomColors.forEach((value,index)=>{$(`plasmaColor${index}`).value=value});
         applyPreviewTheme(state.colorPreset);
         $("use24Hour").checked=state.use24Hour;
@@ -476,9 +569,22 @@
     $("brightness").addEventListener("input",()=>{$("brightnessValue").textContent=$("brightness").value});
     $("glowStrength").addEventListener("input",()=>{$("glowStrengthValue").textContent=$("glowStrength").value});
     $("colorPreset").addEventListener("change",()=>applyPreviewTheme(Number($("colorPreset").value)));
-    $("plasmaPalette").addEventListener("change",()=>applyPreviewTheme(Number($("colorPreset").value)));
+    document.querySelectorAll("[data-theme-family]").forEach(button=>{
+      button.addEventListener("click",()=>{
+        const family=button.dataset.themeFamily;
+        const current=Number($("colorPreset").value);
+        if(!themeFamilies[family].includes(current)){
+          $("colorPreset").value=String(themeFamilies[family][0]);
+        }
+        applyPreviewTheme(Number($("colorPreset").value));
+      });
+    });
+    $("plasmaPalette").addEventListener("change",()=>{
+      $("plasmaPaletteSummary").textContent=$("plasmaPalette").selectedOptions[0].textContent;
+      applyPreviewTheme(Number($("colorPreset").value));
+    });
     $("plasmaCycle").addEventListener("input",()=>{
-      $("plasmaCycleValue").textContent=(Number($("plasmaCycle").value)/1000).toFixed(2).replace(/\.?0+$/,"");
+      $("plasmaCycleValue").textContent=secondsLabel(Number($("plasmaCycle").value));
       applyPreviewTheme(Number($("colorPreset").value));
     });
     [0,1,2,3].forEach(index=>$(`plasmaColor${index}`).addEventListener("input",()=>applyPreviewTheme(Number($("colorPreset").value))));
@@ -486,7 +592,7 @@
     document.querySelectorAll("[data-action]").forEach(button=>{
       button.addEventListener("click",()=>runAction(button.dataset.action));
     });
-    $("save").addEventListener("click",async()=>{
+    async function saveSettings(){
       const body={
         displayOn:$("displayOn").checked,
         playScene:$("displayMode").value==="scene",
@@ -515,7 +621,9 @@
         message(result.wifiReconnecting?"Saved. Home Wi-Fi is reconnecting…":"Changes saved.");
         setTimeout(refresh,500);
       }catch(error){message(error.message,true)}
-    });
+    }
+    $("save").addEventListener("click",saveSettings);
+    $("saveColour").addEventListener("click",saveSettings);
     refresh();
     setInterval(refresh,1000);
   </script>

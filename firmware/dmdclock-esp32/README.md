@@ -60,6 +60,36 @@ firmware\dmdclock-esp32\build\dmdclock_esp32.bin
 
 Building does not access, reset, erase, or flash a connected device.
 
+## First-flash Wi-Fi bootstrap
+
+For initial board preparation, generate a local, Git-ignored bootstrap header.
+The SSID is supplied explicitly and the password is requested as a masked secure
+prompt:
+
+```powershell
+.\scripts\esp32\Set-DmdClockBootstrapWifi.ps1 `
+  -WifiSsid 'My Wi-Fi' `
+  -Build
+```
+
+The production build embeds those credentials once. On first boot, firmware
+copies them into the existing `dmdclock` NVS settings namespace before starting
+the station connection. It never logs the password. QEMU always disables this
+header, even when it exists locally.
+
+After the board connects successfully:
+
+```powershell
+.\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build
+.\scripts\esp32\Flash-DmdClock.ps1 -Port COM5
+```
+
+The normal application flash preserves NVS, so Wi-Fi continues using the saved
+credentials while the rebuilt application image no longer contains the
+bootstrap copy. Do not erase NVS during that cleanup flash. The password remains
+in device NVS under the current barebones settings design; NVS encryption is a
+later security gate.
+
 ## Run in QEMU
 
 Build the separate emulator profile. It uses QEMU's ESP32 CPU model because the

@@ -31,6 +31,20 @@ idf_component_register(
         nvs_flash
 )
 
+if(DMD_BOOTSTRAP_WIFI_HEADER AND NOT CONFIG_DMD_QEMU)
+    set(DMD_BOOTSTRAP_WIFI_PATH
+        "${CMAKE_CURRENT_LIST_DIR}/dmd_bootstrap_wifi.h")
+    if(NOT EXISTS "${DMD_BOOTSTRAP_WIFI_PATH}")
+        message(FATAL_ERROR
+            "Bootstrap Wi-Fi was enabled but dmd_bootstrap_wifi.h is missing")
+    endif()
+    target_compile_definitions(
+        ${COMPONENT_LIB} PRIVATE DMD_HAS_BOOTSTRAP_WIFI=1)
+else()
+    target_compile_definitions(
+        ${COMPONENT_LIB} PRIVATE DMD_HAS_BOOTSTRAP_WIFI=0)
+endif()
+
 if(CONFIG_DMD_QEMU)
     set(DMD_SCENE_METADATA_BUILD_FILE
         "${CMAKE_CURRENT_BINARY_DIR}/scene_metadata.json")

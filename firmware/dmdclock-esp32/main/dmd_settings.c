@@ -10,6 +10,13 @@
 #include "freertos/semphr.h"
 #include "nvs.h"
 
+#if DMD_HAS_BOOTSTRAP_WIFI
+#include "dmd_bootstrap_wifi.h"
+#else
+#define DMD_BOOTSTRAP_WIFI_SSID ""
+#define DMD_BOOTSTRAP_WIFI_PASSWORD ""
+#endif
+
 static const char *TAG = "dmd_settings";
 static const char *NAMESPACE = "dmdclock";
 static SemaphoreHandle_t s_lock;
@@ -39,6 +46,14 @@ static void set_defaults(void)
         s_settings.timezone,
         "CET-1CEST,M3.5.0,M10.5.0/3",
         sizeof(s_settings.timezone));
+    strlcpy(
+        s_settings.wifi_ssid,
+        DMD_BOOTSTRAP_WIFI_SSID,
+        sizeof(s_settings.wifi_ssid));
+    strlcpy(
+        s_settings.wifi_password,
+        DMD_BOOTSTRAP_WIFI_PASSWORD,
+        sizeof(s_settings.wifi_password));
     s_settings.revision = 1;
 }
 
@@ -63,6 +78,10 @@ esp_err_t dmd_settings_init(void)
     esp_err_t error = nvs_open(NAMESPACE, NVS_READONLY, &handle);
     if (error == ESP_ERR_NVS_NOT_FOUND) {
         dmd_settings_apply_timezone(s_settings.timezone);
+        if (s_settings.wifi_ssid[0] != '\0') {
+            ESP_LOGI(TAG, "Persisting one-time bootstrap Wi-Fi credentials");
+            return dmd_settings_update(&s_settings);
+        }
         return ESP_OK;
     }
     if (error != ESP_OK) {
@@ -146,6 +165,19 @@ esp_err_t dmd_settings_init(void)
             sizeof(s_settings.timezone));
     }
     dmd_settings_apply_timezone(s_settings.timezone);
+    if (s_settings.wifi_ssid[0] == '\0' &&
+        DMD_BOOTSTRAP_WIFI_SSID[0] != '\0') {
+        strlcpy(
+            s_settings.wifi_ssid,
+            DMD_BOOTSTRAP_WIFI_SSID,
+            sizeof(s_settings.wifi_ssid));
+        strlcpy(
+            s_settings.wifi_password,
+            DMD_BOOTSTRAP_WIFI_PASSWORD,
+            sizeof(s_settings.wifi_password));
+        ESP_LOGI(TAG, "Applying one-time bootstrap Wi-Fi credentials");
+        return dmd_settings_update(&s_settings);
+    }
     return ESP_OK;
 }
 

@@ -23,6 +23,14 @@ compiler on the global `PATH`.
 # Build the barebones DMDClock firmware. This never flashes a device.
 .\scripts\esp32\Build-DmdClock.ps1
 
+# Generate a one-time, ignored first-flash Wi-Fi header and build with it.
+# The password is entered through a masked SecureString prompt.
+.\scripts\esp32\Set-DmdClockBootstrapWifi.ps1 -WifiSsid 'My Wi-Fi' -Build
+
+# After the first connection, remove the header and rebuild. A normal flash
+# preserves the credentials that firmware copied into NVS.
+.\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build
+
 # Build and run the ESP32-S3 QEMU profile with its virtual RGB display.
 .\scripts\esp32\Build-DmdClockQemu.ps1
 .\scripts\esp32\Run-DmdClockQemu.ps1
@@ -42,3 +50,8 @@ its child process environment; it does not copy DLLs into Windows.
 Building does not touch connected hardware. The Windows USB-driver installer
 requires an Administrator terminal; run it only if Windows does not recognize
 the board automatically.
+
+`dmd_bootstrap_wifi.h` is deliberately ignored by Git. Never attach it to an
+issue, commit it, place it in a release archive, or use a real password in a
+QEMU build. Rebuild and reflash without it after the device connects; do not
+erase NVS during that cleanup flash.
