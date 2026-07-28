@@ -224,8 +224,8 @@ $PSVersionTable.PSVersion
 Clone and enter the repository:
 
 ```powershell
-git clone https://github.com/DrWize/DMDClock-Windows-x64.git
-Set-Location DMDClock-Windows-x64
+git clone https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32.git
+Set-Location DMD-Pinball-Clock-Win-x64-and-ESP32
 ```
 
 Restore, build, test, and run:

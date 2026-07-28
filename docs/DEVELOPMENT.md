@@ -23,8 +23,8 @@ $PSVersionTable.PSVersion
 ## Clone, restore, and run
 
 ```powershell
-git clone https://github.com/DrWize/DMDClock-Windows-x64.git
-Set-Location DMDClock-Windows-x64
+git clone https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32.git
+Set-Location DMD-Pinball-Clock-Win-x64-and-ESP32
 dotnet restore DMDClock.sln
 dotnet build DMDClock.sln -c Debug
 dotnet run --project .\src\DmdClock.App\DmdClock.App.csproj
@@ -102,7 +102,7 @@ standalone ZIP, installer build information, and a generated SHA-256 file coveri
 all uploaded build artifacts. Use `-NotesPath path\to\notes.md` for curated release
 notes; otherwise GitHub generates notes from the repository history. The first
 published run is available as the
-[`v1.0.0` pre-release](https://github.com/DrWize/DMDClock-Windows-x64/releases/tag/v1.0.0).
+[`v1.0.0` pre-release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/tag/v1.0.0).
 
 ## Work with Git
 

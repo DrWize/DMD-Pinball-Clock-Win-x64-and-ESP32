@@ -1,7 +1,7 @@
 # DMDClock ESP32-S3 barebones firmware
 
 Source, documentation, and releases:
-[DrWize/DMDClock-Windows-x64](https://github.com/DrWize/DMDClock-Windows-x64).
+[DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32).
 The firmware stays on the `test/esp32-s3` branch until physical-board testing is
 complete.
 

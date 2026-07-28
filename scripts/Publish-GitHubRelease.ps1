@@ -2,7 +2,7 @@
 param(
     [string]$Tag,
 
-    [string]$Repository = 'DrWize/DMDClock-Windows-x64',
+    [string]$Repository = 'DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32',
 
     [string]$Target = 'master',
 

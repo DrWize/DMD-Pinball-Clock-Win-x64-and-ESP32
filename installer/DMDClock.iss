@@ -20,7 +20,7 @@
 #define AppGuid "{{D01CC10C-1283-4C72-AD7C-BEA19B81B762}"
 #define AppExeName "DmdClock.App.exe"
 #define AppScrName "DMDClock.scr"
-#define ProjectUrl "https://github.com/DrWize/DMDClock-Windows-x64"
+#define ProjectUrl "https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32"
 #define SceneSourceUrl "https://github.com/sigmafx/DotClk-Resources/tree/master/Scenes"
 
 [Setup]

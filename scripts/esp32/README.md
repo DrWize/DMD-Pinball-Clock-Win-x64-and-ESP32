@@ -1,7 +1,7 @@
 # ESP32-S3 local tools
 
 Repository:
-[DrWize/DMDClock-Windows-x64](https://github.com/DrWize/DMDClock-Windows-x64).
+[DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32).
 
 These scripts use the pinned, workspace-local ESP-IDF 5.5.2 installation under
 `E:\ai\.tools`. They do not require ESP-IDF, Python, CMake, Ninja, or the Xtensa

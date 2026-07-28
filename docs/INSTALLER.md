@@ -10,7 +10,7 @@ an administrator prompt.
 
 The current installer, portable ZIP, standalone ZIP, build information, and
 checksums are published together in the
-[`v1.0.0` pre-release](https://github.com/DrWize/DMDClock-Windows-x64/releases/tag/v1.0.0).
+[`v1.0.0` pre-release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/tag/v1.0.0).
 
 ## User-visible behavior
 

@@ -31,7 +31,7 @@ public partial class MainWindow : Window
     private static readonly TimeSpan MouseCursorHideDelay = TimeSpan.FromSeconds(5);
     private const double DefaultWindowWidth = 1024;
     private const double DefaultWindowHeight = 256;
-    private const string HelpGitHubUrl = "https://github.com/DrWize/DMDClock-Windows-x64";
+    private const string HelpGitHubUrl = "https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32";
     private readonly DispatcherTimer _displayTimer;
     private readonly DispatcherTimer _cursorHideTimer;
     private readonly Cursor _hiddenCursor = new(StandardCursorType.None);

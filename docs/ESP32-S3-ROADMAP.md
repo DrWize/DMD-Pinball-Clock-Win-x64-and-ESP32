@@ -1,7 +1,7 @@
 # DMDClock ESP32-S3 roadmap
 
 Project repository:
-[DrWize/DMDClock-Windows-x64](https://github.com/DrWize/DMDClock-Windows-x64).
+[DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32).
 ESP32 work remains on the dedicated `test/esp32-s3` branch until physical-board
 validation is complete.
 
@@ -420,7 +420,7 @@ with shared fixtures are acceptable while their output remains byte-identical.
 ## Proposed repository layout
 
 ```text
-DMDClock-Windows-x64/
+DMD-Pinball-Clock-Win-x64-and-ESP32/
 ├─ src/
 ├─ tests/
 ├─ tools/

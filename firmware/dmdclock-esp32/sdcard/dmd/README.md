@@ -1,7 +1,7 @@
 # DMDClock secondary-storage root
 
 The canonical project and metadata source is
-[DrWize/DMDClock-Windows-x64](https://github.com/DrWize/DMDClock-Windows-x64).
+[DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32).
 
 This directory models `/dmd` at the root of the ESP32-S3 microSD/TF card. Copy
 the contents of this `dmd` directory to the card as `/dmd`; do not copy the

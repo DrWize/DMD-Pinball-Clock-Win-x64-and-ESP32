@@ -10,7 +10,7 @@ Windows screensaver.
 > keep improving DMDClock and creating more projects like it—thank you!
 >
 > **Looking for the latest version?**
-> [Download DMDClock from the Releases page](https://github.com/DrWize/DMDClock-Windows-x64/releases).
+> [Download DMDClock from the Releases page](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases).
 
 ![DMDClock using the Neon sunset theme](docs/screenshots/colors/neon-sunset.png)
 
@@ -50,7 +50,7 @@ directory.
 ## Quick user start
 
 1. Download `DMDClock-win-x64-setup.exe` from the
-   [`v1.0.0` release](https://github.com/DrWize/DMDClock-Windows-x64/releases/).
+   [`v1.0.0` release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/).
 2. Run the installer and keep the default per-user directory.
 3. Start DMDClock from the Start Menu.
 4. Right-click and choose **Download DotClk scenes…**, or press `Ctrl+Shift+O`
