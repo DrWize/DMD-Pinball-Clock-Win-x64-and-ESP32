@@ -274,9 +274,33 @@ static void uppercase_copy(char *target, size_t capacity, const char *source)
     target[index] = '\0';
 }
 
+static void draw_lcd_text_fit(
+    const char *text,
+    int x,
+    int y,
+    int scale,
+    int max_width,
+    uint16_t color)
+{
+    char fitted[256];
+    strlcpy(fitted, text, sizeof(fitted));
+    if (lcd_text_width(fitted, scale) > max_width) {
+        size_t length = strlen(fitted);
+        while (length > 3) {
+            fitted[--length] = '\0';
+            if (lcd_text_width(fitted, scale) +
+                    lcd_text_width("...", scale) <=
+                max_width) {
+                break;
+            }
+        }
+        strlcat(fitted, "...", sizeof(fitted));
+    }
+    draw_lcd_text(fitted, x, y, scale, color);
+}
+
 static void draw_screen_chrome(
     const dmd_settings_t *settings,
-    const dmd_display_state_t *display,
     const dmd_scene_info_t *scene,
     uint8_t controls_opacity_value)
 {
@@ -284,31 +308,64 @@ static void draw_screen_chrome(
     uint16_t accent = rgb565(rgb.red, rgb.green, rgb.blue);
 
     if (settings->show_information) {
-        char file_name[24];
-        uppercase_copy(file_name, sizeof(file_name), scene->file_name);
-        char info[64];
-        if (display->playing_scene) {
-            snprintf(
+        dmd_scene_metadata_t metadata;
+        dmd_scene_get_metadata(scene->index, &metadata);
+        char source[256];
+        char info[256];
+        int information_y = 50;
+        if (metadata.game[0] != '\0') {
+            snprintf(source, sizeof(source), "PINBALL  %s", metadata.game);
+            uppercase_copy(info, sizeof(info), source);
+            draw_lcd_text_fit(
                 info,
-                sizeof(info),
-                "SCENE %s  FRAME %u/%u",
-                file_name,
-                display->scene_frame + 1,
-                scene->frame_count);
-        } else {
-            char color_name[32];
-            uppercase_copy(
-                color_name,
-                sizeof(color_name),
-                dmd_color_name(settings->color_preset));
-            snprintf(info, sizeof(info), "CLOCK  COLOR %s", color_name);
+                20,
+                information_y,
+                2,
+                LCD_WIDTH - 40,
+                accent);
+            information_y += 24;
         }
-        draw_lcd_text(
-            info,
-            20,
-            72,
-            2,
-            accent);
+        if (metadata.title[0] != '\0') {
+            snprintf(source, sizeof(source), "SCENE  %s", metadata.title);
+            uppercase_copy(info, sizeof(info), source);
+            draw_lcd_text_fit(
+                info,
+                20,
+                information_y,
+                2,
+                LCD_WIDTH - 40,
+                accent);
+            information_y += 24;
+        }
+
+        if (metadata.year > 0 && metadata.manufacturer[0] != '\0') {
+            snprintf(
+                source,
+                sizeof(source),
+                "YEAR  %u    MANUFACTURER  %s",
+                metadata.year,
+                metadata.manufacturer);
+        } else if (metadata.year > 0) {
+            snprintf(source, sizeof(source), "YEAR  %u", metadata.year);
+        } else if (metadata.manufacturer[0] != '\0') {
+            snprintf(
+                source,
+                sizeof(source),
+                "MANUFACTURER  %s",
+                metadata.manufacturer);
+        } else {
+            source[0] = '\0';
+        }
+        if (source[0] != '\0') {
+            uppercase_copy(info, sizeof(info), source);
+            draw_lcd_text_fit(
+                info,
+                20,
+                information_y,
+                2,
+                LCD_WIDTH - 40,
+                accent);
+        }
     }
 
     if (controls_opacity_value > 0) {
@@ -455,7 +512,6 @@ static void paint_dmd(
     ensure_plasma_palette(settings);
     draw_screen_chrome(
         settings,
-        display,
         scene,
         controls_opacity_value);
     for (int dmd_y = 0; dmd_y < DMD_HEIGHT; dmd_y++) {

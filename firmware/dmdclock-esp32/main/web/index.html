@@ -50,11 +50,18 @@
     .theme-family{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
     .theme-family button{min-height:44px;padding:9px 6px;background:#24150d;color:var(--muted);border:1px solid #4b2c1b}
     .theme-family button.active{background:#4b260f;color:var(--ink);border-color:var(--orange);box-shadow:inset 0 0 0 1px #ff700e55}
-    .theme-choice{display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,260px);align-items:center;gap:16px;padding:14px;border:1px solid #4b2c1b;border-radius:12px;background:#0e0906}
-    .theme-current{display:flex;align-items:center;gap:11px;min-width:0}
-    .theme-swatch{width:42px;height:42px;flex:none;border-radius:10px;background:var(--orange);box-shadow:0 0 18px #ff700e55}
-    .theme-current strong{display:block;font-size:.94rem}
-    .theme-current small{white-space:normal}
+    .theme-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+    .theme-grid[hidden]{display:none}
+    .theme-grid.raster{max-height:330px;overflow:auto;padding-right:4px}
+    .theme-card{display:flex;align-items:center;gap:11px;min-height:58px;padding:8px 10px;text-align:left;background:#130c08;color:var(--ink);border:1px solid #4b2c1b}
+    .theme-card:hover{border-color:#8a4c25;background:#1b100a}
+    .theme-card.selected{border-color:var(--orange);background:#32190b;box-shadow:inset 0 0 0 1px #ff700e55}
+    .theme-card .swatch{width:38px;height:38px;flex:none;border-radius:9px;background:var(--orange);box-shadow:0 0 14px #ff700e44}
+    .theme-card .theme-label{min-width:0}
+    .theme-card .theme-label strong{display:block;font-size:.84rem;line-height:1.2}
+    .theme-card .theme-label small{font-size:.7rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .theme-card .check{margin-left:auto;color:var(--orange);font-weight:900;opacity:0}
+    .theme-card.selected .check{opacity:1}
     .plasma-box{margin-top:14px;border:1px solid #58341f;border-radius:12px;background:linear-gradient(135deg,#150b22,#12100a);padding:15px}
     .plasma-box[hidden],.custom-stops[hidden]{display:none}
     .plasma-heading{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:2px}
@@ -64,6 +71,14 @@
     .speed-readout{min-width:58px;text-align:right;color:var(--amber);font:750 .88rem/1 ui-monospace,"SFMono-Regular",Consolas,monospace}
     .inline-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px}
     .inline-message{color:var(--muted);font-size:.78rem;line-height:1.35}
+    .scene-picker{display:flex;align-items:center;gap:7px;width:min(360px,58vw)}
+    .scene-picker select{min-width:0}
+    .scene-step{width:42px;height:42px;flex:none;padding:0;background:#392217;color:var(--ink);border:1px solid #5a3420;font-size:1.15rem}
+    .scene-details{display:grid;grid-template-columns:2fr .65fr 1.2fr 2fr;gap:8px;margin:2px 0 12px;padding:11px;border:1px solid #3d2414;border-radius:11px;background:#0d0805}
+    .scene-details span{min-width:0}
+    .scene-details span[hidden]{display:none}
+    .scene-details small{margin:0 0 3px;color:#8f7e70;font-size:.65rem;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+    .scene-details strong{display:block;overflow:hidden;color:var(--ink);font-size:.78rem;line-height:1.3;text-overflow:ellipsis}
     .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
     #message{min-height:1.2em;color:var(--amber);font-size:.82rem;margin-top:12px;text-align:right}
     .network{color:var(--muted);font-size:.8rem;line-height:1.5;margin-top:15px}
@@ -73,7 +88,7 @@
     code{color:#ffd0a9}
     .color-stops{display:flex;gap:8px;flex-wrap:wrap}
     @keyframes plasmaShift{to{background-position:300% 50%}}
-    @media(max-width:560px){header{display:block}.status{margin-top:14px}.fields{grid-template-columns:1fr}.row{gap:10px}.display{padding:25px 6px}.quick-actions{grid-template-columns:1fr 1fr}.theme-family{grid-template-columns:1fr 1fr}.theme-choice{grid-template-columns:1fr}.theme-choice select{width:100%!important}}
+    @media(max-width:560px){header{display:block}.status{margin-top:14px}.fields{grid-template-columns:1fr}.row{gap:10px}.display{padding:25px 6px}.quick-actions{grid-template-columns:1fr 1fr}.theme-family{grid-template-columns:1fr 1fr}.theme-grid{grid-template-columns:1fr}.scene-picker{width:min(100%,58vw)}.scene-details{grid-template-columns:1fr 1fr}}
   </style>
 </head>
 <body>
@@ -117,19 +132,29 @@
       </div>
       <div class="row">
         <label for="sceneIndex">Scene<small>Uses the shared scene metadata catalog</small></label>
-        <select id="sceneIndex" style="width:min(260px,48vw)">
-          <option value="0">GOT06 · Game of Thrones</option>
-          <option value="1">AFM01 · Attack from Mars</option>
-          <option value="2">RD0868</option>
-          <option value="3">RD0959</option>
-          <option value="4">RD1116</option>
-          <option value="5">RD1385</option>
-          <option value="6">RD1448</option>
-          <option value="7">RD1474</option>
-          <option value="8">RD1695</option>
-          <option value="9">RD1701</option>
-          <option value="10">RD1891</option>
-        </select>
+        <div class="scene-picker">
+          <button class="scene-step" type="button" data-action="scenePrevious" aria-label="Previous scene" title="Previous scene">‹</button>
+          <select id="sceneIndex" aria-label="Scene">
+            <option value="0">GOT06 · Game of Thrones</option>
+            <option value="1">AFM01 · Attack from Mars</option>
+            <option value="2">RD0868</option>
+            <option value="3">RD0959</option>
+            <option value="4">RD1116</option>
+            <option value="5">RD1385</option>
+            <option value="6">RD1448</option>
+            <option value="7">RD1474</option>
+            <option value="8">RD1695</option>
+            <option value="9">RD1701</option>
+            <option value="10">RD1891</option>
+          </select>
+          <button class="scene-step" type="button" data-action="sceneNext" aria-label="Next scene" title="Next scene">›</button>
+        </div>
+      </div>
+      <div class="scene-details" aria-label="Selected scene information">
+        <span id="sceneGameField" hidden><small>Pinball</small><strong id="sceneGame"></strong></span>
+        <span id="sceneYearField" hidden><small>Year</small><strong id="sceneYear"></strong></span>
+        <span id="sceneTitleField" hidden><small>Scene</small><strong id="sceneTitle"></strong></span>
+        <span id="sceneManufacturerField" hidden><small>Manufacturer</small><strong id="sceneManufacturer"></strong></span>
       </div>
       <div class="row">
         <label for="brightness">Brightness <small><span id="brightnessValue">100</span>%</small></label>
@@ -150,73 +175,19 @@
         <button class="secondary" type="button" data-theme-family="Raster">Raster</button>
         <button class="secondary" type="button" data-theme-family="Plasma">Plasma</button>
       </div>
-      <div class="theme-choice">
-        <div class="theme-current">
-          <span id="themeSwatch" class="theme-swatch" aria-hidden="true"></span>
-          <div><strong id="themeName">Classic orange</strong><small id="colorFamily">Basic · Single colour</small></div>
-        </div>
-        <select id="colorPreset" aria-label="Colour theme">
-          <optgroup label="Basic colours">
-            <option value="0">Classic orange</option>
-            <option value="16">Golden amber</option>
-            <option value="1">Pinball red</option>
-            <option value="17">Arcade green</option>
-            <option value="18">Electric blue</option>
-            <option value="19">Ice cyan</option>
-            <option value="20">Hot magenta</option>
-            <option value="3">Warm white</option>
-          </optgroup>
-          <optgroup label="Plasma">
-            <option value="2">Plasma</option>
-          </optgroup>
-          <optgroup label="Gradient themes">
-            <option value="4">Neon sunset</option>
-            <option value="5">Cyber ocean</option>
-            <option value="6">Toxic arcade</option>
-            <option value="7">Vaporwave</option>
-            <option value="8">Aurora</option>
-            <option value="21">Firestorm</option>
-            <option value="22">Electric violet</option>
-            <option value="23">Arctic glow</option>
-          </optgroup>
-          <optgroup label="Raster themes">
-            <option value="9">Blue halo</option>
-            <option value="10">Red halo</option>
-            <option value="11">Earthtone</option>
-            <option value="12">Metal</option>
-            <option value="13">Interlaced blue</option>
-            <option value="14">Extruded cyan</option>
-            <option value="15">Rainbow</option>
-            <option value="24">Purple halo</option>
-            <option value="25">Green halo</option>
-            <option value="26">Amber halo</option>
-            <option value="27">Purple pulse</option>
-            <option value="28">Ocean depth</option>
-            <option value="29">Sunset bands</option>
-            <option value="30">Forest layers</option>
-            <option value="31">Arctic bands</option>
-            <option value="32">Candy stripe</option>
-          </optgroup>
-        </select>
-      </div>
+      <input id="colorPreset" type="hidden" value="0">
+      <div id="themeGrid" class="theme-grid" aria-label="Themes"></div>
       <div id="plasmaControls" class="plasma-box" hidden>
         <div class="plasma-heading">
           <div><strong>Plasma motion</strong><small>Animated colour flowing across the DMD; independent of the clock/scene cycle below.</small></div>
           <span class="plasma-badge">Animated</span>
         </div>
         <div class="row">
-          <label for="plasmaPalette">Palette<small id="plasmaPaletteSummary">Neon pulse</small></label>
-          <select id="plasmaPalette" style="width:min(260px,48vw)">
-            <option value="0">Neon pulse</option>
-            <option value="1">Lava flow</option>
-            <option value="2">Deep ocean</option>
-            <option value="3">Aurora drift</option>
-            <option value="4">Custom</option>
-            <option value="5">Toxic slime</option>
-            <option value="6">Vapor dream</option>
-            <option value="7">Solar flare</option>
-            <option value="8">Arctic ice</option>
-          </select>
+          <div style="width:100%">
+            <label>Palette<small id="plasmaPaletteSummary">Neon pulse</small></label>
+            <input id="plasmaPalette" type="hidden" value="0">
+            <div id="plasmaPaletteGrid" class="theme-grid" style="margin-top:10px"></div>
+          </div>
         </div>
         <div class="row">
           <label for="plasmaCycle">Motion loop duration<small>Lower is faster; time for one complete colour loop</small></label>
@@ -236,8 +207,7 @@
         </div>
       </div>
       <div class="inline-actions">
-        <span id="colourMessage" class="inline-message">The preview changes immediately. Apply to save it on the DMD.</span>
-        <button id="saveColour" type="button">Apply theme</button>
+        <span id="colourMessage" class="inline-message">Choose a theme to apply it immediately to the DMD.</span>
       </div>
     </section>
 
@@ -252,7 +222,7 @@
         <label class="switch"><input id="showSeconds" type="checkbox"><span></span></label>
       </div>
       <div class="row">
-        <label for="showInformation">Animation information<small>Scene, frame, and colour on screen</small></label>
+        <label for="showInformation">Scene information<small>Pinball, year, scene, and manufacturer only</small></label>
         <label class="switch"><input id="showInformation" type="checkbox"><span></span></label>
       </div>
     </section>
@@ -381,6 +351,24 @@
       Raster:[9,10,11,12,13,14,15,24,25,26,27,28,29,30,31,32],
       Plasma:[2]
     };
+    const themeNames={
+      0:"Classic orange",1:"Pinball red",3:"Warm white",
+      4:"Neon sunset",5:"Cyber ocean",6:"Toxic arcade",7:"Vaporwave",
+      8:"Aurora",9:"Blue halo",10:"Red halo",11:"Earthtone",12:"Metal",
+      13:"Interlaced blue",14:"Extruded cyan",15:"Rainbow",
+      16:"Golden amber",17:"Arcade green",18:"Electric blue",
+      19:"Ice cyan",20:"Hot magenta",21:"Firestorm",
+      22:"Electric violet",23:"Arctic glow",24:"Purple halo",
+      25:"Green halo",26:"Amber halo",27:"Purple pulse",
+      28:"Ocean depth",29:"Sunset bands",30:"Forest layers",
+      31:"Arctic bands",32:"Candy stripe"
+    };
+    const plasmaNames={
+      0:"Neon pulse",1:"Lava flow",2:"Deep ocean",3:"Aurora drift",
+      4:"Custom",5:"Toxic slime",6:"Vapor dream",7:"Solar flare",
+      8:"Arctic ice"
+    };
+    let viewedThemeFamily="Basic";
     function themeFamilyFor(preset){
       return Object.keys(themeFamilies).find(family=>themeFamilies[family].includes(preset))||"Basic";
     }
@@ -400,35 +388,75 @@
       ]);
       return `linear-gradient(180deg,${stops.join(",")})`;
     }
-    function updateColourUi(preset){
-      const family=themeFamilyFor(preset);
-      const option=$("colorPreset").selectedOptions[0];
-      const description={
-        Basic:"Single colour",
-        Gradient:"Smooth colour blend",
-        Raster:"Classic colour bands",
-        Plasma:"Animated colour flow"
-      }[family];
-      $("themeName").textContent=option?.textContent||family;
-      $("colorFamily").textContent=`${family} · ${description}`;
+    function themeBackground(preset){
+      if(basicThemes[preset])return basicThemes[preset];
+      if(gradientThemes[preset]){
+        return `linear-gradient(135deg,${gradientThemes[preset].join(",")})`;
+      }
+      return bandGradient(rasterThemes[preset]||["#ff700e"]);
+    }
+    function makeThemeCard(name,background,selected,onSelect,description){
+      const button=document.createElement("button");
+      button.type="button";
+      button.className=`theme-card${selected?" selected":""}`;
+      button.setAttribute("aria-pressed",String(selected));
+      const swatch=document.createElement("span");
+      swatch.className="swatch";
+      swatch.style.background=background;
+      const label=document.createElement("span");
+      label.className="theme-label";
+      const strong=document.createElement("strong");
+      strong.textContent=name;
+      const small=document.createElement("small");
+      small.textContent=description;
+      label.append(strong,small);
+      const check=document.createElement("span");
+      check.className="check";
+      check.textContent="✓";
+      check.setAttribute("aria-hidden","true");
+      button.append(swatch,label,check);
+      button.addEventListener("click",onSelect);
+      return button;
+    }
+    function renderThemePicker(){
+      const currentPreset=Number($("colorPreset").value);
+      const currentPalette=Number($("plasmaPalette").value);
       document.querySelectorAll("[data-theme-family]").forEach(button=>{
-        const active=button.dataset.themeFamily===family;
+        const active=button.dataset.themeFamily===viewedThemeFamily;
         button.classList.toggle("active",active);
         button.setAttribute("aria-pressed",String(active));
       });
-      $("plasmaControls").hidden=family!=="Plasma";
-      $("customStops").hidden=family!=="Plasma"||Number($("plasmaPalette").value)!==4;
-      const swatch=$("themeSwatch");
-      if(family==="Basic"){
-        swatch.style.background=basicThemes[preset];
-      }else if(family==="Gradient"){
-        swatch.style.background=`linear-gradient(135deg,${gradientThemes[preset].join(",")})`;
-      }else if(family==="Raster"){
-        swatch.style.background=bandGradient(rasterThemes[preset]);
-      }else{
-        const colors=currentPlasmaStops();
-        swatch.style.background=`linear-gradient(135deg,${colors.join(",")})`;
+      const plasma=viewedThemeFamily==="Plasma";
+      $("themeGrid").hidden=plasma;
+      $("plasmaControls").hidden=!plasma;
+      $("customStops").hidden=!plasma||currentPalette!==4;
+      if(plasma){
+        const cards=Object.keys(plasmaNames).map(value=>{
+          const palette=Number(value);
+          const colors=palette===4
+            ?[0,1,2,3].map(index=>$(`plasmaColor${index}`).value)
+            :plasmaStops[palette];
+          return makeThemeCard(
+            plasmaNames[palette],
+            `linear-gradient(135deg,${colors.join(",")})`,
+            currentPreset===2&&currentPalette===palette,
+            ()=>selectPlasmaPalette(palette),
+            palette===4?"Your four colours":"Animated palette");
+        });
+        $("plasmaPaletteGrid").replaceChildren(...cards);
+        $("plasmaPaletteSummary").textContent=plasmaNames[currentPalette];
+        return;
       }
+      $("themeGrid").classList.toggle("raster",viewedThemeFamily==="Raster");
+      $("themeGrid").replaceChildren(
+        ...themeFamilies[viewedThemeFamily].map(preset=>makeThemeCard(
+          themeNames[preset],
+          themeBackground(preset),
+          currentPreset===preset,
+          ()=>selectTheme(preset),
+          viewedThemeFamily==="Basic"
+            ?"Single colour"
+            :(viewedThemeFamily==="Gradient"?"Smooth blend":"Classic bands"))));
     }
     function applyPreviewTheme(preset){
       const clock=$("clock");
@@ -457,7 +485,6 @@
         clock.style.textShadow="none";
         clock.style.animation="none";
       }
-      updateColourUi(preset);
     }
     async function request(url,options){
       const response=await fetch(url,options);
@@ -469,6 +496,54 @@
       $("message").style.color=error?"#ff786d":"var(--amber)";
       $("colourMessage").textContent=text;
       $("colourMessage").style.color=error?"#ff786d":"var(--amber)";
+    }
+    let themeRequest=0;
+    function plasmaSettings(){
+      return {
+        colorPreset:2,
+        plasmaPalette:Number($("plasmaPalette").value),
+        plasmaCycleMilliseconds:Number($("plasmaCycle").value),
+        plasmaCustomColors:[0,1,2,3].map(index=>$(`plasmaColor${index}`).value)
+      };
+    }
+    async function applyThemeSettings(settings){
+      const requestNumber=++themeRequest;
+      message("Applying theme…");
+      try{
+        await request("/api/settings",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify(settings)
+        });
+        if(requestNumber===themeRequest)message("Theme applied and saved.");
+      }catch(error){
+        if(requestNumber===themeRequest)message(error.message,true);
+      }
+    }
+    function selectTheme(preset){
+      $("colorPreset").value=String(preset);
+      applyPreviewTheme(preset);
+      renderThemePicker();
+      applyThemeSettings({colorPreset:preset});
+    }
+    function selectPlasmaPalette(palette){
+      $("colorPreset").value="2";
+      $("plasmaPalette").value=String(palette);
+      applyPreviewTheme(2);
+      renderThemePicker();
+      applyThemeSettings(plasmaSettings());
+    }
+    async function selectScene(index){
+      try{
+        await request("/api/settings",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({sceneIndex:index,playScene:true})
+        });
+        message("Scene selected.");
+        loaded=false;
+        setTimeout(refresh,100);
+      }catch(error){message(error.message,true)}
     }
     function render(state){
       $("clock").textContent=state.playScene?state.scene:state.time;
@@ -488,6 +563,16 @@
         $("glowStrength").value=state.glowStrength;
         $("glowStrengthValue").textContent=state.glowStrength;
       }
+      const sceneFields={
+        Game:state.sceneGame||"",
+        Year:state.sceneYear?String(state.sceneYear):"",
+        Title:state.sceneTitle||"",
+        Manufacturer:state.sceneManufacturer||""
+      };
+      Object.entries(sceneFields).forEach(([name,value])=>{
+        $(`scene${name}`).textContent=value;
+        $(`scene${name}Field`).hidden=!value;
+      });
       $("toggleInformation").textContent=state.showInformation?"Information on":"Information off";
       $("toggleGlow").textContent=state.glowStrength>0?`Glow on · ${state.glowStrength}%`:"Glow off";
       if(!loaded){
@@ -518,6 +603,8 @@
         $("plasmaCycleValue").textContent=secondsLabel(state.plasmaCycleMilliseconds);
         state.plasmaCustomColors.forEach((value,index)=>{$(`plasmaColor${index}`).value=value});
         applyPreviewTheme(state.colorPreset);
+        viewedThemeFamily=themeFamilyFor(state.colorPreset);
+        renderThemePicker();
         $("use24Hour").checked=state.use24Hour;
         $("showSeconds").checked=state.showSeconds;
         $("showInformation").checked=state.showInformation;
@@ -568,26 +655,35 @@
     }
     $("brightness").addEventListener("input",()=>{$("brightnessValue").textContent=$("brightness").value});
     $("glowStrength").addEventListener("input",()=>{$("glowStrengthValue").textContent=$("glowStrength").value});
-    $("colorPreset").addEventListener("change",()=>applyPreviewTheme(Number($("colorPreset").value)));
     document.querySelectorAll("[data-theme-family]").forEach(button=>{
       button.addEventListener("click",()=>{
-        const family=button.dataset.themeFamily;
-        const current=Number($("colorPreset").value);
-        if(!themeFamilies[family].includes(current)){
-          $("colorPreset").value=String(themeFamilies[family][0]);
-        }
-        applyPreviewTheme(Number($("colorPreset").value));
+        viewedThemeFamily=button.dataset.themeFamily;
+        renderThemePicker();
       });
-    });
-    $("plasmaPalette").addEventListener("change",()=>{
-      $("plasmaPaletteSummary").textContent=$("plasmaPalette").selectedOptions[0].textContent;
-      applyPreviewTheme(Number($("colorPreset").value));
     });
     $("plasmaCycle").addEventListener("input",()=>{
       $("plasmaCycleValue").textContent=secondsLabel(Number($("plasmaCycle").value));
       applyPreviewTheme(Number($("colorPreset").value));
     });
-    [0,1,2,3].forEach(index=>$(`plasmaColor${index}`).addEventListener("input",()=>applyPreviewTheme(Number($("colorPreset").value))));
+    $("plasmaCycle").addEventListener("change",()=>{
+      $("colorPreset").value="2";
+      applyPreviewTheme(2);
+      renderThemePicker();
+      applyThemeSettings(plasmaSettings());
+    });
+    [0,1,2,3].forEach(index=>{
+      $(`plasmaColor${index}`).addEventListener("input",()=>{
+        applyPreviewTheme(Number($("colorPreset").value));
+        renderThemePicker();
+      });
+      $(`plasmaColor${index}`).addEventListener("change",()=>{
+        $("colorPreset").value="2";
+        applyPreviewTheme(2);
+        renderThemePicker();
+        applyThemeSettings(plasmaSettings());
+      });
+    });
+    $("sceneIndex").addEventListener("change",()=>selectScene(Number($("sceneIndex").value)));
     $("syncTime").addEventListener("click",()=>syncTime(false));
     document.querySelectorAll("[data-action]").forEach(button=>{
       button.addEventListener("click",()=>runAction(button.dataset.action));
@@ -623,7 +719,6 @@
       }catch(error){message(error.message,true)}
     }
     $("save").addEventListener("click",saveSettings);
-    $("saveColour").addEventListener("click",saveSettings);
     refresh();
     setInterval(refresh,1000);
   </script>
