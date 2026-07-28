@@ -11,6 +11,7 @@ firmware/**/sdkconfig
 firmware/**/sdkconfig.qemu
 firmware/**/sdkconfig.old
 firmware/**/sdkconfig.*.old
+firmware/dmdclock-esp32/main/dmd_bootstrap_wifi.h
 scenes/*
 !scenes/README.md
 !scenes/scene-metadata.json

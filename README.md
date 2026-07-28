@@ -1,4 +1,4 @@
-# DMDClock for Windows
+# DMDClock for Windows and ESP32-S3
 
 DMDClock is a Windows x64 clock and animation player for classic DotClk `.scn`
 scenes. It recreates a scalable 128×32, four-bit dot-matrix display with clocks,

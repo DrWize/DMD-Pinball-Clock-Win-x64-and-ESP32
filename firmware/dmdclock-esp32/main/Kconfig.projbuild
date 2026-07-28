@@ -1,0 +1,11 @@
+menu "DMDClock"
+
+    config DMD_QEMU
+        bool "Use QEMU virtual display and OpenCores Ethernet"
+        default n
+        select ETH_USE_OPENETH
+        help
+            Replace the Waveshare RGB/I2C and Wi-Fi backends with QEMU's
+            virtual RGB panel and OpenCores Ethernet adapter.
+
+endmenu

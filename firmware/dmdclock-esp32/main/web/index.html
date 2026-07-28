@@ -1,0 +1,966 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#110700">
+  <title>DMDClock Remote</title>
+  <style>
+    :root{color-scheme:dark;--orange:#ff700e;--amber:#ffad42;--ink:#fff4e8;--muted:#bca998;--panel:#1b1009;--line:#3d2414}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% -20%,#4b2009 0,#160b05 42%,#080503 100%);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{width:min(720px,100%);margin:auto;padding:28px 18px 56px}
+    header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}
+    h1{font-size:clamp(1.55rem,5vw,2.3rem);line-height:1;margin:0;letter-spacing:-.04em}
+    .eyebrow{color:var(--orange);font-size:.72rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;margin-bottom:10px}
+    .status{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:.78rem;white-space:nowrap}
+    .status-dot{width:9px;height:9px;border-radius:50%;background:#777;box-shadow:0 0 0 4px #7772}
+    .status-dot.ok{background:#56dc8b;box-shadow:0 0 0 4px #56dc8b22}
+    .display{position:relative;overflow:hidden;border:1px solid #6f3718;border-radius:18px;background:#030201;padding:30px 12px;text-align:center;box-shadow:inset 0 0 45px #ff640012,0 22px 70px #0008;margin-bottom:18px}
+    .display:before{content:"";position:absolute;inset:0;opacity:.2;background-image:radial-gradient(circle,#ff700e 1px,transparent 1.5px);background-size:6px 6px}
+    #clock{position:relative;color:var(--orange);font:800 clamp(3rem,15vw,6.3rem)/1 ui-monospace,"SFMono-Regular",Consolas,monospace;letter-spacing:-.08em;text-shadow:0 0 8px #ff700e99,0 0 24px #ff5a0044}
+    .device-time{position:relative;margin-top:14px;color:var(--ink);font:650 .9rem/1.4 ui-monospace,"SFMono-Regular",Consolas,monospace;letter-spacing:.02em}
+    .device-time small{display:inline;color:var(--muted)}
+    .panel{background:linear-gradient(145deg,#21130b,#160d08);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:14px;box-shadow:0 14px 40px #0005}
+    .panel h2{font-size:.95rem;margin:0 0 16px;letter-spacing:.02em}
+    .panel-intro{color:var(--muted);font-size:.82rem;line-height:1.5;margin:-8px 0 16px}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid #382115}
+    .row:first-of-type{border-top:0;padding-top:0}
+    .row:last-child{padding-bottom:0}
+    label{font-size:.9rem;font-weight:650}
+    small{display:block;color:var(--muted);font-weight:450;margin-top:4px}
+    input,select,button{font:inherit}
+    input[type=range]{width:min(260px,45vw);accent-color:var(--orange)}
+    input[type=color]{width:48px;height:38px;padding:2px;border:1px solid #56331e;border-radius:8px;background:#0d0805}
+    input[type=text],input[type=password],input[type=time],select{width:100%;border:1px solid #56331e;background:#0d0805;color:var(--ink);border-radius:10px;padding:11px 12px;outline:none}
+    input:focus,select:focus{border-color:var(--orange);box-shadow:0 0 0 3px #ff700e22}
+    .switch{position:relative;width:48px;height:28px;flex:none}
+    .switch input{position:absolute;opacity:0}
+    .switch span{position:absolute;inset:0;border-radius:99px;background:#50372a;transition:.18s}
+    .switch span:after{content:"";position:absolute;width:20px;height:20px;left:4px;top:4px;border-radius:50%;background:#eadfd5;transition:.18s}
+    .switch input:checked+span{background:var(--orange)}
+    .switch input:checked+span:after{transform:translateX(20px);background:#fff}
+    .fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .field label{display:block;margin:0 0 7px}
+    button{border:0;border-radius:11px;padding:11px 16px;background:var(--orange);color:#1a0900;font-weight:800;cursor:pointer}
+    button.secondary{background:#392217;color:var(--ink);border:1px solid #5a3420}
+    button:focus-visible{outline:3px solid #ffad4266;outline-offset:2px}
+    .quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+    .quick-actions button{min-height:46px}
+    .theme-family{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+    .theme-family button{min-height:44px;padding:9px 6px;background:#24150d;color:var(--muted);border:1px solid #4b2c1b}
+    .theme-family button.active{background:#4b260f;color:var(--ink);border-color:var(--orange);box-shadow:inset 0 0 0 1px #ff700e55}
+    .theme-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+    .theme-grid[hidden]{display:none}
+    .theme-grid.raster{max-height:330px;overflow:auto;padding-right:4px}
+    .theme-card{display:flex;align-items:center;gap:11px;min-height:58px;padding:8px 10px;text-align:left;background:#130c08;color:var(--ink);border:1px solid #4b2c1b}
+    .theme-card:hover{border-color:#8a4c25;background:#1b100a}
+    .theme-card.selected{border-color:var(--orange);background:#32190b;box-shadow:inset 0 0 0 1px #ff700e55}
+    .theme-card .swatch{width:38px;height:38px;flex:none;border-radius:9px;background:var(--orange);box-shadow:0 0 14px #ff700e44}
+    .theme-card .theme-label{min-width:0}
+    .theme-card .theme-label strong{display:block;font-size:.84rem;line-height:1.2}
+    .theme-card .theme-label small{font-size:.7rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .theme-card .check{margin-left:auto;color:var(--orange);font-weight:900;opacity:0}
+    .theme-card.selected .check{opacity:1}
+    .plasma-box{margin-top:14px;border:1px solid #58341f;border-radius:12px;background:linear-gradient(135deg,#150b22,#12100a);padding:15px}
+    .plasma-box[hidden],.custom-stops[hidden]{display:none}
+    .plasma-heading{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:2px}
+    .plasma-heading strong{font-size:.92rem}
+    .plasma-badge{border:1px solid #7b3ca0;border-radius:99px;color:#eca9ff;background:#331344;padding:4px 8px;font-size:.68rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+    .plasma-box .row{border-color:#3d2443}
+    .speed-readout{min-width:58px;text-align:right;color:var(--amber);font:750 .88rem/1 ui-monospace,"SFMono-Regular",Consolas,monospace}
+    .inline-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px}
+    .inline-message{color:var(--muted);font-size:.78rem;line-height:1.35}
+    .scene-picker{display:flex;align-items:center;gap:7px;width:min(360px,58vw)}
+    .scene-picker select{min-width:0}
+    .scene-step{width:42px;height:42px;flex:none;padding:0;background:#392217;color:var(--ink);border:1px solid #5a3420;font-size:1.15rem}
+    .scene-details{display:grid;grid-template-columns:2fr .65fr 1.2fr 2fr;gap:8px;margin:2px 0 12px;padding:11px;border:1px solid #3d2414;border-radius:11px;background:#0d0805}
+    .scene-details span{min-width:0}
+    .scene-details span[hidden]{display:none}
+    .scene-details small{margin:0 0 3px;color:#8f7e70;font-size:.65rem;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+    .scene-details strong{display:block;overflow:hidden;color:var(--ink);font-size:.78rem;line-height:1.3;text-overflow:ellipsis}
+    .schedule-tools{display:flex;gap:9px;flex-wrap:wrap;margin:2px 0 13px}
+    .schedule-tool{display:flex;align-items:center;gap:8px;background:#24150d;color:var(--muted);border:1px solid #4b2c1b}
+    .schedule-tool.active{color:var(--ink);border-color:var(--orange);background:#4b260f}
+    .schedule-key{width:15px;height:15px;border-radius:4px;background:#18a8ff;box-shadow:inset 0 0 0 1px #fff2}
+    .schedule-tool[data-schedule-tool="off"] .schedule-key{background:#25150d;box-shadow:inset 0 0 0 2px #ff8b3d}
+    .schedule-scroll{overflow-x:auto;padding:2px 0 7px}
+    .schedule-grid{display:grid;grid-template-columns:42px repeat(24,24px);gap:2px;width:max-content;touch-action:none;user-select:none}
+    .schedule-hour,.schedule-day{display:grid;place-items:center;color:var(--muted);font-size:.67rem;font-weight:750}
+    .schedule-day{justify-content:start;color:var(--ink)}
+    .schedule-cell{width:24px;height:27px;min-height:0;padding:0;border-radius:4px;background:#159fe9;border:1px solid #34baff}
+    .schedule-cell.off{background:#25150d;border-color:#f27a31;box-shadow:inset 0 0 0 1px #ff8b3d44}
+    .schedule-cell.current{outline:2px solid #fff;outline-offset:1px;z-index:1}
+    .schedule-cell:focus-visible{outline:3px solid #ffd28c;outline-offset:1px}
+    .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
+    #message{min-height:1.2em;color:var(--amber);font-size:.82rem;margin-top:12px;text-align:right}
+    .network{color:var(--muted);font-size:.8rem;line-height:1.5;margin-top:15px}
+    footer{margin-top:24px;text-align:center;color:var(--muted);font-size:.8rem}
+    footer a{color:var(--amber);font-weight:700;text-decoration:none}
+    footer a:hover,footer a:focus{text-decoration:underline}
+    code{color:#ffd0a9}
+    .color-stops{display:flex;gap:8px;flex-wrap:wrap}
+    @keyframes plasmaShift{to{background-position:300% 50%}}
+    @media(max-width:560px){header{display:block}.status{margin-top:14px}.fields{grid-template-columns:1fr}.row{gap:10px}.display{padding:25px 6px}.quick-actions{grid-template-columns:1fr 1fr}.theme-family{grid-template-columns:1fr 1fr}.theme-grid{grid-template-columns:1fr}.scene-picker{width:min(100%,58vw)}.scene-details{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div><div class="eyebrow">ESP32-S3 · Basic · Gradient · Raster</div><h1>DMDClock Remote</h1></div>
+      <div class="status"><span id="statusDot" class="status-dot"></span><span id="statusText">Connecting…</span></div>
+    </header>
+
+    <section class="display" aria-label="Clock preview">
+      <div id="clock">--:--</div>
+      <div class="device-time"><span id="deviceTime">Device: not synchronized</span><br><small id="clockDrift"></small></div>
+    </section>
+
+    <section class="panel">
+      <h2>Quick controls — same as the touchscreen</h2>
+      <div class="quick-actions">
+        <button class="secondary" type="button" data-action="colorPrevious">Colour −</button>
+        <button class="secondary" type="button" data-action="colorNext">Colour +</button>
+        <button id="toggleInformation" class="secondary" type="button" data-action="toggleInformation">Information on</button>
+        <button id="toggleGlow" class="secondary" type="button" data-action="toggleGlow">Glow on</button>
+        <button class="secondary" type="button" data-action="syncNtp">Sync NTP</button>
+        <button class="secondary" type="button" data-action="scenePrevious">Previous scene</button>
+        <button class="secondary" type="button" data-action="sceneNext">Next scene</button>
+        <button class="secondary" type="button" data-action="showClock">Show clock</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Display</h2>
+      <div class="row">
+        <label for="displayOn">Screen<small>Show or blank the DMD</small></label>
+        <label class="switch"><input id="displayOn" type="checkbox"><span></span></label>
+      </div>
+      <div class="row">
+        <label for="displayMode">Content<small>Embedded scene or clock</small></label>
+        <select id="displayMode" style="width:min(260px,48vw)">
+          <option value="scene">Scene</option>
+          <option value="clock">Clock</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="sceneIndex">Scene<small>Uses the shared scene metadata catalog</small></label>
+        <div class="scene-picker">
+          <button class="scene-step" type="button" data-action="scenePrevious" aria-label="Previous scene" title="Previous scene">‹</button>
+          <select id="sceneIndex" aria-label="Scene">
+            <option value="0">GOT06 · Game of Thrones</option>
+            <option value="1">AFM01 · Attack from Mars</option>
+            <option value="2">RD0868</option>
+            <option value="3">RD0959</option>
+            <option value="4">RD1116</option>
+            <option value="5">RD1385</option>
+            <option value="6">RD1448</option>
+            <option value="7">RD1474</option>
+            <option value="8">RD1695</option>
+            <option value="9">RD1701</option>
+            <option value="10">RD1891</option>
+          </select>
+          <button class="scene-step" type="button" data-action="sceneNext" aria-label="Next scene" title="Next scene">›</button>
+        </div>
+      </div>
+      <div class="scene-details" aria-label="Selected scene information">
+        <span id="sceneGameField" hidden><small>Pinball</small><strong id="sceneGame"></strong></span>
+        <span id="sceneYearField" hidden><small>Year</small><strong id="sceneYear"></strong></span>
+        <span id="sceneTitleField" hidden><small>Scene</small><strong id="sceneTitle"></strong></span>
+        <span id="sceneManufacturerField" hidden><small>Manufacturer</small><strong id="sceneManufacturer"></strong></span>
+      </div>
+      <div class="row">
+        <label for="brightness">Brightness <small><span id="brightnessValue">100</span>%</small></label>
+        <input id="brightness" type="range" min="0" max="100" step="5">
+      </div>
+      <div class="row">
+        <label for="glowStrength">Dot glow <small><span id="glowStrengthValue">35</span>% halo strength</small></label>
+        <input id="glowStrength" type="range" min="0" max="100" step="5">
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="colourHeading">
+      <h2 id="colourHeading">Colour theme</h2>
+      <p class="panel-intro">Choose how the clock and scenes are coloured. Plasma is the animated option; its motion settings appear only when Plasma is selected.</p>
+      <div class="theme-family" role="group" aria-label="Colour theme family">
+        <button class="secondary active" type="button" data-theme-family="Basic">Basic</button>
+        <button class="secondary" type="button" data-theme-family="Gradient">Gradient</button>
+        <button class="secondary" type="button" data-theme-family="Raster">Raster</button>
+        <button class="secondary" type="button" data-theme-family="Plasma">Plasma</button>
+      </div>
+      <input id="colorPreset" type="hidden" value="0">
+      <div id="themeGrid" class="theme-grid" aria-label="Themes"></div>
+      <div id="plasmaControls" class="plasma-box" hidden>
+        <div class="plasma-heading">
+          <div><strong>Plasma motion</strong><small>Animated colour flowing across the DMD; independent of the clock/scene cycle below.</small></div>
+          <span class="plasma-badge">Animated</span>
+        </div>
+        <div class="row">
+          <div style="width:100%">
+            <label>Palette<small id="plasmaPaletteSummary">Neon pulse</small></label>
+            <input id="plasmaPalette" type="hidden" value="0">
+            <div id="plasmaPaletteGrid" class="theme-grid" style="margin-top:10px"></div>
+          </div>
+        </div>
+        <div class="row">
+          <label for="plasmaCycle">Motion loop duration<small>Lower is faster; time for one complete colour loop</small></label>
+          <div>
+            <input id="plasmaCycle" type="range" min="1000" max="60000" step="250">
+            <div id="plasmaCycleValue" class="speed-readout">8 s</div>
+          </div>
+        </div>
+        <div id="customStops" class="row custom-stops" hidden>
+          <label>Custom palette colours<small>Four colours blended into the Plasma animation</small></label>
+          <div class="color-stops">
+            <input id="plasmaColor0" type="color" aria-label="Plasma colour 1">
+            <input id="plasmaColor1" type="color" aria-label="Plasma colour 2">
+            <input id="plasmaColor2" type="color" aria-label="Plasma colour 3">
+            <input id="plasmaColor3" type="color" aria-label="Plasma colour 4">
+          </div>
+        </div>
+      </div>
+      <div class="inline-actions">
+        <span id="colourMessage" class="inline-message">Choose a theme to apply it immediately to the DMD.</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Clock options</h2>
+      <div class="row">
+        <label for="use24Hour">24-hour clock</label>
+        <label class="switch"><input id="use24Hour" type="checkbox"><span></span></label>
+      </div>
+      <div class="row">
+        <label for="showSeconds">Show seconds</label>
+        <label class="switch"><input id="showSeconds" type="checkbox"><span></span></label>
+      </div>
+      <div class="row">
+        <label for="showInformation">Scene information<small>Pinball, year, scene, and manufacturer only</small></label>
+        <label class="switch"><input id="showInformation" type="checkbox"><span></span></label>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="scheduleHeading">
+      <h2 id="scheduleHeading">Weekly screen schedule</h2>
+      <p class="panel-intro">Paint the hours when the DMD should be on or off. The schedule follows the device timezone and repeats every week.</p>
+      <div class="row">
+        <label for="screenScheduleEnabled">Use weekly schedule<small id="scheduleStatus">Schedule disabled</small></label>
+        <label class="switch"><input id="screenScheduleEnabled" type="checkbox"><span></span></label>
+      </div>
+      <div class="schedule-tools" role="group" aria-label="Schedule drawing mode">
+        <button class="schedule-tool" type="button" data-schedule-tool="on" aria-pressed="false"><span class="schedule-key"></span>Screen on</button>
+        <button class="schedule-tool active" type="button" data-schedule-tool="off" aria-pressed="true"><span class="schedule-key"></span>Screen off</button>
+      </div>
+      <div class="schedule-scroll">
+        <div id="scheduleGrid" class="schedule-grid" role="grid" aria-label="Weekly screen schedule"></div>
+      </div>
+      <div class="inline-actions">
+        <span id="scheduleMessage" class="inline-message" role="status">Choose a mode, then click or drag across hours.</span>
+        <button id="saveSchedule" type="button">Save schedule</button>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="rebootHeading">
+      <h2 id="rebootHeading">Automatic weekly reboot</h2>
+      <p class="panel-intro">Restart the ESP32 once each week at the selected local device time. The display and web remote return automatically after boot.</p>
+      <div class="row">
+        <label for="rebootScheduleEnabled">Use reboot schedule<small id="rebootScheduleStatus">Schedule disabled</small></label>
+        <label class="switch"><input id="rebootScheduleEnabled" type="checkbox"><span></span></label>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <label for="rebootWeekday">Weekday</label>
+          <select id="rebootWeekday">
+            <option value="0">Sunday</option>
+            <option value="1">Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5">Friday</option>
+            <option value="6">Saturday</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="rebootTime">Restart time</label>
+          <input id="rebootTime" type="time" value="04:00" step="60">
+        </div>
+      </div>
+      <div class="inline-actions">
+        <span id="rebootMessage" class="inline-message" role="status">Default: Sunday at 04:00.</span>
+        <button id="saveRebootSchedule" type="button">Save reboot schedule</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Windows-style scene cycle</h2>
+      <div class="row">
+        <label for="automaticCycle">Automatic clock/scene cycle</label>
+        <label class="switch"><input id="automaticCycle" type="checkbox"><span></span></label>
+      </div>
+      <div class="row">
+        <label for="randomPlayback">Random scene order</label>
+        <label class="switch"><input id="randomPlayback" type="checkbox"><span></span></label>
+      </div>
+      <div class="row">
+        <label for="animationsPerCycle">Scenes per cycle</label>
+        <select id="animationsPerCycle" style="width:min(180px,42vw)">
+          <option value="1">1 scene</option>
+          <option value="3">3 scenes</option>
+          <option value="5">5 scenes</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="clockDisplaySeconds">Clock duration</label>
+        <select id="clockDisplaySeconds" style="width:min(180px,42vw)">
+          <option value="10">10 seconds</option>
+          <option value="30">30 seconds</option>
+          <option value="60">60 seconds</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="animationGapSeconds">Time between scenes</label>
+        <select id="animationGapSeconds" style="width:min(180px,42vw)">
+          <option value="0">No pause</option>
+          <option value="5">5 seconds</option>
+          <option value="10">10 seconds</option>
+          <option value="30">30 seconds</option>
+        </select>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Time and network</h2>
+      <div class="fields">
+        <div class="field">
+          <label for="timezone">Timezone</label>
+          <select id="timezone">
+            <option value="CET-1CEST,M3.5.0,M10.5.0/3">Stockholm / Central Europe</option>
+            <option value="GMT0BST,M3.5.0/1,M10.5.0">London</option>
+            <option value="UTC0">UTC</option>
+            <option value="EST5EDT,M3.2.0,M11.1.0">New York</option>
+            <option value="CST6CDT,M3.2.0,M11.1.0">Chicago</option>
+            <option value="MST7MDT,M3.2.0,M11.1.0">Denver</option>
+            <option value="PST8PDT,M3.2.0,M11.1.0">Los Angeles</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="wifiSsid">Home Wi-Fi name</label>
+          <input id="wifiSsid" type="text" maxlength="32" autocomplete="off" placeholder="Optional">
+        </div>
+        <div class="field">
+          <label for="wifiPassword">Home Wi-Fi password</label>
+          <input id="wifiPassword" type="password" maxlength="64" autocomplete="new-password" placeholder="Leave blank to keep saved password">
+        </div>
+      </div>
+      <div class="actions">
+        <button id="syncTime" class="secondary" type="button">Use browser time as fallback</button>
+        <button id="save" type="button">Save changes</button>
+      </div>
+      <div id="message" role="status"></div>
+      <div id="network" class="network"></div>
+    </section>
+
+    <footer>
+      Source code, documentation and releases:
+      <a href="https://github.com/DrWize/DMDClock-Windows-x64"
+         target="_blank" rel="noopener noreferrer">DMDClock on GitHub</a>
+    </footer>
+  </main>
+
+  <script>
+    const $=id=>document.getElementById(id);
+    let loaded=false;
+    let refreshing=false;
+    const scheduleDays=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    let screenOffSchedule=Array(7).fill("0".repeat(24));
+    let scheduleTool="off";
+    let scheduleDrawing=false;
+    const basicThemes={
+      0:"#ff700e",1:"#ff2010",3:"#ebebeb",16:"#ffb000",
+      17:"#39ff5a",18:"#3a7bff",19:"#25e6ff",20:"#ff3fcb"
+    };
+    const gradientThemes={
+      4:["#ff2bd6","#ffd166"],5:["#267bff","#5effff"],
+      6:["#2eff6a","#f5ff57"],7:["#8a4dff","#ff5ce1"],
+      8:["#34ffbe","#b470ff"],21:["#ff3218","#ffd23f"],
+      22:["#4f46e5","#ff35c8"],23:["#20cfff","#e8ffff"]
+    };
+    const rasterThemes={
+      9:["#352879","#6c5eb5","#70a4b2","#fff","#70a4b2","#6c5eb5","#352879"],
+      10:["#68372b","#9a6759","#6f4f25","#b8c76f","#fff","#b8c76f","#6f4f25","#9a6759","#68372b"],
+      11:["#433900","#68372b","#6f4f25","#9a6759","#b8c76f","#9a6759","#6f4f25","#68372b","#433900"],
+      12:["#444","#6c6c6c","#959595","#fff","#959595","#6c6c6c","#444"],
+      13:["#352879","#6c5eb5","#352879","#70a4b2","#352879","#fff","#352879","#70a4b2","#352879","#6c5eb5","#352879"],
+      14:["#352879","#70a4b2","#fff","#70a4b2","#352879","#6c5eb5","#352879","#70a4b2","#6c5eb5","#70a4b2","#352879"],
+      15:["#68372b","#6f4f25","#b8c76f","#9ad284","#588d43","#70a4b2","#6c5eb5","#352879","#6f3d86","#9a6759"],
+      24:["#352879","#6f3d86","#9a6759","#fff","#9a6759","#6f3d86","#352879"],
+      25:["#588d43","#9ad284","#b8c76f","#fff","#b8c76f","#9ad284","#588d43"],
+      26:["#433900","#6f4f25","#b8c76f","#fff","#b8c76f","#6f4f25","#433900"],
+      27:["#6f3d86","#9a6759","#6f3d86","#fff","#6f3d86","#9a6759","#6f3d86"],
+      28:["#352879","#6c5eb5","#70a4b2","#6c5eb5","#fff","#6c5eb5","#70a4b2","#352879"],
+      29:["#6f3d86","#68372b","#9a6759","#6f4f25","#b8c76f","#9a6759","#68372b"],
+      30:["#433900","#588d43","#9ad284","#b8c76f","#9ad284","#588d43","#433900"],
+      31:["#352879","#70a4b2","#959595","#fff","#959595","#70a4b2","#352879"],
+      32:["#68372b","#9a6759","#fff","#70a4b2","#fff","#9a6759","#6f3d86"]
+    };
+    const plasmaStops={
+      0:["#2d0c6e","#3250ff","#1eebff","#ff41dc"],
+      1:["#4a0010","#e02020","#ff7a00","#ffe060"],
+      2:["#001040","#0055d8","#00c8ff","#b8ffff"],
+      3:["#180050","#7a38ff","#20e8a0","#d8ff70"],
+      5:["#082a12","#16a34a","#a3ff12","#f5ff75"],
+      6:["#24005e","#7a38ff","#ff41dc","#41e9ff"],
+      7:["#3d0500","#d82900","#ff8a00","#fff0a0"],
+      8:["#001b3d","#0077b6","#48cae4","#e0fbff"]
+    };
+    const themeFamilies={
+      Basic:[0,16,1,17,18,19,20,3],
+      Gradient:[4,5,6,7,8,21,22,23],
+      Raster:[9,10,11,12,13,14,15,24,25,26,27,28,29,30,31,32],
+      Plasma:[2]
+    };
+    const themeNames={
+      0:"Classic orange",1:"Pinball red",3:"Warm white",
+      4:"Neon sunset",5:"Cyber ocean",6:"Toxic arcade",7:"Vaporwave",
+      8:"Aurora",9:"Blue halo",10:"Red halo",11:"Earthtone",12:"Metal",
+      13:"Interlaced blue",14:"Extruded cyan",15:"Rainbow",
+      16:"Golden amber",17:"Arcade green",18:"Electric blue",
+      19:"Ice cyan",20:"Hot magenta",21:"Firestorm",
+      22:"Electric violet",23:"Arctic glow",24:"Purple halo",
+      25:"Green halo",26:"Amber halo",27:"Purple pulse",
+      28:"Ocean depth",29:"Sunset bands",30:"Forest layers",
+      31:"Arctic bands",32:"Candy stripe"
+    };
+    const plasmaNames={
+      0:"Neon pulse",1:"Lava flow",2:"Deep ocean",3:"Aurora drift",
+      4:"Custom",5:"Toxic slime",6:"Vapor dream",7:"Solar flare",
+      8:"Arctic ice"
+    };
+    let viewedThemeFamily="Basic";
+    function themeFamilyFor(preset){
+      return Object.keys(themeFamilies).find(family=>themeFamilies[family].includes(preset))||"Basic";
+    }
+    function secondsLabel(milliseconds){
+      return `${(milliseconds/1000).toFixed(2).replace(/\.?0+$/,"")} s`;
+    }
+    function setScheduleTool(tool){
+      scheduleTool=tool;
+      document.querySelectorAll("[data-schedule-tool]").forEach(button=>{
+        const active=button.dataset.scheduleTool===tool;
+        button.classList.toggle("active",active);
+        button.setAttribute("aria-pressed",String(active));
+      });
+    }
+    function scheduleCellLabel(day,hour,isOff){
+      const end=(hour+1)%24;
+      return `${scheduleDays[day]} ${String(hour).padStart(2,"0")}:00–${String(end).padStart(2,"0")}:00, screen ${isOff?"off":"on"}`;
+    }
+    function paintScheduleCell(cell){
+      if(!cell?.matches(".schedule-cell"))return;
+      const day=Number(cell.dataset.day);
+      const hour=Number(cell.dataset.hour);
+      const isOff=scheduleTool==="off";
+      const row=screenOffSchedule[day].split("");
+      row[hour]=isOff?"1":"0";
+      screenOffSchedule[day]=row.join("");
+      cell.classList.toggle("off",isOff);
+      cell.setAttribute("aria-label",scheduleCellLabel(day,hour,isOff));
+      $("scheduleMessage").textContent="Schedule changed — save it when ready.";
+    }
+    function renderScheduleGrid(){
+      const corner=document.createElement("span");
+      corner.className="schedule-hour";
+      corner.setAttribute("aria-hidden","true");
+      const items=[corner];
+      for(let hour=0;hour<24;hour++){
+        const label=document.createElement("span");
+        label.className="schedule-hour";
+        label.textContent=String(hour);
+        label.setAttribute("aria-hidden","true");
+        items.push(label);
+      }
+      scheduleDays.forEach((name,day)=>{
+        const label=document.createElement("span");
+        label.className="schedule-day";
+        label.textContent=name;
+        label.setAttribute("role","rowheader");
+        items.push(label);
+        for(let hour=0;hour<24;hour++){
+          const isOff=screenOffSchedule[day]?.[hour]==="1";
+          const cell=document.createElement("button");
+          cell.type="button";
+          cell.className=`schedule-cell${isOff?" off":""}`;
+          cell.dataset.day=String(day);
+          cell.dataset.hour=String(hour);
+          cell.setAttribute("role","gridcell");
+          cell.setAttribute("aria-label",scheduleCellLabel(day,hour,isOff));
+          cell.addEventListener("pointerdown",event=>{
+            event.preventDefault();
+            scheduleDrawing=true;
+            paintScheduleCell(cell);
+          });
+          cell.addEventListener("pointerenter",()=>{
+            if(scheduleDrawing)paintScheduleCell(cell);
+          });
+          cell.addEventListener("keydown",event=>{
+            if(event.key==="Enter"||event.key===" "){
+              event.preventDefault();
+              paintScheduleCell(cell);
+            }
+          });
+          items.push(cell);
+        }
+      });
+      $("scheduleGrid").replaceChildren(...items);
+    }
+    function markCurrentScheduleCell(state){
+      document.querySelectorAll(".schedule-cell.current").forEach(cell=>cell.classList.remove("current"));
+      if(!state.timeValid)return;
+      document.querySelector(
+        `.schedule-cell[data-day="${state.deviceWeekday}"][data-hour="${state.deviceHour}"]`
+      )?.classList.add("current");
+    }
+    function rebootTimeParts(){
+      const [hour,minute]=$("rebootTime").value.split(":").map(Number);
+      return {
+        rebootHour:Number.isInteger(hour)?hour:4,
+        rebootMinute:Number.isInteger(minute)?minute:0
+      };
+    }
+    function touchWakeLabel(seconds){
+      const minutes=Math.max(1,Math.ceil(seconds/60));
+      return `Touch wake active · ${minutes} minute${minutes===1?"":"s"} remaining`;
+    }
+    function currentPlasmaStops(){
+      const preset=Number($("plasmaPalette").value);
+      return preset===4
+        ?[0,1,2,3].map(index=>$(`plasmaColor${index}`).value)
+        :(plasmaStops[preset]||plasmaStops[0]);
+    }
+    function bandGradient(colors){
+      const stops=colors.flatMap((color,index)=>[
+        `${color} ${(index/colors.length)*100}%`,
+        `${color} ${((index+1)/colors.length)*100}%`
+      ]);
+      return `linear-gradient(180deg,${stops.join(",")})`;
+    }
+    function themeBackground(preset){
+      if(basicThemes[preset])return basicThemes[preset];
+      if(gradientThemes[preset]){
+        return `linear-gradient(135deg,${gradientThemes[preset].join(",")})`;
+      }
+      return bandGradient(rasterThemes[preset]||["#ff700e"]);
+    }
+    function makeThemeCard(name,background,selected,onSelect,description){
+      const button=document.createElement("button");
+      button.type="button";
+      button.className=`theme-card${selected?" selected":""}`;
+      button.setAttribute("aria-pressed",String(selected));
+      const swatch=document.createElement("span");
+      swatch.className="swatch";
+      swatch.style.background=background;
+      const label=document.createElement("span");
+      label.className="theme-label";
+      const strong=document.createElement("strong");
+      strong.textContent=name;
+      const small=document.createElement("small");
+      small.textContent=description;
+      label.append(strong,small);
+      const check=document.createElement("span");
+      check.className="check";
+      check.textContent="✓";
+      check.setAttribute("aria-hidden","true");
+      button.append(swatch,label,check);
+      button.addEventListener("click",onSelect);
+      return button;
+    }
+    function renderThemePicker(){
+      const currentPreset=Number($("colorPreset").value);
+      const currentPalette=Number($("plasmaPalette").value);
+      document.querySelectorAll("[data-theme-family]").forEach(button=>{
+        const active=button.dataset.themeFamily===viewedThemeFamily;
+        button.classList.toggle("active",active);
+        button.setAttribute("aria-pressed",String(active));
+      });
+      const plasma=viewedThemeFamily==="Plasma";
+      $("themeGrid").hidden=plasma;
+      $("plasmaControls").hidden=!plasma;
+      $("customStops").hidden=!plasma||currentPalette!==4;
+      if(plasma){
+        const cards=Object.keys(plasmaNames).map(value=>{
+          const palette=Number(value);
+          const colors=palette===4
+            ?[0,1,2,3].map(index=>$(`plasmaColor${index}`).value)
+            :plasmaStops[palette];
+          return makeThemeCard(
+            plasmaNames[palette],
+            `linear-gradient(135deg,${colors.join(",")})`,
+            currentPreset===2&&currentPalette===palette,
+            ()=>selectPlasmaPalette(palette),
+            palette===4?"Your four colours":"Animated palette");
+        });
+        $("plasmaPaletteGrid").replaceChildren(...cards);
+        $("plasmaPaletteSummary").textContent=plasmaNames[currentPalette];
+        return;
+      }
+      $("themeGrid").classList.toggle("raster",viewedThemeFamily==="Raster");
+      $("themeGrid").replaceChildren(
+        ...themeFamilies[viewedThemeFamily].map(preset=>makeThemeCard(
+          themeNames[preset],
+          themeBackground(preset),
+          currentPreset===preset,
+          ()=>selectTheme(preset),
+          viewedThemeFamily==="Basic"
+            ?"Single colour"
+            :(viewedThemeFamily==="Gradient"?"Smooth blend":"Classic bands"))));
+    }
+    function applyPreviewTheme(preset){
+      const clock=$("clock");
+      if(preset===2){
+        const colors=currentPlasmaStops();
+        clock.style.color="transparent";
+        clock.style.backgroundImage=`linear-gradient(90deg,${colors.join(",")},${colors[0]})`;
+        clock.style.backgroundSize="300% 100%";
+        clock.style.backgroundClip="text";
+        clock.style.webkitBackgroundClip="text";
+        clock.style.textShadow="none";
+        clock.style.animation=`plasmaShift ${Number($("plasmaCycle").value||8000)/1000}s linear infinite`;
+      }else if(basicThemes[preset]){
+        clock.style.color=basicThemes[preset];
+        clock.style.backgroundImage="none";
+        clock.style.backgroundSize="";
+        clock.style.textShadow=`0 0 8px ${basicThemes[preset]}99`;
+        clock.style.animation="none";
+      }else{
+        clock.style.color="transparent";
+        clock.style.backgroundImage=gradientThemes[preset]
+          ?`linear-gradient(90deg,${gradientThemes[preset].join(",")})`
+          :bandGradient(rasterThemes[preset]||["#ff700e"]);
+        clock.style.backgroundClip="text";
+        clock.style.webkitBackgroundClip="text";
+        clock.style.textShadow="none";
+        clock.style.animation="none";
+      }
+    }
+    async function request(url,options){
+      const response=await fetch(url,options);
+      if(!response.ok)throw new Error((await response.text())||`HTTP ${response.status}`);
+      return response.headers.get("content-type")?.includes("json")?response.json():null;
+    }
+    function message(text,error=false){
+      $("message").textContent=text;
+      $("message").style.color=error?"#ff786d":"var(--amber)";
+      $("colourMessage").textContent=text;
+      $("colourMessage").style.color=error?"#ff786d":"var(--amber)";
+    }
+    let themeRequest=0;
+    function plasmaSettings(){
+      return {
+        colorPreset:2,
+        plasmaPalette:Number($("plasmaPalette").value),
+        plasmaCycleMilliseconds:Number($("plasmaCycle").value),
+        plasmaCustomColors:[0,1,2,3].map(index=>$(`plasmaColor${index}`).value)
+      };
+    }
+    async function applyThemeSettings(settings){
+      const requestNumber=++themeRequest;
+      message("Applying theme…");
+      try{
+        await request("/api/settings",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify(settings)
+        });
+        if(requestNumber===themeRequest)message("Theme applied and saved.");
+      }catch(error){
+        if(requestNumber===themeRequest)message(error.message,true);
+      }
+    }
+    function selectTheme(preset){
+      $("colorPreset").value=String(preset);
+      applyPreviewTheme(preset);
+      renderThemePicker();
+      applyThemeSettings({colorPreset:preset});
+    }
+    function selectPlasmaPalette(palette){
+      $("colorPreset").value="2";
+      $("plasmaPalette").value=String(palette);
+      applyPreviewTheme(2);
+      renderThemePicker();
+      applyThemeSettings(plasmaSettings());
+    }
+    async function selectScene(index){
+      try{
+        await request("/api/settings",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({sceneIndex:index,playScene:true})
+        });
+        message("Scene selected.");
+        loaded=false;
+        setTimeout(refresh,100);
+      }catch(error){message(error.message,true)}
+    }
+    function render(state){
+      $("clock").textContent=state.playScene?state.scene:state.time;
+      $("deviceTime").textContent=`Device: ${state.deviceDateTime}`;
+      const drift=Math.round(state.epoch-(state.browserSampleEpoch??Date.now()/1000));
+      $("clockDrift").textContent=state.timeValid
+        ?(Math.abs(drift)<=3
+          ?`Source: ${state.timeSource} · browser comparison in sync (±3s transport tolerance)`
+          :`Source: ${state.timeSource} · browser difference ${drift>=0?"+":""}${drift}s`)
+        :"Waiting for browser or NTP time";
+      $("statusDot").classList.toggle("ok",state.timeValid);
+      $("statusText").textContent=state.ntpSynced
+        ?"NTP synchronized"
+        :(state.ntpSyncing?"NTP synchronizing…":(state.timeValid?"Clock running":"Time not set"));
+      $("brightnessValue").textContent=state.brightness;
+      if(document.activeElement!==$("glowStrength")){
+        $("glowStrength").value=state.glowStrength;
+        $("glowStrengthValue").textContent=state.glowStrength;
+      }
+      const sceneFields={
+        Game:state.sceneGame||"",
+        Year:state.sceneYear?String(state.sceneYear):"",
+        Title:state.sceneTitle||"",
+        Manufacturer:state.sceneManufacturer||""
+      };
+      Object.entries(sceneFields).forEach(([name,value])=>{
+        $(`scene${name}`).textContent=value;
+        $(`scene${name}Field`).hidden=!value;
+      });
+      $("toggleInformation").textContent=state.showInformation?"Information on":"Information off";
+      $("toggleGlow").textContent=state.glowStrength>0?`Glow on · ${state.glowStrength}%`:"Glow off";
+      $("scheduleStatus").textContent=state.scheduleOverrideSecondsRemaining>0
+        ?(state.displayOn
+          ?touchWakeLabel(state.scheduleOverrideSecondsRemaining)
+          :"Touch wake active, but the master Screen switch is off")
+        :(!state.screenScheduleEnabled
+          ?"Schedule disabled"
+          :(!state.timeValid
+            ?"Waiting for synchronized device time"
+            :(state.screenScheduledOff
+              ?"Screen is off for the current scheduled hour"
+              :"Screen is on for the current scheduled hour")));
+      const rebootTime=`${String(state.rebootHour).padStart(2,"0")}:${String(state.rebootMinute).padStart(2,"0")}`;
+      $("rebootScheduleStatus").textContent=state.rebootScheduleEnabled
+        ?`Every ${scheduleDays[state.rebootWeekday]} at ${rebootTime}`
+        :"Schedule disabled";
+      if(!loaded){
+        $("displayOn").checked=state.displayOn;
+        $("displayMode").value=state.playScene?"scene":"clock";
+        if(Array.isArray(state.scenes)){
+          $("sceneIndex").replaceChildren(...state.scenes.map(scene=>{
+            const option=document.createElement("option");
+            option.value=String(scene.index);
+            option.textContent=scene.game&&scene.title
+              ?`${scene.game} — ${scene.title}`
+              :scene.name;
+            option.title=[
+              scene.game,
+              scene.year||"",
+              scene.manufacturer
+            ].filter(Boolean).join(" · ");
+            return option;
+          }));
+        }
+        $("sceneIndex").value=String(state.sceneIndex);
+        $("brightness").value=state.brightness;
+        $("glowStrength").value=state.glowStrength;
+        $("colorPreset").value=String(state.colorPreset);
+        $("plasmaPalette").value=String(state.plasmaPalette);
+        $("plasmaCycle").value=String(state.plasmaCycleMilliseconds);
+        $("plasmaPaletteSummary").textContent=state.plasmaPaletteName;
+        $("plasmaCycleValue").textContent=secondsLabel(state.plasmaCycleMilliseconds);
+        state.plasmaCustomColors.forEach((value,index)=>{$(`plasmaColor${index}`).value=value});
+        applyPreviewTheme(state.colorPreset);
+        viewedThemeFamily=themeFamilyFor(state.colorPreset);
+        renderThemePicker();
+        $("use24Hour").checked=state.use24Hour;
+        $("showSeconds").checked=state.showSeconds;
+        $("showInformation").checked=state.showInformation;
+        $("screenScheduleEnabled").checked=state.screenScheduleEnabled;
+        screenOffSchedule=Array.isArray(state.screenOffSchedule)
+          ?state.screenOffSchedule.slice(0,7)
+          :Array(7).fill("0".repeat(24));
+        renderScheduleGrid();
+        $("rebootScheduleEnabled").checked=state.rebootScheduleEnabled;
+        $("rebootWeekday").value=String(state.rebootWeekday);
+        $("rebootTime").value=rebootTime;
+        $("automaticCycle").checked=state.automaticCycle;
+        $("randomPlayback").checked=state.randomPlayback;
+        $("animationsPerCycle").value=String(state.animationsPerCycle);
+        $("clockDisplaySeconds").value=String(state.clockDisplaySeconds);
+        $("animationGapSeconds").value=String(state.animationGapSeconds);
+        $("timezone").value=state.timezone;
+        $("wifiSsid").value=state.wifiSsid;
+        loaded=true;
+      }
+      markCurrentScheduleCell(state);
+      const home=state.wifiConnected
+        ?`Home Wi-Fi connected at <code>http://${state.stationIp}/</code>.`
+        :state.wifiSsid?"Home Wi-Fi is reconnecting.":"Home Wi-Fi is not configured.";
+      const ntp=state.ntpSynced
+        ?`NTP synchronized via <code>${state.ntpServers}</code>.`
+        :(state.ntpSyncing?"NTP synchronization is in progress.":"NTP is waiting for a network connection.");
+      $("network").innerHTML=`Device network: <strong>${state.accessPointSsid}</strong> · <code>http://${state.accessPointIp}/</code><br>${home}<br>${ntp}<br>Touch controller: ${state.touchAvailable?"ready":"not detected / QEMU"}.`;
+      if(!state.timeValid)syncTime(true);
+    }
+    async function refresh(){
+      if(refreshing)return;
+      refreshing=true;
+      const browserSampleEpoch=Date.now()/1000;
+      try{
+        const state=await request("/api/state");
+        state.browserSampleEpoch=browserSampleEpoch;
+        render(state);
+      }
+      catch(error){$("statusText").textContent="Remote unavailable";$("statusDot").classList.remove("ok")}
+      finally{refreshing=false}
+    }
+    async function syncTime(silent=false){
+      try{
+        await request("/api/time",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({epoch:Math.floor(Date.now()/1000)})});
+        if(!silent)message("Clock synchronized from this device.");
+        setTimeout(refresh,250);
+      }catch(error){if(!silent)message(error.message,true)}
+    }
+    async function runAction(action){
+      try{
+        await request("/api/action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action})});
+        message(action==="syncNtp"?"NTP synchronization requested.":"Control applied.");
+        loaded=false;
+        setTimeout(refresh,150);
+      }catch(error){message(error.message,true)}
+    }
+    $("brightness").addEventListener("input",()=>{$("brightnessValue").textContent=$("brightness").value});
+    $("glowStrength").addEventListener("input",()=>{$("glowStrengthValue").textContent=$("glowStrength").value});
+    document.querySelectorAll("[data-theme-family]").forEach(button=>{
+      button.addEventListener("click",()=>{
+        viewedThemeFamily=button.dataset.themeFamily;
+        renderThemePicker();
+      });
+    });
+    document.querySelectorAll("[data-schedule-tool]").forEach(button=>{
+      button.addEventListener("click",()=>setScheduleTool(button.dataset.scheduleTool));
+    });
+    document.addEventListener("pointermove",event=>{
+      if(!scheduleDrawing)return;
+      paintScheduleCell(
+        document.elementFromPoint(event.clientX,event.clientY)?.closest(".schedule-cell"));
+    });
+    document.addEventListener("pointerup",()=>{scheduleDrawing=false});
+    document.addEventListener("pointercancel",()=>{scheduleDrawing=false});
+    $("plasmaCycle").addEventListener("input",()=>{
+      $("plasmaCycleValue").textContent=secondsLabel(Number($("plasmaCycle").value));
+      applyPreviewTheme(Number($("colorPreset").value));
+    });
+    $("plasmaCycle").addEventListener("change",()=>{
+      $("colorPreset").value="2";
+      applyPreviewTheme(2);
+      renderThemePicker();
+      applyThemeSettings(plasmaSettings());
+    });
+    [0,1,2,3].forEach(index=>{
+      $(`plasmaColor${index}`).addEventListener("input",()=>{
+        applyPreviewTheme(Number($("colorPreset").value));
+        renderThemePicker();
+      });
+      $(`plasmaColor${index}`).addEventListener("change",()=>{
+        $("colorPreset").value="2";
+        applyPreviewTheme(2);
+        renderThemePicker();
+        applyThemeSettings(plasmaSettings());
+      });
+    });
+    $("sceneIndex").addEventListener("change",()=>selectScene(Number($("sceneIndex").value)));
+    $("syncTime").addEventListener("click",()=>syncTime(false));
+    document.querySelectorAll("[data-action]").forEach(button=>{
+      button.addEventListener("click",()=>runAction(button.dataset.action));
+    });
+    async function saveSettings(){
+      const reboot=rebootTimeParts();
+      const body={
+        displayOn:$("displayOn").checked,
+        playScene:$("displayMode").value==="scene",
+        sceneIndex:Number($("sceneIndex").value),
+        brightness:Number($("brightness").value),
+        glowStrength:Number($("glowStrength").value),
+        colorPreset:Number($("colorPreset").value),
+        plasmaPalette:Number($("plasmaPalette").value),
+        plasmaCycleMilliseconds:Number($("plasmaCycle").value),
+        plasmaCustomColors:[0,1,2,3].map(index=>$(`plasmaColor${index}`).value),
+        use24Hour:$("use24Hour").checked,
+        showSeconds:$("showSeconds").checked,
+        showInformation:$("showInformation").checked,
+        screenScheduleEnabled:$("screenScheduleEnabled").checked,
+        screenOffSchedule,
+        rebootScheduleEnabled:$("rebootScheduleEnabled").checked,
+        rebootWeekday:Number($("rebootWeekday").value),
+        ...reboot,
+        automaticCycle:$("automaticCycle").checked,
+        randomPlayback:$("randomPlayback").checked,
+        animationsPerCycle:Number($("animationsPerCycle").value),
+        clockDisplaySeconds:Number($("clockDisplaySeconds").value),
+        animationGapSeconds:Number($("animationGapSeconds").value),
+        timezone:$("timezone").value,
+        wifiSsid:$("wifiSsid").value.trim()
+      };
+      if($("wifiPassword").value)body.wifiPassword=$("wifiPassword").value;
+      try{
+        const result=await request("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+        $("wifiPassword").value="";
+        message(result.wifiReconnecting?"Saved. Home Wi-Fi is reconnecting…":"Changes saved.");
+        setTimeout(refresh,500);
+      }catch(error){message(error.message,true)}
+    }
+    async function saveSchedule(){
+      $("scheduleMessage").textContent="Saving schedule…";
+      $("scheduleMessage").style.color="var(--muted)";
+      try{
+        await request("/api/settings",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            screenScheduleEnabled:$("screenScheduleEnabled").checked,
+            screenOffSchedule
+          })
+        });
+        $("scheduleMessage").textContent="Weekly schedule saved.";
+        $("scheduleMessage").style.color="var(--amber)";
+        setTimeout(refresh,250);
+      }catch(error){
+        $("scheduleMessage").textContent=error.message;
+        $("scheduleMessage").style.color="#ff786d";
+      }
+    }
+    $("saveSchedule").addEventListener("click",saveSchedule);
+    async function saveRebootSchedule(){
+      const reboot=rebootTimeParts();
+      $("rebootMessage").textContent="Saving reboot schedule…";
+      $("rebootMessage").style.color="var(--muted)";
+      try{
+        await request("/api/settings",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            rebootScheduleEnabled:$("rebootScheduleEnabled").checked,
+            rebootWeekday:Number($("rebootWeekday").value),
+            ...reboot
+          })
+        });
+        $("rebootMessage").textContent="Weekly reboot schedule saved.";
+        $("rebootMessage").style.color="var(--amber)";
+        setTimeout(refresh,250);
+      }catch(error){
+        $("rebootMessage").textContent=error.message;
+        $("rebootMessage").style.color="#ff786d";
+      }
+    }
+    $("saveRebootSchedule").addEventListener("click",saveRebootSchedule);
+    $("save").addEventListener("click",saveSettings);
+    refresh();
+    setInterval(refresh,1000);
+  </script>
+</body>
+</html>
