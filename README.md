@@ -11,14 +11,18 @@ the original 800×480 Waveshare ESP32-S3-Touch-LCD-7.
 > keep improving DMDClock and creating more projects like it—thank you!
 >
 > **Looking for the latest version?**
-> [Download DMDClock from the Releases page](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases).
+> [Download the latest DMDClock release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest).
 
 ![DMDClock using the Neon sunset theme](docs/screenshots/colors/neon-sunset.png)
 
 ## Start here
 
-- **Just want the clock and scenes to work?** Follow the
-  [simple user setup guide](docs/USER-SETUP.md).
+- **Installing on Windows?** Follow the
+  [Windows installation workflow](docs/INSTALL-WINDOWS.md).
+- **Installing the ESP32 and SD card?** Follow the
+  [ESP32-S3 installation workflow](docs/INSTALL-ESP32.md).
+- **Want the full Windows walkthrough?** Follow the
+  [complete user setup guide](docs/USER-SETUP.md).
 - **Want to understand every option?** Open the
   [settings reference](docs/SETTINGS.md).
 - **Want to build or contribute?** Use the setup, scripts, and active roadmap in
@@ -53,7 +57,7 @@ You can also supply your own `.scn` files.
 ## Quick user start
 
 1. Download the latest `DMDClock-*-win-x64-setup.exe` from the
-   [release page](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/).
+   [latest release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest).
 2. Run the installer and keep the default per-user directory.
 3. Start DMDClock from the Start Menu.
 4. Right-click and choose **Download DotClk scenes…**, or press `Ctrl+Shift+O`
@@ -131,6 +135,8 @@ screensaver use the same selection file. The four DotClk clock fonts are embedde
 ## Documentation
 
 - [Simple user setup](docs/USER-SETUP.md)
+- [Install on Windows](docs/INSTALL-WINDOWS.md)
+- [Install the ESP32-S3 and SD card](docs/INSTALL-ESP32.md)
 - [Settings reference](docs/SETTINGS.md)
 - [Local development without ChatGPT](docs/DEVELOPMENT.md)
 - [Standalone installer and roadmap](docs/INSTALLER.md)

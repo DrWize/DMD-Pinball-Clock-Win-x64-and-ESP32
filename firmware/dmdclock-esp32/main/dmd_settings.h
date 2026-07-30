@@ -58,6 +58,7 @@ typedef struct {
     char timezone[DMD_TIMEZONE_MAX];
     char wifi_ssid[DMD_WIFI_SSID_MAX + 1];
     char wifi_password[DMD_WIFI_PASSWORD_MAX + 1];
+    bool lan_only_web;
     uint32_t revision;
 } dmd_settings_t;
 

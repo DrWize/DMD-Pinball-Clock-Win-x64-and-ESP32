@@ -9,8 +9,8 @@ It uses [Inno Setup](https://jrsoftware.org/isinfo.php) and installs per user wi
 an administrator prompt.
 
 The current installer, portable ZIP, standalone ZIP, build information, and
-checksums are published together in the
-[`v1.0.0` pre-release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/tag/v1.0.0).
+checksums are published together on the
+[latest release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest).
 
 ## User-visible behavior
 
@@ -167,7 +167,10 @@ uninstalls, checks restoration and AppData preservation, and writes a JSON repor
 - [x] Verify Start Menu, Desktop, startup, configuration, preview, and uninstall shortcuts
 - [x] Verify add/remove programs metadata and icon
 - [ ] Check SmartScreen and antivirus results
-- [ ] Decide and implement Authenticode code signing
+- [x] Record Authenticode signing as optional rather than a release requirement;
+      paid signing certificates or services are not currently justified
+- [ ] Optionally implement Authenticode signing if an affordable suitable option
+      becomes available
 - [x] Add the setup EXE, portable and standalone ZIPs, build information, and
       generated checksums to the repeatable `Publish-GitHubRelease.ps1` workflow
 - [x] Publish and verify the `v1.0.0` GitHub pre-release
@@ -181,4 +184,5 @@ The installer is release-ready when:
 - both normal application and screensaver modes work without a .NET installation;
 - screensaver activation and restoration never overwrite a later user choice;
 - AppData preferences and external scene directories survive upgrades;
-- the setup EXE is signed, checksummed, and included in a repeatable release process.
+- the setup EXE is checksummed and included in a repeatable release process;
+- signing remains optional and is not a completion gate for this hobby project.

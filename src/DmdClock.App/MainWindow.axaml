@@ -216,6 +216,12 @@
                            FontFamily="Inter"
                            FontSize="12"
                            Foreground="#D8FFFFFF" />
+                <TextBlock x:Name="StartupBuildText"
+                           Text="Build … · checking for updates"
+                           HorizontalAlignment="Center"
+                           FontFamily="Inter"
+                           FontSize="10"
+                           Foreground="#B8FFFFFF" />
                 <TextBlock Text="DrWize - DMD Pinball Clock Win x64 and ESP32"
                            HorizontalAlignment="Center"
                            FontFamily="Inter"
@@ -226,6 +232,25 @@
                            ToolTip.Tip="https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32"
                            PointerPressed="StartupCredit_PointerPressed" />
             </StackPanel>
+        </Border>
+        <Border x:Name="UpdateAvailableOverlay"
+                IsVisible="False"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Margin="8"
+                Padding="12,7"
+                CornerRadius="6"
+                Background="#ED5A3100"
+                BorderBrush="#FFFFA126"
+                BorderThickness="1"
+                Cursor="Hand"
+                ToolTip.Tip="Open the latest DMDClock release"
+                PointerPressed="UpdateAvailable_PointerPressed">
+            <TextBlock x:Name="UpdateAvailableText"
+                       FontFamily="Inter"
+                       FontSize="12"
+                       FontWeight="SemiBold"
+                       Foreground="#FFFFE0B8" />
         </Border>
         </Grid>
     </Border>

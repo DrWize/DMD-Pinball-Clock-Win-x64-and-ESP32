@@ -25,7 +25,8 @@ This firmware targets the original Waveshare
 - compact one-row scene metadata with grey, follow-theme, or custom colouring;
 - persistent weekly screen-off painting and a weekly weekday/time reboot
   appointment with reboot-loop protection;
-- an always-available `DMDClock-xxxx` access point and embedded web remote;
+- an always-available `DMDClock-xxxx` access point and embedded web remote with
+  default-on LAN source-address filtering;
 - browser time fallback plus automatic and manual NTP synchronization;
 - GT911 touch buttons for next pinball, next scene, colour family, next theme,
   information, glow, and NTP check, plus an on-demand guided touch test;
@@ -38,8 +39,8 @@ This firmware targets the original Waveshare
 - an eight-second transient touch-button row with a short fade and safe
   reveal-only first touch after it has hidden.
 
-It does not yet include OTA, Home Assistant, or web authentication. Proprietary
-scene files are not embedded in production firmware or tracked by Git.
+It does not yet include OTA, Home Assistant, web authentication, or HTTPS.
+Proprietary scene files are not embedded in production firmware or tracked by Git.
 
 ## Fixed hardware target
 
@@ -125,6 +126,8 @@ hardware, or Wi-Fi radio behavior.
 
 The web remote footer links to the same canonical GitHub repository so source,
 documentation, issues, and releases are reachable from the device interface.
+It checks GitHub once per browser page load and shows a release link only when a
+newer semantic version is available. An offline check fails silently.
 QEMU records and reports a due scheduled reboot without calling `esp_restart()`
 because its emulated network adapter does not recover from an in-process reset.
 The production ESP32-S3 build performs the real restart.
@@ -167,6 +170,15 @@ The access point remains enabled after home Wi-Fi connects, providing a recovery
 path if home-network settings are wrong. The remote reports the home-network IP
 when connected. SNTP uses `pool.ntp.org` and `time.cloudflare.com`.
 
+The recovery network uses WPA2 password `dmdclock`. This controls who can join the
+access point; it is not a web login. The HTTP server has no account password or
+TLS. **LAN-only web access** defaults to enabled and accepts only the ESP32's
+current station/AP subnets, loopback, or link-local clients for every page and
+API route. It still trusts devices already on those LANs. The switch is in
+**Time and network**, persists in NVS and `/dmd/config/settings.json`, and should
+remain on unless a trusted firewall provides an equivalent boundary. Never
+forward device port 80 from the internet.
+
 Remote controls:
 
 - any available embedded/TF-card scene, or clock content;
@@ -193,8 +205,8 @@ Remote controls:
 The remote footer links to the device-hosted API reference at `/api-docs`. It
 documents the live state and scene-catalog reads, partial persistent settings
 updates, named control actions, browser-time fallback, accepted values, and
-example requests. The current API has no authentication and is intended only for
-a trusted local network.
+example requests. The current API has no authentication or HTTPS and is intended
+only for a trusted local network; the default-on LAN source filter applies to it.
 
 ## Secondary-storage layout
 

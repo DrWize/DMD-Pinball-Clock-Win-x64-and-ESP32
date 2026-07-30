@@ -96,6 +96,10 @@
     .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
     #message{min-height:1.2em;color:var(--amber);font-size:.82rem;margin-top:12px;text-align:right}
     .network{color:var(--muted);font-size:.8rem;line-height:1.5;margin-top:15px}
+    .security-note{margin-top:12px;padding:10px 12px;border:1px solid #59402b;border-radius:9px;background:#17100b;color:var(--muted);font-size:.78rem;line-height:1.45}
+    .update-notice{margin:0 0 18px;padding:11px 14px;border:1px solid #76601f;border-radius:11px;background:#2b2209;color:#ffe49a;font-size:.84rem;text-align:center}
+    .update-notice[hidden]{display:none}
+    .update-notice a{color:#fff1b6;font-weight:800}
     footer{margin-top:24px;text-align:center;color:var(--muted);font-size:.8rem}
     .runtime{margin-bottom:7px;color:#d5c9b9}
     .device-health{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:12px 0;text-align:left}
@@ -116,6 +120,8 @@
       <div><div class="eyebrow">ESP32-S3 · Basic · Gradient · Raster</div><h1 id="deviceName">DMDClock Remote</h1></div>
       <div class="status"><span id="statusDot" class="status-dot"></span><span id="statusText">Connecting…</span></div>
     </header>
+
+    <div id="updateNotice" class="update-notice" role="status" hidden></div>
 
     <section class="display" aria-label="Clock preview">
       <div id="clock">--:--</div>
@@ -393,6 +399,13 @@
           <input id="wifiPassword" type="password" maxlength="64" autocomplete="new-password" placeholder="Leave blank to keep saved password">
         </div>
       </div>
+      <div class="row" style="margin-top:14px">
+        <label for="lanOnlyWeb">LAN-only web access
+          <small>Allow only this device's Wi-Fi subnets, loopback, and link-local clients. Recommended because web login and HTTPS are not implemented.</small>
+        </label>
+        <label class="switch"><input id="lanOnlyWeb" type="checkbox"><span></span></label>
+      </div>
+      <div id="webSecurityStatus" class="security-note"></div>
       <div class="actions">
         <button id="rebootDevice" class="danger" type="button" data-action="reboot">Reboot device</button>
         <button id="syncTime" class="secondary" type="button">Use browser time as fallback</button>
@@ -425,6 +438,9 @@
       ·
       <a href="https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32"
          target="_blank" rel="noopener noreferrer">DMDClock on GitHub</a>
+      ·
+      <a href="https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest"
+         target="_blank" rel="noopener noreferrer">Latest release</a>
     </footer>
   </main>
 
@@ -432,6 +448,8 @@
     const $=id=>document.getElementById(id);
     let loaded=false;
     let refreshing=false;
+    let releaseChecked=false;
+    const latestReleaseUrl="https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest";
     const scheduleDays=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
     let screenOffSchedule=Array(7).fill("0".repeat(24));
     let scheduleTool="off";
@@ -839,6 +857,7 @@
       $("clock").textContent=state.playScene?state.scene:state.time;
       $("deviceTime").textContent=`Device: ${state.deviceDateTime}`;
       $("buildNumber").textContent=`Build ${state.buildNumber}`;
+      checkLatestRelease(state.buildNumber);
       $("uptime").textContent=`Uptime ${formatUptime(state.uptimeSeconds)}`;
       const screenOn=state.displayOn&&
         (!state.screenScheduledOff||state.scheduleOverrideSecondsRemaining>0);
@@ -971,8 +990,12 @@
         $("animationGapSeconds").value=String(state.animationGapSeconds);
         $("timezone").value=state.timezone;
         $("wifiSsid").value=state.wifiSsid;
+        $("lanOnlyWeb").checked=state.lanOnlyWeb!==false;
         loaded=true;
       }
+      $("webSecurityStatus").textContent=state.lanOnlyWeb!==false
+        ?"LAN-only protection is on. Only the setup network and the ESP32's current home-LAN subnet can use the remote."
+        :"LAN-only protection is off. A router or firewall could expose this unauthenticated HTTP remote.";
       if(document.activeElement!==$("sceneIndex")){
         $("sceneIndex").value=String(state.sceneIndex);
       }
@@ -1013,6 +1036,40 @@
       }
       catch(error){$("statusText").textContent="Remote unavailable";$("statusDot").classList.remove("ok")}
       finally{refreshing=false}
+    }
+    function versionParts(value){
+      const match=String(value||"").match(/(?:^|[^0-9])(\d+)\.(\d+)\.(\d+)/);
+      return match?match.slice(1).map(Number):null;
+    }
+    function newerVersion(candidate,current){
+      const latest=versionParts(candidate);
+      const installed=versionParts(current);
+      if(!latest||!installed)return false;
+      for(let index=0;index<3;index++){
+        if(latest[index]!==installed[index])return latest[index]>installed[index];
+      }
+      return false;
+    }
+    async function checkLatestRelease(installedBuild){
+      if(releaseChecked)return;
+      releaseChecked=true;
+      const controller=new AbortController();
+      const timeout=setTimeout(()=>controller.abort(),5000);
+      try{
+        const response=await fetch(
+          "https://api.github.com/repos/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest",
+          {headers:{"Accept":"application/vnd.github+json"},signal:controller.signal}
+        );
+        if(!response.ok)return;
+        const release=await response.json();
+        if(newerVersion(release.tag_name,installedBuild)){
+          const notice=$("updateNotice");
+          notice.innerHTML=`New build ${release.tag_name} is available · <a href="${latestReleaseUrl}" target="_blank" rel="noopener noreferrer">Open latest release</a>`;
+          notice.hidden=false;
+        }
+      }catch(_error){
+        // An offline clock remains fully functional; update checks are optional.
+      }finally{clearTimeout(timeout)}
     }
     async function syncTime(silent=false){
       try{
@@ -1153,8 +1210,12 @@
         clockDisplaySeconds:Number($("clockDisplaySeconds").value),
         animationGapSeconds:Number($("animationGapSeconds").value),
         timezone:$("timezone").value,
-        wifiSsid:$("wifiSsid").value.trim()
+        wifiSsid:$("wifiSsid").value.trim(),
+        lanOnlyWeb:$("lanOnlyWeb").checked
       };
+      if(!body.lanOnlyWeb&&!confirm(
+        "Turn off LAN-only protection? The remote has no login or HTTPS and could be exposed by your router or firewall."
+      ))return;
       if($("wifiPassword").value)body.wifiPassword=$("wifiPassword").value;
       try{
         const result=await request("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
