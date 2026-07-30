@@ -821,15 +821,35 @@ changes require no firmware update because they are stored on the TF card.
 
 ## Delivery phases
 
+Current phase status:
+
+| Phase | Status | Remaining gate |
+|---|---|---|
+| 0 — Baseline and safety | **Partial** — exact board, vendor archive, COM4 flashing, and fixed production target are established | Photograph labels, test factory restore, document both USB paths, and freeze the partition-version policy |
+| 1 — Canonical shared definitions | **Not started** | Generate both Windows and firmware themes from one validated source |
+| 2 — Board bring-up | **Operational** — display, backlight, PSRAM, touch, UART, and FAT32 card work on the live board | Card-failure/power-loss tests, standalone framebuffer diagnostics, and complete boot inventory |
+| 3 — DMD renderer | **Core complete** — packed framebuffer, exact 6× dots, brightness, glow, and double buffering run on hardware | Cross-platform hashes and measured CPU/PSRAM/frame-drop data |
+| 4 — Fixed Basic colours | **Core complete** | Generated definitions, every-intensity verification, hashes, and performance measurements |
+| 5 — Clock, date, and settings | **Operational** — clock, timezone, Wi-Fi, NTP, schedules, diagnostics, NVS, and SD settings backup work | Configurable NTP servers/interval, versioned NVS, factory reset, and longer offline tests |
+| 6 — SCN and TF-card playback | **Operational for flat libraries** — all 2,324 prepared scenes and shared metadata are indexed from SD | Streaming reads, recursive cache, malformed-input parity, and card-removal/corruption handling |
+| 7 — Touch and local web | **Daily controls complete** — touch overlay, web settings, diagnostics, API reference, logging, and reboot work | Authentication, gestures, device-side downloads/uploads, live log viewer, full statistics page, and mDNS |
+| 7b — Home Assistant | **Not started** | MQTT configuration, discovery, entities, and broker-failure testing |
+| 7c — Gradient, Raster, Plasma | **Core complete** — all families, presets, Custom themes, Plasma, glow, and metadata colours run | Exhaustive intensity/hash/performance testing and automatic fallback |
+| 8 — OTA and recovery | **Not started** | Partition design, signed validation, rollback, and tested USB recovery |
+| 9 — Packaging and release | **Not started** | Install/OTA/card artifacts, manifests, checksums, and clean-board validation |
+
 ### Phase 0 — Baseline and safety
 
 - [ ] Photograph the board labels and confirm the module says `N16R8`.
-- [ ] Confirm the product is the 800×480 `7`, not the 1024×600 `7B`.
-- [ ] Download and archive the exact factory firmware and Waveshare example used
+- [x] Confirm the product is the 800×480 `7`, not the 1024×600 `7B`.
+- [x] Download and archive the exact factory firmware and Waveshare example used
       for board initialization.
-- [ ] Record both USB connectors, detected COM ports, and recovery procedure.
-- [ ] Establish the fixed board target ID and partition-version policy.
-- [ ] Keep all Windows tests green before firmware structure is introduced.
+- [x] Record the UART connector, CH343 COM4 port, and explicit flash procedure.
+- [ ] Record and test the native USB/JTAG connector and full factory recovery.
+- [x] Establish the fixed 800×480 N16R8 production target.
+- [ ] Define and freeze the partition-version policy.
+- [ ] Run the Windows solution tests before merging shared metadata or generated
+      theme-definition changes.
 
 Exit: the board can always be returned to a known factory image.
 
@@ -890,9 +910,10 @@ interface remains stable before advanced effects are introduced.
 - [ ] Convert approved DotClk bitmap fonts to generated firmware assets.
 - [x] Implement time formatting, optional seconds, 12/24-hour display, and
       persisted timezone selection.
-- [ ] Add Wi-Fi provisioning, configurable primary/secondary NTP servers,
-      synchronization interval, manual sync, timezone, and daylight-saving
-      behavior.
+- [x] Add Wi-Fi provisioning, manual sync, timezone, and daylight-saving
+      behaviour.
+- [ ] Make the primary/secondary NTP servers and synchronization interval
+      configurable and validated.
 - [x] Add automatic primary/secondary NTP, manual synchronization, browser-time
       fallback, and live source/sync state to the device remote.
 - [x] Show the configured Wi-Fi name and `IP` with its assigned DHCP address or
@@ -919,25 +940,30 @@ interface remains stable before advanced effects are introduced.
 - [ ] Measure and expose the actual NTP offset independently of the browser
       comparison.
 - [ ] Store settings in versioned NVS records.
-- [ ] Add settings migration and reset-without-erasing-factory-recovery.
-- [ ] Preserve a useful clock across temporary network loss.
+- [x] Migrate existing NVS settings into the editable SD settings backup and
+      prefer valid SD settings at boot.
+- [ ] Add reset-without-erasing-factory-recovery.
+- [x] Preserve the running clock across temporary network or NTP loss.
 
 Exit: the device boots directly into a reliable clock and retains settings.
 
 ### Phase 6 — SCN and TF-card playback
 
-- [ ] Port SCN parsing with bounds-checked streaming reads.
-- [ ] Reuse the desktop SCN corpus and malformed-input fixtures.
+- [x] Port the bounds-checked SCN parser and validate every frame/storyboard
+      boundary before decoding.
+- [ ] Replace whole-file loading with bounded streaming reads.
+- [x] Reuse an 11-scene compatibility corpus in QEMU.
+- [ ] Reuse the desktop malformed-input fixtures in firmware tests.
 - [x] Implement first/regular/final storyboard timing, masks, blanking, clock
       layers, one-shot completion, and Windows-style clock/scene cycling for the
-      embedded test set.
+      QEMU corpus and SD library.
 - [x] Resolve the ESP32 scene catalog from the same schema-1
       `scene-metadata.json` used by Windows, including exact-file and
       longest-prefix rules, while leaving timing and masks in the SCN.
 - [x] Scan the complete flat TF-card scene directory into a compact PSRAM index.
 - [ ] Add recursive subdirectory scanning and a rebuildable on-card cache.
 - [x] Add sequential/random playback and automatic clock/animation cycles for
-      the embedded test set.
+      the QEMU corpus and SD library.
 - [ ] Define safe behavior for card removal, corrupt files, and low memory.
 
 Exit: the agreed compatibility corpus produces the same frames and timings as the
@@ -973,8 +999,9 @@ Windows reference within documented clock tolerance.
       physical/USB password recovery.
 - [x] Reproduce colour-family swatches and current-selection summaries.
 - [x] Add scene, clock, brightness, colour, network, schedule, and NTP settings.
-- [ ] Validate NTP hostnames and intervals, apply changes without rebooting, and
-      provide `Sync now` with non-blocking status updates.
+- [x] Provide `Sync NTP` with non-blocking status and last-sync age.
+- [ ] Add editable NTP hostnames/intervals with validation and apply them without
+      rebooting.
 - [ ] Let the device download selected SCN files over HTTPS to temporary TF-card
       paths, validate them, atomically install them, and report progress/cancel/
       failure state in the browser.
@@ -987,11 +1014,15 @@ Windows reference within documented clock tolerance.
       and make bounded current/rotated files downloadable.
 - [ ] Add `/stats` with live cards, short history, pause/resume, JSON export, and
       low-rate Server-Sent Events for every supported diagnostics group.
-- [ ] Label internal temperature as approximate chip temperature, establish
-      enclosed/unenclosed baselines, and avoid claiming ambient or power
-      measurements without external sensors.
+- [x] Publish a compact diagnostics footer and `/api/state` values for chip
+      temperature, Wi-Fi, memory, SD, time, reset, rendering, touch, settings,
+      screen state, build, and uptime.
+- [x] Label internal temperature as chip-only and not ambient.
+- [ ] Establish enclosed/unenclosed temperature baselines and warning thresholds.
 - [ ] Serve the same settings on `dmdclock.local`.
-- [ ] Ensure the display task remains independent of UI and HTTP activity.
+- [x] Keep HTTP request handling outside the display render loop.
+- [ ] Stress-test display responsiveness under concurrent HTTP, SD, and logging
+      activity.
 
 Exit: all daily settings can be changed without reflashing or connecting a PC.
 
