@@ -21,6 +21,7 @@ using DmdClock.Core.Rendering;
 using DmdClock.Core.Scn;
 using DmdClock.Core.Settings;
 using DmdClock.Core.Screensaver;
+using DmdClock.Core.Update;
 
 namespace DmdClock.App;
 
@@ -32,6 +33,7 @@ public partial class MainWindow : Window
     private const double DefaultWindowWidth = 1024;
     private const double DefaultWindowHeight = 256;
     private const string HelpGitHubUrl = "https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32";
+    private const string LatestReleaseUrl = "https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest";
     private readonly DispatcherTimer _displayTimer;
     private readonly DispatcherTimer _cursorHideTimer;
     private readonly Cursor _hiddenCursor = new(StandardCursorType.None);
@@ -66,6 +68,7 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _selectionReloadCancellation;
     private CancellationTokenSource? _informationCancellation;
     private readonly CancellationTokenSource _startupBrandCancellation = new();
+    private readonly CancellationTokenSource _updateCheckCancellation = new();
     private DisplayMode _displayMode = DisplayMode.Time;
     private WindowState _windowStateBeforeFullscreen = WindowState.Normal;
     private DateTimeOffset _lastClockRender = DateTimeOffset.MinValue;
@@ -773,6 +776,8 @@ public partial class MainWindow : Window
         _hiddenCursor.Dispose();
         _startupBrandCancellation.Cancel();
         _startupBrandCancellation.Dispose();
+        _updateCheckCancellation.Cancel();
+        _updateCheckCancellation.Dispose();
         CancelInformationDisplay();
         _libraryWatcher?.Dispose();
         _selectionWatcher?.Dispose();
@@ -815,7 +820,62 @@ public partial class MainWindow : Window
         }
         LogDisplayChange("brand:alien-tech",
             $"display.show type=brand name=\"Alien Tech\" durationMs={StartupBrandDuration.TotalMilliseconds:F0}");
+        StartupBuildText.Text = $"Build {_buildId} · checking for updates";
+        if (_launchOptions.Mode == ScreenSaverLaunchMode.Normal)
+            _ = CheckForUpdateAsync(_updateCheckCancellation.Token);
         _ = HideStartupBrandAsync(_startupBrandCancellation.Token);
+    }
+
+    private async Task CheckForUpdateAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(5));
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            var result = await new ReleaseUpdateChecker(client)
+                .CheckAsync(_buildId, timeout.Token);
+            if (result?.UpdateAvailable == true)
+            {
+                StartupBuildText.Text =
+                    $"Build {_buildId} · {result.LatestVersion} is available";
+                UpdateAvailableText.Text =
+                    $"DMDClock {result.LatestVersion} is available · click to download";
+                UpdateAvailableOverlay.IsVisible = true;
+            }
+            else
+            {
+                StartupBuildText.Text = $"Build {_buildId} · up to date";
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception error)
+        {
+            StartupBuildText.Text = $"Build {_buildId}";
+            await _log.WriteAsync(
+                DateTimeOffset.UtcNow,
+                $"update.check unavailable error=\"{SanitizeLogValue(error.Message)}\"");
+        }
+    }
+
+    private void UpdateAvailable_PointerPressed(
+        object? sender,
+        PointerPressedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(LatestReleaseUrl)
+            {
+                UseShellExecute = true
+            });
+            e.Handled = true;
+        }
+        catch (Exception error)
+        {
+            SetStatus($"Could not open the latest release: {error.Message}");
+        }
     }
 
     private async Task HideStartupBrandAsync(CancellationToken cancellationToken)

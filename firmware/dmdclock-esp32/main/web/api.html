@@ -43,7 +43,7 @@
   </header>
 
   <div class="note">
-    The API is intended for the trusted local network and currently has no authentication or CORS headers. JSON POST bodies must be smaller than 2 KB. Partial settings updates are supported: omitted fields keep their current values.
+    The API has no login, HTTPS, or CORS headers. LAN-only access is enabled by default and accepts only clients on the ESP32's current station/AP subnet, loopback, or link-local addresses for every page and API route. Devices already on those LANs must still be trusted. JSON POST bodies must be smaller than 2 KB. Partial settings updates are supported: omitted fields keep their current values.
   </div>
 
   <section class="panel">
@@ -54,7 +54,7 @@
         <h3>Display and playback</h3>
         <p><code>displayOn</code>, <code>playScene</code>, <code>waitingForScene</code>, <code>sceneIndex</code>, <code>sceneStep</code>, <code>sceneFrame</code>, <code>scene</code>, <code>sceneFile</code>, metadata fields, <code>sceneCount</code>, cycle settings, brightness, glow, theme and information settings.</p>
         <h3>Time and network</h3>
-        <p>Device time/epoch/timezone, Wi-Fi connection and IP, device/AP identity, NTP state, last-sync epoch, elapsed sync age and configured servers.</p>
+        <p>Device time/epoch/timezone, Wi-Fi connection and IP, device/AP identity, <code>lanOnlyWeb</code>, NTP state, last-sync epoch, elapsed sync age and configured servers.</p>
       </div>
       <div>
         <h3>Health and diagnostics</h3>
@@ -110,6 +110,7 @@
         <tr><td>timezone</td><td>Supported POSIX timezone string supplied by the remote.</td></tr>
         <tr><td>wifiSsid</td><td>Home Wi-Fi network name.</td></tr>
         <tr><td>wifiPassword</td><td>Home Wi-Fi password; omit it to preserve the current password.</td></tr>
+        <tr><td>lanOnlyWeb</td><td>Boolean source-address filter. True permits the current station/AP subnets, loopback and link-local clients only; false permits any client that can route to port 80.</td></tr>
       </tbody>
     </table>
     <pre>curl -X POST http://DMDClock-59D9/api/settings ^

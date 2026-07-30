@@ -23,6 +23,16 @@ Windows application is release-ready.
 
 ## Current baseline
 
+Final user-facing release pass:
+
+- [x] Show a non-blocking latest-release notice in the normal Windows startup and
+      ESP32 web remote; never auto-download or auto-install an update.
+- [x] Add separate beginner workflows for Windows and ESP32 plus SD-card setup.
+- [x] Default the complete ESP32 web/API server to LAN-only source addresses and
+      expose the persistent switch in the remote.
+- [x] Document current Wi-Fi storage, plain-text SD backup, recovery AP password,
+      lack of web login/HTTPS, release links, and compatible enclosure links.
+
 The application, Windows screensaver, portable ZIP, standalone single-file ZIP,
 per-user installer, shared scene selection, and live Scene Reviewer are functional.
 Automated tests cover SCN parsing/playback, settings, embedded DotClk fonts,
@@ -32,8 +42,8 @@ and compatibility reporting.
 The interactive installer and an in-place upgrade from an older installer build
 are verified, including clean Windows 10 and 11 systems without an installed .NET
 runtime. Remaining release work is read-only-directory testing, translation
-fallback behavior, SmartScreen/antivirus review, Authenticode signing, and
-confirmation that the original DotClk fonts can be redistributed publicly.
+fallback behavior, SmartScreen/antivirus review, and confirmation that the
+original DotClk fonts can be redistributed publicly.
 
 ## End-user setup — no source code or SDK required
 
@@ -663,7 +673,11 @@ Acceptance criteria:
       validation, generated SHA-256 checksums, dry-run support, and GitHub upload
 - [x] Publish the installer, portable ZIP, standalone ZIP, build information, and
       release checksums as the `v1.0.0` GitHub pre-release
-- [ ] Decide and implement Authenticode code signing
+- [x] Decide Authenticode signing is not required for the current release:
+      paid signing certificates or services are not justified for this
+      Sweden-based hobby project
+- [ ] Optional future: implement Authenticode signing if an affordable suitable
+      option becomes available
 
 Detailed status, commands, and acceptance criteria:
 [`docs/INSTALLER.md`](docs/INSTALLER.md).
@@ -816,14 +830,14 @@ Detailed status, commands, and acceptance criteria:
       baseline.
 - [ ] Run physical rendering, persistence, responsiveness, and one-hour soak
       tests for Basic, Gradient, Raster, glow, clock/scene cycling, NTP, and touch
-- [ ] Serve a first-run setup page that creates the web administrator password
-      before normal controls become available
-- [ ] Use `admin` as the initial username, but never ship a reusable
-      `admin/admin` password; use a temporary per-device setup code shown on the
-      local display and require replacement on first login
-- [ ] Store only a salted password verifier in NVS, use expiring authenticated
-      sessions plus CSRF protection, and provide a physical-button/USB recovery
-      path for a forgotten password
+- [ ] Optional future: serve a first-run setup page that creates the web
+      administrator password before normal controls become available
+- [ ] Optional future: use `admin` as the initial username, but never ship a
+      reusable `admin/admin` password; use a temporary per-device setup code
+      shown on the local display and require replacement on first login
+- [ ] Optional future: store only a salted password verifier in NVS, use expiring
+      authenticated sessions plus CSRF protection, and provide a
+      physical-button/USB recovery path for a forgotten password
 - [x] Define a single `/dmd` TF-card root for scenes, fonts, Plasma assets,
       extended web assets, exported configuration, backups, bounded logs,
       rebuildable caches, and verified downloads

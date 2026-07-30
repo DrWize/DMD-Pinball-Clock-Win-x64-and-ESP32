@@ -16,8 +16,8 @@ Animations are not included with DMDClock.
 
 ### Recommended: setup EXE
 
-1. Download the `DMDClock-…-win-x64-setup.exe` asset from the current
-   [`v1.0.0` pre-release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/tag/v1.0.0).
+1. Download the `DMDClock-…-win-x64-setup.exe` asset from the
+   [latest release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest).
 2. Run the setup EXE.
 3. Keep the default per-user installation directory unless you have a reason to
    change it.

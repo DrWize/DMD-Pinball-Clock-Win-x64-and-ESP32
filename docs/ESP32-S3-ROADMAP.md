@@ -644,6 +644,17 @@ resynchronizes when connectivity returns.
 
 ## Web authentication
 
+The current implemented release boundary is deliberately smaller:
+
+- [x] Default to LAN-only HTTP access and enforce it at socket acceptance so the
+      remote, API documentation, and every API route share the same boundary.
+- [x] Persist the LAN-only switch in NVS and the editable SD settings backup.
+- [x] State clearly that the filter is not authentication: private-LAN clients
+      remain trusted and HTTP traffic is unencrypted.
+
+The authenticated design below is optional future hardening, not current
+firmware behavior.
+
 The web interface uses `admin` as the initial username, but the firmware must not
 ship with a shared `admin/admin` credential. On first run, the local display shows
 a temporary per-device setup code. The first browser session uses that code to
@@ -832,7 +843,7 @@ Current phase status:
 | 4 — Fixed Basic colours | **Core complete** | Generated definitions, every-intensity verification, hashes, and performance measurements |
 | 5 — Clock, date, and settings | **Operational** — clock, timezone, Wi-Fi, NTP, schedules, diagnostics, NVS, and SD settings backup work | Configurable NTP servers/interval, versioned NVS, factory reset, and longer offline tests |
 | 6 — SCN and TF-card playback | **Operational for flat libraries** — all 2,324 prepared scenes and shared metadata are indexed from SD | Streaming reads, recursive cache, malformed-input parity, and card-removal/corruption handling |
-| 7 — Touch and local web | **Daily controls complete** — touch overlay, web settings, diagnostics, API reference, logging, and reboot work | Authentication, gestures, device-side downloads/uploads, live log viewer, full statistics page, and mDNS |
+| 7 — Touch and local web | **Daily controls complete** — touch overlay, web settings, diagnostics, API reference, default-on LAN boundary, logging, and reboot work | Optional future authentication/HTTPS, gestures, device-side downloads/uploads, live log viewer, full statistics page, and mDNS |
 | 7b — Home Assistant | **Not started** | MQTT configuration, discovery, entities, and broker-failure testing |
 | 7c — Gradient, Raster, Plasma | **Core complete** — all families, presets, Custom themes, Plasma, glow, and metadata colours run | Exhaustive intensity/hash/performance testing and automatic fallback |
 | 8 — OTA and recovery | **Not started** | Partition design, signed validation, rollback, and tested USB recovery |

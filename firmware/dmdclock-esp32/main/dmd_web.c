@@ -18,10 +18,95 @@
 #include "esp_app_desc.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_netif.h"
 #include "esp_timer.h"
+#include "lwip/inet.h"
+#include "lwip/sockets.h"
 
 static const char *TAG = "dmd_web";
 static httpd_handle_t s_server;
+
+static bool local_ipv4(uint32_t address)
+{
+    uint32_t host_address = ntohl(address);
+    if ((host_address & 0xff000000U) == 0x7f000000U ||
+        (host_address & 0xffff0000U) == 0xa9fe0000U) {
+        return true;
+    }
+
+    static const char *const interface_keys[] = {
+        "WIFI_STA_DEF",
+        "WIFI_AP_DEF",
+        "ETH_DEF",
+    };
+    for (size_t index = 0;
+         index < sizeof(interface_keys) / sizeof(interface_keys[0]);
+         index++) {
+        esp_netif_t *network =
+            esp_netif_get_handle_from_ifkey(interface_keys[index]);
+        esp_netif_ip_info_t info;
+        if (network != NULL &&
+            esp_netif_get_ip_info(network, &info) == ESP_OK &&
+            info.ip.addr != 0 &&
+            info.netmask.addr != 0 &&
+            (address & info.netmask.addr) ==
+                (info.ip.addr & info.netmask.addr)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool local_web_client(const struct sockaddr_storage *peer)
+{
+    if (peer->ss_family == AF_INET) {
+        const struct sockaddr_in *ipv4 =
+            (const struct sockaddr_in *)peer;
+        return local_ipv4(ipv4->sin_addr.s_addr);
+    }
+#if LWIP_IPV6
+    if (peer->ss_family == AF_INET6) {
+        const struct sockaddr_in6 *ipv6 =
+            (const struct sockaddr_in6 *)peer;
+        const uint8_t *bytes = ipv6->sin6_addr.s6_addr;
+        if (IN6_IS_ADDR_LOOPBACK(&ipv6->sin6_addr) ||
+            IN6_IS_ADDR_LINKLOCAL(&ipv6->sin6_addr)) {
+            return true;
+        }
+        if (IN6_IS_ADDR_V4MAPPED(&ipv6->sin6_addr)) {
+            uint32_t mapped = 0;
+            memcpy(&mapped, bytes + 12, sizeof(mapped));
+            return local_ipv4(mapped);
+        }
+    }
+#endif
+    return false;
+}
+
+static esp_err_t web_client_open(httpd_handle_t server, int socket_fd)
+{
+    (void)server;
+    dmd_settings_t settings;
+    dmd_settings_get(&settings);
+    if (!settings.lan_only_web) {
+        return ESP_OK;
+    }
+
+    struct sockaddr_storage peer = {0};
+    socklen_t peer_length = sizeof(peer);
+    if (getpeername(
+            socket_fd,
+            (struct sockaddr *)&peer,
+            &peer_length) == 0 &&
+        local_web_client(&peer)) {
+        return ESP_OK;
+    }
+
+    ESP_LOGW(
+        TAG,
+        "Rejected non-local web connection (LAN-only web access is enabled)");
+    return ESP_FAIL;
+}
 
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
@@ -308,6 +393,7 @@ static esp_err_t state_get(httpd_req_t *request)
         settings.animation_gap_seconds);
     cJSON_AddStringToObject(json, "timezone", settings.timezone);
     cJSON_AddStringToObject(json, "wifiSsid", settings.wifi_ssid);
+    cJSON_AddBoolToObject(json, "lanOnlyWeb", settings.lan_only_web);
     cJSON_AddBoolToObject(json, "wifiConnected", network.station_connected);
     cJSON_AddStringToObject(json, "stationIp", network.station_ip);
     cJSON_AddStringToObject(json, "deviceName", network.device_name);
@@ -635,6 +721,7 @@ static esp_err_t settings_post(httpd_req_t *request)
     update_bool(json, "use24Hour", &updated.use_24_hour);
     update_bool(json, "showSeconds", &updated.show_seconds);
     update_bool(json, "displayOn", &updated.display_on);
+    update_bool(json, "lanOnlyWeb", &updated.lan_only_web);
     update_bool(
         json,
         "screenScheduleEnabled",
@@ -981,6 +1068,7 @@ esp_err_t dmd_web_start(void)
     config.max_uri_handlers = 8;
     config.stack_size = 6144;
     config.lru_purge_enable = true;
+    config.open_fn = web_client_open;
     esp_err_t error = httpd_start(&s_server, &config);
     if (error != ESP_OK) {
         return error;

@@ -100,9 +100,9 @@ exactly matches `origin/master`, matching portable/standalone/installer build ID
 and a tag that does not already exist. It uploads the setup EXE, portable ZIP,
 standalone ZIP, installer build information, and a generated SHA-256 file covering
 all uploaded build artifacts. Use `-NotesPath path\to\notes.md` for curated release
-notes; otherwise GitHub generates notes from the repository history. The first
-published run is available as the
-[`v1.0.0` pre-release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/tag/v1.0.0).
+notes; otherwise GitHub generates notes from the repository history. The current
+published build is available through the
+[latest release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest).
 
 ## Work with Git
 

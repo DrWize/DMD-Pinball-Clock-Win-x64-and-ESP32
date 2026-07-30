@@ -71,6 +71,7 @@ static void set_defaults(void)
         s_settings.wifi_password,
         DMD_BOOTSTRAP_WIFI_PASSWORD,
         sizeof(s_settings.wifi_password));
+    s_settings.lan_only_web = true;
     s_settings.revision = 1;
 }
 
@@ -171,6 +172,9 @@ esp_err_t dmd_settings_init(void)
     }
     if (nvs_get_u8(handle, "display", &value) == ESP_OK) {
         s_settings.display_on = value != 0;
+    }
+    if (nvs_get_u8(handle, "lan_web", &value) == ESP_OK) {
+        s_settings.lan_only_web = value != 0;
     }
     if (nvs_get_u8(handle, "sched_on", &value) == ESP_OK) {
         s_settings.screen_schedule_enabled = value != 0;
@@ -402,6 +406,7 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
         (error = nvs_set_u8(handle, "hour24", normalized.use_24_hour)) == ESP_OK &&
         (error = nvs_set_u8(handle, "seconds", normalized.show_seconds)) == ESP_OK &&
         (error = nvs_set_u8(handle, "display", normalized.display_on)) == ESP_OK &&
+        (error = nvs_set_u8(handle, "lan_web", normalized.lan_only_web)) == ESP_OK &&
         (error = nvs_set_u8(
             handle,
             "sched_on",
