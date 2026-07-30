@@ -157,7 +157,7 @@ uninstalls, checks restoration and AppData preservation, and writes a JSON repor
 - [x] Run a silent uninstall and verify previous screensaver restoration
 - [x] Verify uninstall removes installed program files but retains DMDClock AppData
 - [x] Verify a repeat installation preserves the original screensaver restore point
-- [ ] Test an in-place upgrade over an older installer build
+- [x] Test an in-place upgrade over an older installer build
 
 ### Phase 4 — release validation
 

@@ -10,7 +10,26 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$connectedPorts = @(Get-CimInstance Win32_SerialPort | Select-Object -ExpandProperty DeviceID)
+$connectedPorts = @(
+    Get-CimInstance Win32_SerialPort -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty DeviceID
+
+    Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            if ($_.Name -match '\((COM\d+)\)') {
+                $Matches[1]
+            }
+        }
+
+    $serialMap = Get-ItemProperty `
+        -Path 'HKLM:\HARDWARE\DEVICEMAP\SERIALCOMM' `
+        -ErrorAction SilentlyContinue
+    if ($null -ne $serialMap) {
+        $serialMap.PSObject.Properties |
+            Where-Object { $_.Name -notmatch '^PS' -and $_.Value -match '^COM\d+$' } |
+            Select-Object -ExpandProperty Value
+    }
+) | Sort-Object -Unique
 if ($Port -notin $connectedPorts) {
     $available = if ($connectedPorts.Count -gt 0) {
         $connectedPorts -join ', '

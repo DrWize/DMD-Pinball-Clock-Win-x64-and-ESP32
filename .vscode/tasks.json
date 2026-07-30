@@ -1,0 +1,28 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build DMDClock (Debug)",
+      "type": "shell",
+      "command": "$dmdDotnet = if ($env:DMD_DOTNET) { $env:DMD_DOTNET } elseif (Test-Path '${workspaceFolder}\\..\\.tools\\dotnet10\\dotnet.exe') { '${workspaceFolder}\\..\\.tools\\dotnet10\\dotnet.exe' } else { 'dotnet' }; & $dmdDotnet build '${workspaceFolder}\\DMDClock.sln' -c Debug --nologo",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "powershell.exe",
+          "args": [
+            "-NoLogo",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command"
+          ]
+        }
+      },
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}

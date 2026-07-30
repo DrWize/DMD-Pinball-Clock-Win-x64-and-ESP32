@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <time.h>
 
@@ -9,17 +10,23 @@
 #include "dmd_actions.h"
 #include "dmd_board.h"
 #include "dmd_display.h"
+#include "dmd_diagnostics.h"
 #include "dmd_network.h"
+#include "dmd_playback_log.h"
 #include "dmd_scene.h"
 #include "dmd_settings.h"
+#include "esp_app_desc.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 
 static const char *TAG = "dmd_web";
 static httpd_handle_t s_server;
 
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
+extern const uint8_t api_html_start[] asm("_binary_api_html_start");
+extern const uint8_t api_html_end[] asm("_binary_api_html_end");
 
 static esp_err_t send_json(httpd_req_t *request, cJSON *json)
 {
@@ -40,7 +47,7 @@ static esp_err_t send_json(httpd_req_t *request, cJSON *json)
 
 static cJSON *receive_json(httpd_req_t *request)
 {
-    if (request->content_len <= 0 || request->content_len > 1024) {
+    if (request->content_len <= 0 || request->content_len > 2048) {
         return NULL;
     }
     char *body = calloc(1, request->content_len + 1);
@@ -65,6 +72,42 @@ static cJSON *receive_json(httpd_req_t *request)
     return json;
 }
 
+static void add_rgb_array(
+    cJSON *json,
+    const char *name,
+    const dmd_rgb_t *colors,
+    uint8_t count)
+{
+    cJSON *array = cJSON_AddArrayToObject(json, name);
+    for (uint8_t index = 0; index < count; index++) {
+        char value[8];
+        snprintf(
+            value,
+            sizeof(value),
+            "#%02X%02X%02X",
+            colors[index].red,
+            colors[index].green,
+            colors[index].blue);
+        cJSON_AddItemToArray(array, cJSON_CreateString(value));
+    }
+}
+
+static void add_rgb_value(
+    cJSON *json,
+    const char *name,
+    dmd_rgb_t color)
+{
+    char value[8];
+    snprintf(
+        value,
+        sizeof(value),
+        "#%02X%02X%02X",
+        color.red,
+        color.green,
+        color.blue);
+    cJSON_AddStringToObject(json, name, value);
+}
+
 static esp_err_t index_get(httpd_req_t *request)
 {
     httpd_resp_set_type(request, "text/html; charset=utf-8");
@@ -85,6 +128,13 @@ static esp_err_t state_get(httpd_req_t *request)
     dmd_scene_get_info(&scene);
     dmd_display_state_t display;
     dmd_display_get_state(&display);
+    dmd_touch_diagnostics_t touch;
+    dmd_board_get_touch_diagnostics(&touch);
+    dmd_diagnostics_t diagnostics;
+    dmd_diagnostics_get(&diagnostics);
+    const esp_app_desc_t *app = esp_app_get_description();
+    uint64_t uptime_seconds =
+        (uint64_t)(esp_timer_get_time() / 1000000);
 
     time_t now = time(NULL);
     struct tm local;
@@ -119,18 +169,22 @@ static esp_err_t state_get(httpd_req_t *request)
         json,
         "plasmaCycleMilliseconds",
         settings.plasma_cycle_ms);
-    cJSON *plasma_colors = cJSON_AddArrayToObject(json, "plasmaCustomColors");
-    for (uint8_t index = 0; index < DMD_PLASMA_STOP_COUNT; index++) {
-        char value[8];
-        snprintf(
-            value,
-            sizeof(value),
-            "#%02X%02X%02X",
-            settings.plasma_custom[index].red,
-            settings.plasma_custom[index].green,
-            settings.plasma_custom[index].blue);
-        cJSON_AddItemToArray(plasma_colors, cJSON_CreateString(value));
-    }
+    add_rgb_array(
+        json,
+        "plasmaCustomColors",
+        settings.plasma_custom,
+        DMD_PLASMA_STOP_COUNT);
+    add_rgb_array(json, "basicCustomColors", &settings.basic_custom, 1);
+    add_rgb_array(
+        json,
+        "gradientCustomColors",
+        settings.gradient_custom,
+        DMD_GRADIENT_CUSTOM_COLOR_COUNT);
+    add_rgb_array(
+        json,
+        "rasterCustomColors",
+        settings.raster_custom,
+        DMD_RASTER_CUSTOM_COLOR_COUNT);
     cJSON_AddBoolToObject(json, "use24Hour", settings.use_24_hour);
     cJSON_AddBoolToObject(json, "showSeconds", settings.show_seconds);
     cJSON_AddBoolToObject(json, "displayOn", settings.display_on);
@@ -200,11 +254,46 @@ static esp_err_t state_get(httpd_req_t *request)
         display.plasma_frames_rendered);
     cJSON_AddNumberToObject(
         json,
+        "displayFramesRendered",
+        display.display_frames_rendered);
+    cJSON_AddBoolToObject(
+        json,
+        "touchTestRunning",
+        display.touch_test_running);
+    cJSON_AddNumberToObject(
+        json,
         "scheduleOverrideSecondsRemaining",
         display.schedule_override_seconds_remaining);
     cJSON_AddBoolToObject(json, "automaticCycle", settings.automatic_cycle);
     cJSON_AddBoolToObject(json, "randomPlayback", settings.random_playback);
+    cJSON_AddBoolToObject(
+        json,
+        "playbackLogEnabled",
+        settings.playback_log_enabled);
+    cJSON_AddStringToObject(
+        json,
+        "playbackLogPath",
+        DMD_PLAYBACK_LOG_PATH);
+    struct stat playback_log_stat;
+    bool playback_log_present =
+        stat(DMD_PLAYBACK_LOG_PATH, &playback_log_stat) == 0;
+    cJSON_AddBoolToObject(
+        json,
+        "playbackLogPresent",
+        playback_log_present);
+    cJSON_AddNumberToObject(
+        json,
+        "playbackLogBytes",
+        playback_log_present ? (double)playback_log_stat.st_size : 0);
     cJSON_AddBoolToObject(json, "showInformation", settings.show_information);
+    cJSON_AddNumberToObject(
+        json,
+        "informationColorMode",
+        settings.information_color_mode);
+    add_rgb_value(
+        json,
+        "informationCustomColor",
+        settings.information_custom_color);
     cJSON_AddNumberToObject(
         json,
         "animationsPerCycle",
@@ -221,22 +310,142 @@ static esp_err_t state_get(httpd_req_t *request)
     cJSON_AddStringToObject(json, "wifiSsid", settings.wifi_ssid);
     cJSON_AddBoolToObject(json, "wifiConnected", network.station_connected);
     cJSON_AddStringToObject(json, "stationIp", network.station_ip);
+    cJSON_AddStringToObject(json, "deviceName", network.device_name);
     cJSON_AddStringToObject(json, "accessPointSsid", network.access_point_ssid);
     cJSON_AddStringToObject(json, "accessPointIp", network.access_point_ip);
     cJSON_AddBoolToObject(json, "timeValid", time_valid);
     cJSON_AddStringToObject(json, "time", time_text);
     cJSON_AddStringToObject(json, "deviceDateTime", date_time_text);
     cJSON_AddNumberToObject(json, "epoch", (double)now);
+    cJSON_AddStringToObject(json, "buildNumber", app->version);
+    cJSON_AddNumberToObject(
+        json,
+        "uptimeSeconds",
+        (double)uptime_seconds);
+    cJSON_AddBoolToObject(
+        json,
+        "chipTemperatureAvailable",
+        diagnostics.chip_temperature_available);
+    if (diagnostics.chip_temperature_available) {
+        cJSON_AddNumberToObject(
+            json,
+            "chipTemperatureCelsius",
+            diagnostics.chip_temperature_c);
+    } else {
+        cJSON_AddNullToObject(json, "chipTemperatureCelsius");
+    }
+    cJSON_AddStringToObject(
+        json,
+        "chipTemperatureType",
+        "Internal approximate; not ambient");
+    cJSON_AddBoolToObject(
+        json,
+        "wifiRssiAvailable",
+        diagnostics.wifi_rssi_available);
+    if (diagnostics.wifi_rssi_available) {
+        cJSON_AddNumberToObject(
+            json,
+            "wifiRssiDbm",
+            diagnostics.wifi_rssi_dbm);
+    } else {
+        cJSON_AddNullToObject(json, "wifiRssiDbm");
+    }
+    cJSON_AddNumberToObject(
+        json,
+        "freeHeapBytes",
+        diagnostics.free_heap_bytes);
+    cJSON_AddNumberToObject(
+        json,
+        "minimumFreeHeapBytes",
+        diagnostics.minimum_free_heap_bytes);
+    cJSON_AddNumberToObject(
+        json,
+        "freePsramBytes",
+        diagnostics.free_psram_bytes);
+    cJSON_AddNumberToObject(
+        json,
+        "totalPsramBytes",
+        diagnostics.total_psram_bytes);
+    cJSON_AddBoolToObject(json, "sdAvailable", diagnostics.sd_available);
+    cJSON_AddNumberToObject(
+        json,
+        "sdTotalBytes",
+        (double)diagnostics.sd_total_bytes);
+    cJSON_AddNumberToObject(
+        json,
+        "sdFreeBytes",
+        (double)diagnostics.sd_free_bytes);
+    cJSON_AddNumberToObject(
+        json,
+        "sdUsedBytes",
+        (double)(diagnostics.sd_total_bytes -
+                 diagnostics.sd_free_bytes));
+    cJSON_AddBoolToObject(
+        json,
+        "settingsFilePresent",
+        diagnostics.settings_file_present);
+    cJSON_AddStringToObject(
+        json,
+        "settingsFilePath",
+        "/dmd/config/settings.json");
+    cJSON_AddNumberToObject(
+        json,
+        "flashSizeBytes",
+        diagnostics.flash_size_bytes);
+    cJSON_AddNumberToObject(
+        json,
+        "cpuFrequencyMHz",
+        diagnostics.cpu_frequency_mhz);
+    cJSON_AddNumberToObject(json, "bootCount", diagnostics.boot_count);
+    cJSON_AddStringToObject(
+        json,
+        "resetReason",
+        diagnostics.reset_reason);
+    cJSON_AddBoolToObject(
+        json,
+        "settingsSaveOk",
+        diagnostics.last_nvs_save_error == ESP_OK &&
+        diagnostics.last_sd_save_error == ESP_OK);
+    cJSON_AddStringToObject(
+        json,
+        "lastNvsSaveStatus",
+        esp_err_to_name(diagnostics.last_nvs_save_error));
+    cJSON_AddStringToObject(
+        json,
+        "lastSdSaveStatus",
+        esp_err_to_name(diagnostics.last_sd_save_error));
     cJSON_AddBoolToObject(json, "ntpStarted", network.ntp_started);
     cJSON_AddBoolToObject(json, "ntpSyncing", network.ntp_syncing);
     cJSON_AddBoolToObject(json, "ntpSynced", network.ntp_synced);
     cJSON_AddNumberToObject(json, "ntpLastSync", (double)network.ntp_last_sync);
+    cJSON_AddNumberToObject(
+        json,
+        "ntpSecondsSinceSync",
+        network.ntp_last_sync > 0 && now > network.ntp_last_sync
+            ? (double)(now - network.ntp_last_sync)
+            : 0);
     cJSON_AddStringToObject(json, "timeSource", network.time_source);
     cJSON_AddStringToObject(
         json,
         "ntpServers",
         "pool.ntp.org, time.cloudflare.com");
     cJSON_AddBoolToObject(json, "touchAvailable", dmd_board_touch_available());
+    cJSON_AddNumberToObject(json, "touchEventCount", touch.event_count);
+    cJSON_AddNumberToObject(
+        json,
+        "touchReadErrorCount",
+        touch.read_error_count);
+    cJSON_AddNumberToObject(json, "touchLastX", touch.last_x);
+    cJSON_AddNumberToObject(json, "touchLastY", touch.last_y);
+    cJSON_AddNumberToObject(json, "touchLastStatus", touch.last_status);
+    cJSON_AddNumberToObject(
+        json,
+        "touchLastEventMilliseconds",
+        touch.last_event_ms);
+    cJSON_AddNumberToObject(
+        json,
+        "touchInterruptLevel",
+        touch.interrupt_level);
     cJSON_AddNumberToObject(json, "colorPreset", settings.color_preset);
     cJSON_AddStringToObject(
         json,
@@ -262,8 +471,28 @@ static esp_err_t state_get(httpd_req_t *request)
         "sceneMetadataMatched",
         active_metadata.catalog_match);
     cJSON_AddNumberToObject(json, "sceneCount", dmd_scene_count());
+    cJSON_AddNumberToObject(json, "sceneFrames", scene.frame_count);
+    cJSON_AddNumberToObject(json, "sceneDelayMs", scene.normal_delay_ms);
+    cJSON_AddNumberToObject(json, "revision", settings.revision);
+    return send_json(request, json);
+}
+
+static esp_err_t api_docs_get(httpd_req_t *request)
+{
+    httpd_resp_set_type(request, "text/html; charset=utf-8");
+    httpd_resp_set_hdr(request, "Cache-Control", "no-cache");
+    return httpd_resp_send(
+        request,
+        (const char *)api_html_start,
+        api_html_end - api_html_start);
+}
+
+static esp_err_t scenes_get(httpd_req_t *request)
+{
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddNumberToObject(json, "sceneCount", dmd_scene_count());
     cJSON *scenes = cJSON_AddArrayToObject(json, "scenes");
-    for (uint8_t index = 0; index < dmd_scene_count(); index++) {
+    for (uint16_t index = 0; index < dmd_scene_count(); index++) {
         dmd_scene_metadata_t metadata;
         dmd_scene_get_metadata(index, &metadata);
         cJSON *entry = cJSON_CreateObject();
@@ -286,9 +515,6 @@ static esp_err_t state_get(httpd_req_t *request)
         cJSON_AddBoolToObject(entry, "metadataMatched", metadata.catalog_match);
         cJSON_AddItemToArray(scenes, entry);
     }
-    cJSON_AddNumberToObject(json, "sceneFrames", scene.frame_count);
-    cJSON_AddNumberToObject(json, "sceneDelayMs", scene.normal_delay_ms);
-    cJSON_AddNumberToObject(json, "revision", settings.revision);
     return send_json(request, json);
 }
 
@@ -315,6 +541,29 @@ static bool parse_rgb(const char *text, dmd_rgb_t *output)
     return true;
 }
 
+static bool parse_rgb_array(
+    cJSON *json,
+    const char *name,
+    dmd_rgb_t *output,
+    uint8_t count)
+{
+    cJSON *colors = cJSON_GetObjectItemCaseSensitive(json, name);
+    if (colors == NULL) {
+        return true;
+    }
+    if (!cJSON_IsArray(colors) || cJSON_GetArraySize(colors) != count) {
+        return false;
+    }
+    for (uint8_t index = 0; index < count; index++) {
+        cJSON *item = cJSON_GetArrayItem(colors, index);
+        if (!cJSON_IsString(item) ||
+            !parse_rgb(item->valuestring, &output[index])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static esp_err_t settings_post(httpd_req_t *request)
 {
     cJSON *json = receive_json(request);
@@ -322,7 +571,7 @@ static esp_err_t settings_post(httpd_req_t *request)
         return httpd_resp_send_err(
             request,
             HTTPD_400_BAD_REQUEST,
-            "Expected a JSON object smaller than 1 KB");
+            "Expected a JSON object smaller than 2 KB");
     }
 
     dmd_settings_t before;
@@ -357,21 +606,31 @@ static esp_err_t settings_post(httpd_req_t *request)
                     ? DMD_PLASMA_CYCLE_MAX_MS
                     : value));
     }
-    cJSON *plasma_colors =
-        cJSON_GetObjectItemCaseSensitive(json, "plasmaCustomColors");
-    if (cJSON_IsArray(plasma_colors) &&
-        cJSON_GetArraySize(plasma_colors) == DMD_PLASMA_STOP_COUNT) {
-        for (uint8_t index = 0; index < DMD_PLASMA_STOP_COUNT; index++) {
-            cJSON *item = cJSON_GetArrayItem(plasma_colors, index);
-            if (!cJSON_IsString(item) ||
-                !parse_rgb(item->valuestring, &updated.plasma_custom[index])) {
-                cJSON_Delete(json);
-                return httpd_resp_send_err(
-                    request,
-                    HTTPD_400_BAD_REQUEST,
-                    "Plasma colors must be four #RRGGBB values");
-            }
-        }
+    if (!parse_rgb_array(
+            json,
+            "plasmaCustomColors",
+            updated.plasma_custom,
+            DMD_PLASMA_STOP_COUNT) ||
+        !parse_rgb_array(
+            json,
+            "basicCustomColors",
+            &updated.basic_custom,
+            1) ||
+        !parse_rgb_array(
+            json,
+            "gradientCustomColors",
+            updated.gradient_custom,
+            DMD_GRADIENT_CUSTOM_COLOR_COUNT) ||
+        !parse_rgb_array(
+            json,
+            "rasterCustomColors",
+            updated.raster_custom,
+            DMD_RASTER_CUSTOM_COLOR_COUNT)) {
+        cJSON_Delete(json);
+        return httpd_resp_send_err(
+            request,
+            HTTPD_400_BAD_REQUEST,
+            "Custom colors must be complete #RRGGBB arrays");
     }
     update_bool(json, "use24Hour", &updated.use_24_hour);
     update_bool(json, "showSeconds", &updated.show_seconds);
@@ -387,7 +646,42 @@ static esp_err_t settings_post(httpd_req_t *request)
     update_bool(json, "playScene", &updated.play_scene);
     update_bool(json, "automaticCycle", &updated.automatic_cycle);
     update_bool(json, "randomPlayback", &updated.random_playback);
+    update_bool(
+        json,
+        "playbackLogEnabled",
+        &updated.playback_log_enabled);
     update_bool(json, "showInformation", &updated.show_information);
+    cJSON *information_color_mode =
+        cJSON_GetObjectItemCaseSensitive(json, "informationColorMode");
+    if (information_color_mode != NULL) {
+        if (!cJSON_IsNumber(information_color_mode) ||
+            information_color_mode->valueint <
+                DMD_INFORMATION_COLOR_GREY ||
+            information_color_mode->valueint >
+                DMD_INFORMATION_COLOR_CUSTOM) {
+            cJSON_Delete(json);
+            return httpd_resp_send_err(
+                request,
+                HTTPD_400_BAD_REQUEST,
+                "Unknown information color mode");
+        }
+        updated.information_color_mode =
+            (dmd_information_color_mode_t)
+                information_color_mode->valueint;
+    }
+    cJSON *information_custom_color =
+        cJSON_GetObjectItemCaseSensitive(json, "informationCustomColor");
+    if (information_custom_color != NULL &&
+        (!cJSON_IsString(information_custom_color) ||
+         !parse_rgb(
+             information_custom_color->valuestring,
+             &updated.information_custom_color))) {
+        cJSON_Delete(json);
+        return httpd_resp_send_err(
+            request,
+            HTTPD_400_BAD_REQUEST,
+            "Information color must be #RRGGBB");
+    }
 
     cJSON *screen_schedule =
         cJSON_GetObjectItemCaseSensitive(json, "screenOffSchedule");
@@ -507,9 +801,9 @@ static esp_err_t settings_post(httpd_req_t *request)
             return httpd_resp_send_err(
                 request,
                 HTTPD_400_BAD_REQUEST,
-                "Unknown embedded scene");
+                "Unknown SD-card scene");
         }
-        updated.scene_index = (uint8_t)scene_index->valueint;
+        updated.scene_index = (uint16_t)scene_index->valueint;
     }
 
     cJSON *color = cJSON_GetObjectItemCaseSensitive(json, "colorPreset");
@@ -629,22 +923,26 @@ static esp_err_t action_post(httpd_req_t *request)
     }
 
     dmd_action_t action;
-    if (strcmp(name->valuestring, "colorPrevious") == 0) {
-        action = DMD_ACTION_COLOR_PREVIOUS;
-    } else if (strcmp(name->valuestring, "colorNext") == 0) {
-        action = DMD_ACTION_COLOR_NEXT;
+    if (strcmp(name->valuestring, "colorFamilyNext") == 0) {
+        action = DMD_ACTION_COLOR_FAMILY_NEXT;
+    } else if (strcmp(name->valuestring, "colorThemeNext") == 0) {
+        action = DMD_ACTION_COLOR_THEME_NEXT;
     } else if (strcmp(name->valuestring, "toggleInformation") == 0) {
         action = DMD_ACTION_TOGGLE_INFORMATION;
     } else if (strcmp(name->valuestring, "toggleGlow") == 0) {
         action = DMD_ACTION_TOGGLE_GLOW;
     } else if (strcmp(name->valuestring, "syncNtp") == 0) {
         action = DMD_ACTION_SYNC_NTP;
-    } else if (strcmp(name->valuestring, "scenePrevious") == 0) {
-        action = DMD_ACTION_SCENE_PREVIOUS;
+    } else if (strcmp(name->valuestring, "pinballNext") == 0) {
+        action = DMD_ACTION_PINBALL_NEXT;
     } else if (strcmp(name->valuestring, "sceneNext") == 0) {
         action = DMD_ACTION_SCENE_NEXT;
     } else if (strcmp(name->valuestring, "showClock") == 0) {
         action = DMD_ACTION_SHOW_CLOCK;
+    } else if (strcmp(name->valuestring, "touchTest") == 0) {
+        action = DMD_ACTION_TOUCH_TEST;
+    } else if (strcmp(name->valuestring, "reboot") == 0) {
+        action = DMD_ACTION_REBOOT;
     } else {
         cJSON_Delete(json);
         return httpd_resp_send_err(
@@ -690,7 +988,9 @@ esp_err_t dmd_web_start(void)
 
     const httpd_uri_t routes[] = {
         {.uri = "/", .method = HTTP_GET, .handler = index_get},
+        {.uri = "/api-docs", .method = HTTP_GET, .handler = api_docs_get},
         {.uri = "/api/state", .method = HTTP_GET, .handler = state_get},
+        {.uri = "/api/scenes", .method = HTTP_GET, .handler = scenes_get},
         {.uri = "/api/settings", .method = HTTP_POST, .handler = settings_post},
         {.uri = "/api/time", .method = HTTP_POST, .handler = time_post},
         {.uri = "/api/action", .method = HTTP_POST, .handler = action_post},

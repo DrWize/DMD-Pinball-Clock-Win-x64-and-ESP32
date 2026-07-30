@@ -126,6 +126,9 @@ bool dmd_color_is_valid(uint8_t preset)
            value == DMD_COLOR_BLUE ||
            value == DMD_COLOR_CYAN ||
            value == DMD_COLOR_MAGENTA ||
+           value == DMD_COLOR_BASIC_CUSTOM ||
+           value == DMD_COLOR_GRADIENT_CUSTOM ||
+           value == DMD_COLOR_RASTER_CUSTOM ||
            find_gradient(value) != NULL ||
            find_raster(value) != NULL;
 }
@@ -149,6 +152,10 @@ const char *dmd_color_name(dmd_color_preset_t preset)
         case DMD_COLOR_BLUE: return "Electric blue";
         case DMD_COLOR_CYAN: return "Ice cyan";
         case DMD_COLOR_MAGENTA: return "Hot magenta";
+        case DMD_COLOR_BASIC_CUSTOM:
+        case DMD_COLOR_GRADIENT_CUSTOM:
+        case DMD_COLOR_RASTER_CUSTOM:
+            return "Custom";
         default: return "Classic orange";
     }
 }
@@ -162,6 +169,12 @@ const char *dmd_color_family(dmd_color_preset_t preset)
         return "Gradient";
     }
     if (find_raster(preset) != NULL) {
+        return "Raster";
+    }
+    if (preset == DMD_COLOR_GRADIENT_CUSTOM) {
+        return "Gradient";
+    }
+    if (preset == DMD_COLOR_RASTER_CUSTOM) {
         return "Raster";
     }
     return "Basic";
@@ -191,4 +204,44 @@ dmd_rgb_t dmd_color_at(dmd_color_preset_t preset, uint8_t x, uint8_t y)
         return raster->bands[band];
     }
     return solid_color(preset);
+}
+
+dmd_rgb_t dmd_color_custom_at(
+    dmd_color_preset_t preset,
+    const dmd_rgb_t *custom_colors,
+    uint8_t custom_color_count,
+    uint8_t x,
+    uint8_t y)
+{
+    if (custom_colors == NULL || custom_color_count == 0) {
+        return dmd_color_at(preset, x, y);
+    }
+    if (preset == DMD_COLOR_BASIC_CUSTOM) {
+        return custom_colors[0];
+    }
+    if (preset == DMD_COLOR_GRADIENT_CUSTOM) {
+        if (custom_color_count < 2) {
+            return custom_colors[0];
+        }
+        uint16_t inverse = (uint16_t)(127 - x);
+        return (dmd_rgb_t) {
+            .red = (uint8_t)(
+                (custom_colors[0].red * inverse +
+                 custom_colors[1].red * x + 63) / 127),
+            .green = (uint8_t)(
+                (custom_colors[0].green * inverse +
+                 custom_colors[1].green * x + 63) / 127),
+            .blue = (uint8_t)(
+                (custom_colors[0].blue * inverse +
+                 custom_colors[1].blue * x + 63) / 127),
+        };
+    }
+    if (preset == DMD_COLOR_RASTER_CUSTOM) {
+        uint8_t band = (uint8_t)(((uint16_t)y * custom_color_count) / 32);
+        if (band >= custom_color_count) {
+            band = custom_color_count - 1;
+        }
+        return custom_colors[band];
+    }
+    return dmd_color_at(preset, x, y);
 }

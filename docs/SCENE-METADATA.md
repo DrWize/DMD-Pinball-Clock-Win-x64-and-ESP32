@@ -39,9 +39,9 @@ When `external/DotClk-Resources/RD Index.txt` is available, all local `RD####.sc
 ./scripts/Map-RdScenes.ps1
 ```
 
-The script preserves non-RD entries and prefix metadata in `scenes/scene-metadata.json`, replaces previously generated RD entries, and skips index rows whose SCN file is not installed. The RD index provides a game key and numbered sequence but no descriptive animation title, so generated entries use the normalized game name and `Scene NNN` rather than guessing.
+The script preserves non-RD entries, prefix metadata, and supplemental fields such as manufacturer and year on existing RD entries in `scenes/scene-metadata.json`. It refreshes the RD mapping fields and skips index rows whose SCN file is not installed. The RD index provides a game key and numbered sequence but no descriptive animation title, so generated entries use the normalized game name and `Scene NNN` rather than guessing.
 
-Four RD groups deliberately use the base game name because the index does not identify the exact pinball machine or version. These names are considered sufficient for display:
+Four RD groups deliberately use the base game name in both the RD mapping and metadata list. Edition labels such as Pro, Premium, and LE are intentionally omitted:
 
 | RD range | Displayed game name |
 | --- | --- |

@@ -16,6 +16,14 @@
 #define DMD_SCHEDULE_SLOT_COUNT \
     (DMD_SCHEDULE_DAY_COUNT * DMD_SCHEDULE_HOUR_COUNT)
 #define DMD_SCHEDULE_BYTES ((DMD_SCHEDULE_SLOT_COUNT + 7) / 8)
+#define DMD_GRADIENT_CUSTOM_COLOR_COUNT 2
+#define DMD_RASTER_CUSTOM_COLOR_COUNT 4
+
+typedef enum {
+    DMD_INFORMATION_COLOR_GREY = 0,
+    DMD_INFORMATION_COLOR_THEME = 1,
+    DMD_INFORMATION_COLOR_CUSTOM = 2,
+} dmd_information_color_mode_t;
 
 typedef struct {
     uint8_t brightness;
@@ -23,6 +31,9 @@ typedef struct {
     dmd_plasma_palette_t plasma_palette;
     uint16_t plasma_cycle_ms;
     dmd_rgb_t plasma_custom[DMD_PLASMA_STOP_COUNT];
+    dmd_rgb_t basic_custom;
+    dmd_rgb_t gradient_custom[DMD_GRADIENT_CUSTOM_COLOR_COUNT];
+    dmd_rgb_t raster_custom[DMD_RASTER_CUSTOM_COLOR_COUNT];
     bool use_24_hour;
     bool show_seconds;
     bool display_on;
@@ -35,8 +46,11 @@ typedef struct {
     bool play_scene;
     bool automatic_cycle;
     bool random_playback;
+    bool playback_log_enabled;
     bool show_information;
-    uint8_t scene_index;
+    dmd_information_color_mode_t information_color_mode;
+    dmd_rgb_t information_custom_color;
+    uint16_t scene_index;
     uint8_t animations_per_cycle;
     uint16_t clock_display_seconds;
     uint16_t animation_gap_seconds;
@@ -58,3 +72,5 @@ bool dmd_settings_claim_scheduled_reboot(
     const dmd_settings_t *settings,
     time_t now);
 void dmd_settings_apply_timezone(const char *timezone);
+esp_err_t dmd_settings_last_nvs_save_error(void);
+esp_err_t dmd_settings_last_sd_save_error(void);

@@ -3,7 +3,8 @@
 DMDClock is a Windows x64 clock and animation player for classic DotClk `.scn`
 scenes. It recreates a scalable 128×32, four-bit dot-matrix display with clocks,
 dates, original scene timing, masks, metadata, configurable colors, and an optional
-Windows screensaver.
+Windows screensaver. This repository also contains native ESP-IDF firmware for
+the original 800×480 Waveshare ESP32-S3-Touch-LCD-7.
 
 > ☕ Enjoying DMDClock? If it brings a little color or nostalgia to your day, you
 > can [buy me a coffee](https://buymeacoffee.com/drwize). Your support helps me
@@ -34,8 +35,9 @@ Main features:
 - user-installed `.ttf` and `.otf` support;
 - classic, gradient, and C64-inspired DMD color themes;
 - recursive scene libraries, incremental rescanning, and optional metadata;
-- an in-app downloader for the separately stored original DotClk scene pack;
-- a live Scene Reviewer with configurable rows and columns, game controls, and
+- a Windows in-app downloader and an idempotent PowerShell SD-card preparation
+  script for the separately stored original DotClk scene pack;
+- a Windows Scene Reviewer with configurable rows and columns, game controls, and
   per-scene Allowed, Disallowed, and Unreviewed decisions;
 - allow-all first-run playback, with whole games or individual bad scenes removable
   from the shared selection;
@@ -43,14 +45,15 @@ Main features:
 - keyboard controls, persistent settings, fullscreen, and screensaver modes;
 - structured logs and SCN compatibility reports.
 
-Animations are not embedded in the package. Download the original DotClk scene
-pack from the app, supply your own `.scn` files, or select an existing scene
-directory.
+Animations are not embedded in the Windows package or production ESP32
+firmware. Windows can download the original DotClk scene pack in-app; ESP32
+users can prepare an SD card with `scripts/esp32/Prepare-DmdClockSdCard.ps1`.
+You can also supply your own `.scn` files.
 
 ## Quick user start
 
 1. Download the latest `DMDClock-*-win-x64-setup.exe` from the
-   [`v1.2.0` release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/tag/v1.2.0).
+   [release page](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/).
 2. Run the installer and keep the default per-user directory.
 3. Start DMDClock from the Start Menu.
 4. Right-click and choose **Download DotClk scenes…**, or press `Ctrl+Shift+O`
@@ -138,13 +141,16 @@ screensaver use the same selection file. The four DotClk clock fonts are embedde
 - [Source references](docs/SOURCES.md)
 - [C64 raster themes](docs/C64-RASTER-THEMES.md)
 - [ESP32-S3 roadmap](docs/ESP32-S3-ROADMAP.md)
+- [ESP32-S3 firmware setup](firmware/dmdclock-esp32/README.md)
 - [Future DMD Extensions work](docs/FUTURE-DMD-EXTENSIONS.md)
 
 ## Project scope
 
-Active development targets the original monochrome DotClk display. Serum, cRom,
-full RGB, larger displays, Raspberry Pi, ESP32-S3, physical DMD output, and DMD
-Extensions integration are deferred. Audio is outside the project scope.
+Active development covers the Windows application and the original 800×480
+Waveshare ESP32-S3-Touch-LCD-7. Both target the classic monochrome DotClk
+128×32 content model. Serum, cRom, full-colour scene formats, larger displays,
+Raspberry Pi, external physical DMD output, and DMD Extensions integration are
+deferred. Audio is outside the project scope.
 
 ## Font and resource notes
 

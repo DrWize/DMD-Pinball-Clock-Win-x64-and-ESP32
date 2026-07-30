@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "DMDClock",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build DMDClock (Debug)",
+      "program": "${workspaceFolder}\\src\\DmdClock.App\\bin\\Debug\\net10.0\\DmdClock.App.exe",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "justMyCode": true
+    },
+    {
+      "name": "DMDClock Scene Reviewer",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build DMDClock (Debug)",
+      "program": "${workspaceFolder}\\src\\DmdClock.App\\bin\\Debug\\net10.0\\DmdClock.App.exe",
+      "args": [
+        "/review"
+      ],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "justMyCode": true
+    }
+  ]
+}

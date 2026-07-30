@@ -8,11 +8,12 @@
 #include "dmd_scene_metadata.h"
 
 #define DMD_SCENE_PIXEL_COUNT (128 * 32)
-#define DMD_SCENE_COUNT 11
-#define DMD_SCENE_FILE_NAME_MAX 16
+#define DMD_QEMU_SCENE_COUNT 11
+#define DMD_SCENE_MAX_COUNT 4096
+#define DMD_SCENE_FILE_NAME_MAX 64
 
 typedef struct {
-    uint8_t index;
+    uint16_t index;
     uint16_t frame_count;
     uint16_t step_count;
     uint16_t first_delay_ms;
@@ -39,11 +40,13 @@ typedef struct {
 } dmd_scene_step_info_t;
 
 esp_err_t dmd_scene_init(void);
-esp_err_t dmd_scene_select(uint8_t index);
-uint8_t dmd_scene_count(void);
-const char *dmd_scene_file_name(uint8_t index);
-const char *dmd_scene_display_name(uint8_t index);
-void dmd_scene_get_metadata(uint8_t index, dmd_scene_metadata_t *metadata);
+esp_err_t dmd_scene_select(uint16_t index);
+uint16_t dmd_scene_count(void);
+const char *dmd_scene_file_name(uint16_t index);
+const char *dmd_scene_display_name(uint16_t index);
+void dmd_scene_get_metadata(uint16_t index, dmd_scene_metadata_t *metadata);
+uint16_t dmd_scene_next_game(uint16_t current);
+uint16_t dmd_scene_next_in_game(uint16_t current);
 void dmd_scene_get_info(dmd_scene_info_t *info);
 esp_err_t dmd_scene_decode_step(
     uint16_t step,

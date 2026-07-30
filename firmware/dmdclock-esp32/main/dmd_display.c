@@ -9,6 +9,8 @@
 #include "dmd_actions.h"
 #include "dmd_board.h"
 #include "dmd_color.h"
+#include "dmd_network.h"
+#include "dmd_playback_log.h"
 #include "dmd_plasma.h"
 #include "dmd_scene.h"
 #include "dmd_settings.h"
@@ -45,10 +47,18 @@
 #define DMD_VIEW_Y ((LCD_HEIGHT - DMD_VIEW_HEIGHT) / 2)
 #define CONTROL_VISIBLE_US (8LL * 1000 * 1000)
 #define CONTROL_FADE_US (1LL * 1000 * 1000)
+#define STARTUP_NETWORK_STATUS_US (20LL * 1000 * 1000)
+#define TOUCH_TEST_TARGET_US (5LL * 1000 * 1000)
+#define TOUCH_TEST_TARGET_COUNT 5
+#define TOUCH_TEST_RESULT_US (5LL * 1000 * 1000)
 
 static const char *TAG = "dmd_display";
 static esp_lcd_panel_handle_t s_panel;
 static uint16_t *s_framebuffer;
+#if !CONFIG_DMD_QEMU
+static uint16_t *s_framebuffers[2];
+static TaskHandle_t s_display_task;
+#endif
 static uint8_t s_dmd[DMD_WIDTH * DMD_HEIGHT];
 static uint8_t s_clock_dmd[DMD_WIDTH * DMD_HEIGHT];
 static uint8_t s_scene_mask[DMD_WIDTH * DMD_HEIGHT];
@@ -58,8 +68,9 @@ static dmd_rgb_t s_cached_plasma_custom[DMD_PLASMA_STOP_COUNT];
 static SemaphoreHandle_t s_state_lock;
 static dmd_display_state_t s_state;
 static uint32_t s_command_revision;
+static uint32_t s_touch_test_request_revision;
 static bool s_command_play_scene;
-static uint8_t s_command_scene_index;
+static uint16_t s_command_scene_index;
 static int64_t s_controls_last_interaction_at;
 
 typedef struct {
@@ -80,6 +91,7 @@ static const glyph_t GLYPHS[] = {
     {'8', 5, {0x0e, 0x11, 0x11, 0x0e, 0x11, 0x11, 0x0e}},
     {'9', 5, {0x0e, 0x11, 0x11, 0x0f, 0x01, 0x01, 0x0e}},
     {':', 1, {0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00}},
+    {'.', 1, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}},
     {'-', 3, {0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00}},
     {' ', 3, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
     {'A', 5, {0x0e, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11}},
@@ -112,12 +124,16 @@ static const glyph_t GLYPHS[] = {
 
 static const glyph_t *find_glyph(char character)
 {
+    const glyph_t *fallback = &GLYPHS[0];
     for (size_t index = 0; index < sizeof(GLYPHS) / sizeof(GLYPHS[0]); index++) {
+        if (GLYPHS[index].character == ' ') {
+            fallback = &GLYPHS[index];
+        }
         if (GLYPHS[index].character == character) {
             return &GLYPHS[index];
         }
     }
-    return &GLYPHS[11];
+    return fallback;
 }
 
 static uint16_t rgb565(uint8_t red, uint8_t green, uint8_t blue)
@@ -244,15 +260,15 @@ static void draw_lcd_text(
     }
 }
 
-static void draw_button(
+static void draw_button_at(
     int x,
+    int y,
     int width,
+    int height,
     const char *label,
     uint16_t accent,
     uint8_t opacity)
 {
-    const int y = 400;
-    const int height = 56;
     draw_rect(x, y, width, height, fade_rgb565(rgb565(22, 15, 10), opacity));
     draw_outline(x, y, width, height, fade_rgb565(accent, opacity));
     int text_width = lcd_text_width(label, 2);
@@ -262,6 +278,16 @@ static void draw_button(
         y + (height - 14) / 2,
         2,
         fade_rgb565(rgb565(245, 238, 230), opacity));
+}
+
+static void draw_button(
+    int x,
+    int width,
+    const char *label,
+    uint16_t accent,
+    uint8_t opacity)
+{
+    draw_button_at(x, 400, width, 56, label, accent, opacity);
 }
 
 static void uppercase_copy(char *target, size_t capacity, const char *source)
@@ -301,78 +327,248 @@ static void draw_lcd_text_fit(
     draw_lcd_text(fitted, x, y, scale, color);
 }
 
+static void draw_centered_lcd_text(
+    const char *text,
+    int y,
+    int scale,
+    uint16_t color)
+{
+    char uppercase[256];
+    uppercase_copy(uppercase, sizeof(uppercase), text);
+    int width = lcd_text_width(uppercase, scale);
+    if (width <= LCD_WIDTH - 40) {
+        draw_lcd_text(uppercase, (LCD_WIDTH - width) / 2, y, scale, color);
+    } else {
+        draw_lcd_text_fit(uppercase, 20, y, scale, LCD_WIDTH - 40, color);
+    }
+}
+
+static dmd_rgb_t settings_color_at(
+    const dmd_settings_t *settings,
+    uint8_t x,
+    uint8_t y)
+{
+    if (settings->color_preset == DMD_COLOR_BASIC_CUSTOM) {
+        return dmd_color_custom_at(
+            settings->color_preset, &settings->basic_custom, 1, x, y);
+    }
+    if (settings->color_preset == DMD_COLOR_GRADIENT_CUSTOM) {
+        return dmd_color_custom_at(
+            settings->color_preset,
+            settings->gradient_custom,
+            DMD_GRADIENT_CUSTOM_COLOR_COUNT,
+            x,
+            y);
+    }
+    if (settings->color_preset == DMD_COLOR_RASTER_CUSTOM) {
+        return dmd_color_custom_at(
+            settings->color_preset,
+            settings->raster_custom,
+            DMD_RASTER_CUSTOM_COLOR_COUNT,
+            x,
+            y);
+    }
+    return dmd_color_at(settings->color_preset, x, y);
+}
+
+static void paint_startup_network_status(
+    const dmd_settings_t *settings,
+    const dmd_network_info_t *network)
+{
+    memset(s_framebuffer, 0, LCD_WIDTH * LCD_HEIGHT * sizeof(uint16_t));
+
+    dmd_rgb_t rgb = settings_color_at(settings, 64, 16);
+    uint16_t accent = rgb565(rgb.red, rgb.green, rgb.blue);
+    uint16_t text = rgb565(245, 238, 230);
+    char line[96];
+
+    draw_centered_lcd_text(
+        network->device_name[0] != '\0' ? network->device_name : "DMDClock",
+        72,
+        4,
+        accent);
+    draw_centered_lcd_text("Network startup", 132, 2, text);
+
+    if (settings->wifi_ssid[0] != '\0') {
+        snprintf(line, sizeof(line), "Wi-Fi: %s", settings->wifi_ssid);
+    } else {
+        strlcpy(line, "Wi-Fi: Not configured", sizeof(line));
+    }
+    draw_centered_lcd_text(line, 214, 2, accent);
+
+    if (network->station_connected && network->station_ip[0] != '\0') {
+        snprintf(line, sizeof(line), "IP: %s", network->station_ip);
+    } else if (settings->wifi_ssid[0] != '\0') {
+        strlcpy(line, "IP: Connecting", sizeof(line));
+    } else {
+        strlcpy(line, "IP: Not available", sizeof(line));
+    }
+    draw_centered_lcd_text(line, 262, 2, text);
+
+    if (!network->station_connected) {
+        snprintf(
+            line,
+            sizeof(line),
+            "Setup IP: %s",
+            network->access_point_ip[0] != '\0'
+                ? network->access_point_ip
+                : "192.168.4.1");
+        draw_centered_lcd_text(line, 310, 2, text);
+    }
+}
+
+static void paint_touch_test(
+    const dmd_settings_t *settings,
+    uint8_t target_index,
+    uint8_t countdown,
+    uint32_t event_count,
+    const dmd_touch_diagnostics_t *touch)
+{
+    static const int target_x[TOUCH_TEST_TARGET_COUNT] = {
+        120, 680, 400, 680, 120,
+    };
+    static const int target_y[TOUCH_TEST_TARGET_COUNT] = {
+        190, 190, 280, 380, 380,
+    };
+    memset(s_framebuffer, 0, LCD_WIDTH * LCD_HEIGHT * sizeof(uint16_t));
+
+    dmd_rgb_t rgb = settings_color_at(settings, 64, 16);
+    uint16_t accent = rgb565(rgb.red, rgb.green, rgb.blue);
+    uint16_t text = rgb565(245, 238, 230);
+    uint16_t target = rgb565(255, 190, 32);
+    char line[96];
+
+    draw_centered_lcd_text("TOUCH TEST", 28, 3, accent);
+    snprintf(
+        line,
+        sizeof(line),
+        "TOUCH TARGET %u OF %u",
+        target_index + 1,
+        TOUCH_TEST_TARGET_COUNT);
+    draw_centered_lcd_text(line, 72, 2, text);
+    snprintf(line, sizeof(line), "COUNTDOWN %u", countdown);
+    draw_centered_lcd_text(line, 102, 2, target);
+
+    int x = target_x[target_index];
+    int y = target_y[target_index];
+    draw_outline(x - 50, y - 50, 101, 101, target);
+    draw_outline(x - 38, y - 38, 77, 77, accent);
+    draw_rect(x - 4, y - 30, 8, 61, text);
+    draw_rect(x - 30, y - 4, 61, 8, text);
+    draw_rect(x - 8, y - 8, 16, 16, target);
+
+    snprintf(line, sizeof(line), "EVENTS %lu", (unsigned long)event_count);
+    draw_centered_lcd_text(line, 438, 2, text);
+    if (touch->event_count > 0) {
+        snprintf(
+            line,
+            sizeof(line),
+            "LAST %u %u",
+            touch->last_x,
+            touch->last_y);
+        draw_centered_lcd_text(line, 408, 2, accent);
+    }
+}
+
+static void paint_touch_test_result(
+    const dmd_settings_t *settings,
+    uint32_t event_count)
+{
+    memset(s_framebuffer, 0, LCD_WIDTH * LCD_HEIGHT * sizeof(uint16_t));
+    dmd_rgb_t rgb = settings_color_at(settings, 64, 16);
+    uint16_t accent = rgb565(rgb.red, rgb.green, rgb.blue);
+    uint16_t text = rgb565(245, 238, 230);
+    char line[64];
+
+    draw_centered_lcd_text("TOUCH TEST COMPLETE", 120, 3, accent);
+    snprintf(line, sizeof(line), "EVENTS %lu", (unsigned long)event_count);
+    draw_centered_lcd_text(line, 210, 3, text);
+    draw_centered_lcd_text(
+        event_count > 0 ? "TOUCH DATA RECEIVED" : "NO TOUCH DATA RECEIVED",
+        280,
+        2,
+        event_count > 0 ? accent : rgb565(255, 96, 64));
+}
+
 static void draw_screen_chrome(
     const dmd_settings_t *settings,
     const dmd_scene_info_t *scene,
+    const dmd_network_info_t *network,
     uint8_t controls_opacity_value)
 {
-    dmd_rgb_t rgb = dmd_color_at(settings->color_preset, 64, 16);
+    dmd_rgb_t rgb = settings_color_at(settings, 64, 16);
     uint16_t accent = rgb565(rgb.red, rgb.green, rgb.blue);
 
     if (settings->show_information) {
+        dmd_rgb_t information_rgb;
+        if (settings->information_color_mode ==
+            DMD_INFORMATION_COLOR_THEME) {
+            information_rgb = rgb;
+        } else if (settings->information_color_mode ==
+                   DMD_INFORMATION_COLOR_CUSTOM) {
+            information_rgb = settings->information_custom_color;
+        } else {
+            information_rgb = (dmd_rgb_t){144, 144, 144};
+        }
+        uint16_t information_color = rgb565(
+            information_rgb.red,
+            information_rgb.green,
+            information_rgb.blue);
         dmd_scene_metadata_t metadata;
         dmd_scene_get_metadata(scene->index, &metadata);
         char source[256];
         char info[256];
-        int information_y = 50;
+        char scene_name[DMD_SCENE_FILE_NAME_MAX];
+        strlcpy(scene_name, scene->file_name, sizeof(scene_name));
+        char *extension = strrchr(scene_name, '.');
+        if (extension != NULL) {
+            *extension = '\0';
+        }
+        const char *scene_title =
+            metadata.title[0] != '\0' ? metadata.title : scene_name;
+        source[0] = '\0';
         if (metadata.game[0] != '\0') {
-            snprintf(source, sizeof(source), "PINBALL  %s", metadata.game);
-            uppercase_copy(info, sizeof(info), source);
-            draw_lcd_text_fit(
-                info,
-                20,
-                information_y,
-                2,
-                LCD_WIDTH - 40,
-                accent);
-            information_y += 24;
+            strlcat(source, metadata.game, sizeof(source));
         }
-        if (metadata.title[0] != '\0') {
-            snprintf(source, sizeof(source), "SCENE  %s", metadata.title);
-            uppercase_copy(info, sizeof(info), source);
-            draw_lcd_text_fit(
-                info,
-                20,
-                information_y,
-                2,
-                LCD_WIDTH - 40,
-                accent);
-            information_y += 24;
+        if (scene_title[0] != '\0') {
+            if (source[0] != '\0') {
+                strlcat(source, " - ", sizeof(source));
+            }
+            strlcat(source, scene_title, sizeof(source));
         }
-
-        if (metadata.year > 0 && metadata.manufacturer[0] != '\0') {
-            snprintf(
-                source,
-                sizeof(source),
-                "YEAR  %u    MANUFACTURER  %s",
-                metadata.year,
-                metadata.manufacturer);
-        } else if (metadata.year > 0) {
-            snprintf(source, sizeof(source), "YEAR  %u", metadata.year);
-        } else if (metadata.manufacturer[0] != '\0') {
-            snprintf(
-                source,
-                sizeof(source),
-                "MANUFACTURER  %s",
-                metadata.manufacturer);
-        } else {
-            source[0] = '\0';
+        if (metadata.manufacturer[0] != '\0') {
+            if (source[0] != '\0') {
+                strlcat(source, " - ", sizeof(source));
+            }
+            strlcat(source, metadata.manufacturer, sizeof(source));
+        }
+        if (metadata.year > 0) {
+            char year[8];
+            snprintf(year, sizeof(year), "%u", metadata.year);
+            if (source[0] != '\0') {
+                strlcat(source, " - ", sizeof(source));
+            }
+            strlcat(source, year, sizeof(source));
         }
         if (source[0] != '\0') {
             uppercase_copy(info, sizeof(info), source);
             draw_lcd_text_fit(
                 info,
                 20,
-                information_y,
+                70,
                 2,
                 LCD_WIDTH - 40,
-                accent);
+                information_color);
         }
     }
 
     if (controls_opacity_value > 0) {
-        draw_button(10, 148, "COLOR -", accent, controls_opacity_value);
-        draw_button(168, 148, "COLOR +", accent, controls_opacity_value);
+        draw_button_at(
+            10, 10, 385, 46, "NEXT PINBALL", accent, controls_opacity_value);
+        draw_button_at(
+            405, 10, 385, 46, "NEXT SCENE", accent, controls_opacity_value);
+        draw_button(10, 148, "COLOUR", accent, controls_opacity_value);
+        draw_button(168, 148, "NEXT", accent, controls_opacity_value);
         draw_button(
             326,
             148,
@@ -385,7 +581,23 @@ static void draw_screen_chrome(
             settings->glow_strength > 0 ? "GLOW ON" : "GLOW OFF",
             accent,
             controls_opacity_value);
-        draw_button(642, 148, "SYNC NTP", accent, controls_opacity_value);
+        char ntp_label[24] = "NTP CHECK";
+        if (network->ntp_syncing) {
+            strlcpy(ntp_label, "NTP ...", sizeof(ntp_label));
+        } else if (network->ntp_synced && network->ntp_last_sync > 0) {
+            time_t now = time(NULL);
+            unsigned long age = now > network->ntp_last_sync
+                ? (unsigned long)(now - network->ntp_last_sync)
+                : 0;
+            if (age < 60) {
+                snprintf(ntp_label, sizeof(ntp_label), "NTP OK %lus", age);
+            } else if (age < 3600) {
+                snprintf(ntp_label, sizeof(ntp_label), "NTP OK %lum", age / 60);
+            } else {
+                snprintf(ntp_label, sizeof(ntp_label), "NTP OK %luh", age / 3600);
+            }
+        }
+        draw_button(642, 148, ntp_label, accent, controls_opacity_value);
     }
 }
 
@@ -515,23 +727,28 @@ static void paint_dmd(
     }
 
     ensure_plasma_palette(settings);
+    dmd_network_info_t network;
+    dmd_network_get_info(&network);
     draw_screen_chrome(
         settings,
         scene,
+        &network,
         controls_opacity_value);
     for (int dmd_y = 0; dmd_y < DMD_HEIGHT; dmd_y++) {
         for (int dmd_x = 0; dmd_x < DMD_WIDTH; dmd_x++) {
             uint8_t intensity = s_dmd[dmd_y * DMD_WIDTH + dmd_x];
-            dmd_rgb_t theme_color =
-                settings->color_preset == DMD_COLOR_PLASMA
-                    ? s_plasma_palette[dmd_plasma_palette_index(
-                        (uint8_t)dmd_x,
-                        (uint8_t)dmd_y,
-                        plasma_phase)]
-                    : dmd_color_at(
-                        settings->color_preset,
-                        (uint8_t)dmd_x,
-                        (uint8_t)dmd_y);
+            dmd_rgb_t theme_color;
+            if (settings->color_preset == DMD_COLOR_PLASMA) {
+                theme_color = s_plasma_palette[dmd_plasma_palette_index(
+                    (uint8_t)dmd_x,
+                    (uint8_t)dmd_y,
+                    plasma_phase)];
+            } else {
+                theme_color = settings_color_at(
+                    settings,
+                    (uint8_t)dmd_x,
+                    (uint8_t)dmd_y);
+            }
             uint16_t color = themed_color(
                 theme_color,
                 settings->brightness,
@@ -576,8 +793,44 @@ static void refresh_display(void)
 {
 #if CONFIG_DMD_QEMU
     ESP_ERROR_CHECK(esp_lcd_rgb_qemu_refresh(s_panel));
+#else
+    ulTaskNotifyValueClear(NULL, ULONG_MAX);
+    ESP_ERROR_CHECK(
+        esp_lcd_panel_draw_bitmap(
+            s_panel,
+            0,
+            0,
+            LCD_WIDTH,
+            LCD_HEIGHT,
+            s_framebuffer));
+    if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100)) == 0) {
+        ESP_LOGW(TAG, "Timed out waiting for RGB frame-buffer handoff");
+    }
+    s_framebuffer =
+        s_framebuffer == s_framebuffers[0]
+            ? s_framebuffers[1]
+            : s_framebuffers[0];
 #endif
 }
+
+#if !CONFIG_DMD_QEMU
+static bool IRAM_ATTR frame_buffer_complete(
+    esp_lcd_panel_handle_t panel,
+    const esp_lcd_rgb_panel_event_data_t *event,
+    void *context)
+{
+    (void)panel;
+    (void)event;
+    (void)context;
+    TaskHandle_t display_task = s_display_task;
+    if (display_task == NULL) {
+        return false;
+    }
+    BaseType_t higher_priority_task_woken = pdFALSE;
+    vTaskNotifyGiveFromISR(display_task, &higher_priority_task_woken);
+    return higher_priority_task_woken == pdTRUE;
+}
+#endif
 
 esp_err_t dmd_display_init(void)
 {
@@ -620,7 +873,7 @@ esp_err_t dmd_display_init(void)
         },
         .data_width = 16,
         .bits_per_pixel = 16,
-        .num_fbs = 1,
+        .num_fbs = 2,
         .bounce_buffer_size_px = LCD_WIDTH * 20,
         .sram_trans_align = 4,
         .psram_trans_align = 64,
@@ -644,10 +897,33 @@ esp_err_t dmd_display_init(void)
         "create panel");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(s_panel), TAG, "reset panel");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_init(s_panel), TAG, "initialize panel");
+    const esp_lcd_rgb_panel_event_callbacks_t callbacks = {
+        .on_frame_buf_complete = frame_buffer_complete,
+    };
     ESP_RETURN_ON_ERROR(
-        esp_lcd_rgb_panel_get_frame_buffer(s_panel, 1, (void **)&s_framebuffer),
+        esp_lcd_rgb_panel_register_event_callbacks(
+            s_panel,
+            &callbacks,
+            NULL),
         TAG,
-        "get framebuffer");
+        "register frame-buffer callback");
+    ESP_RETURN_ON_ERROR(
+        esp_lcd_rgb_panel_get_frame_buffer(
+            s_panel,
+            2,
+            (void **)&s_framebuffers[0],
+            (void **)&s_framebuffers[1]),
+        TAG,
+        "get framebuffers");
+    memset(
+        s_framebuffers[0],
+        0,
+        LCD_WIDTH * LCD_HEIGHT * sizeof(uint16_t));
+    memset(
+        s_framebuffers[1],
+        0,
+        LCD_WIDTH * LCD_HEIGHT * sizeof(uint16_t));
+    s_framebuffer = s_framebuffers[1];
 
 #endif
     s_state_lock = xSemaphoreCreateMutex();
@@ -656,11 +932,13 @@ esp_err_t dmd_display_init(void)
     }
     memset(&s_state, 0, sizeof(s_state));
     memset(s_framebuffer, 0, LCD_WIDTH * LCD_HEIGHT * sizeof(uint16_t));
+#if CONFIG_DMD_QEMU
     refresh_display();
+#endif
     return ESP_OK;
 }
 
-void dmd_display_play_scene(uint8_t scene_index)
+void dmd_display_play_scene(uint16_t scene_index)
 {
     if (s_state_lock == NULL || scene_index >= dmd_scene_count()) {
         return;
@@ -683,6 +961,16 @@ void dmd_display_show_clock(void)
     xSemaphoreGive(s_state_lock);
 }
 
+void dmd_display_start_touch_test(void)
+{
+    if (s_state_lock == NULL) {
+        return;
+    }
+    xSemaphoreTake(s_state_lock, portMAX_DELAY);
+    s_touch_test_request_revision++;
+    xSemaphoreGive(s_state_lock);
+}
+
 void dmd_display_get_state(dmd_display_state_t *state)
 {
     if (state == NULL || s_state_lock == NULL) {
@@ -696,13 +984,15 @@ void dmd_display_get_state(dmd_display_state_t *state)
 static void publish_state(
     bool playing_scene,
     bool waiting_for_scene,
-    uint8_t scene_index,
+    uint16_t scene_index,
     uint16_t scene_step,
     uint16_t scene_frame,
     uint8_t animations_remaining,
     uint8_t plasma_phase,
     uint32_t plasma_frames_rendered,
-    uint32_t schedule_override_seconds_remaining)
+    uint32_t display_frames_rendered,
+    uint32_t schedule_override_seconds_remaining,
+    bool touch_test_running)
 {
     xSemaphoreTake(s_state_lock, portMAX_DELAY);
     s_state.playing_scene = playing_scene;
@@ -713,21 +1003,27 @@ static void publish_state(
     s_state.animations_remaining = animations_remaining;
     s_state.plasma_phase = plasma_phase;
     s_state.plasma_frames_rendered = plasma_frames_rendered;
+    s_state.display_frames_rendered = display_frames_rendered;
     s_state.schedule_override_seconds_remaining =
         schedule_override_seconds_remaining;
+    s_state.touch_test_running = touch_test_running;
     xSemaphoreGive(s_state_lock);
 }
 
-static uint8_t next_automatic_scene(
-    uint8_t current,
+static uint16_t next_automatic_scene(
+    uint16_t current,
     bool random_playback)
 {
-    if (!random_playback || dmd_scene_count() <= 1) {
-        return (current + 1) % dmd_scene_count();
+    uint16_t scene_count = dmd_scene_count();
+    if (scene_count == 0) {
+        return 0;
     }
-    uint8_t next = current;
+    if (!random_playback || scene_count == 1) {
+        return (current + 1) % scene_count;
+    }
+    uint16_t next = current;
     while (next == current) {
-        next = (uint8_t)(esp_random() % dmd_scene_count());
+        next = (uint16_t)(esp_random() % scene_count);
     }
     return next;
 }
@@ -752,7 +1048,11 @@ static void render_clock(const dmd_settings_t *settings)
     render_text_to_dmd(time_text);
 }
 
-static bool handle_touch(int64_t now)
+static bool handle_touch(
+    int64_t now,
+    bool execute_controls,
+    uint16_t *touch_x,
+    uint16_t *touch_y)
 {
     static int64_t last_touch_at;
     uint16_t x;
@@ -762,17 +1062,32 @@ static bool handle_touch(int64_t now)
         return false;
     }
 
-    bool controls_hidden = controls_opacity(now) == 0;
     last_touch_at = now;
-    s_controls_last_interaction_at = now;
-    if (controls_hidden || y < 390) {
+    if (touch_x != NULL) {
+        *touch_x = x;
+    }
+    if (touch_y != NULL) {
+        *touch_y = y;
+    }
+    if (!execute_controls) {
         return true;
     }
 
-    if (x < 160) {
-        dmd_action_execute(DMD_ACTION_COLOR_PREVIOUS);
+    bool controls_hidden = controls_opacity(now) == 0;
+    s_controls_last_interaction_at = now;
+    if (controls_hidden) {
+        return true;
+    }
+
+    if (y < 70) {
+        dmd_action_execute(
+            x < 400 ? DMD_ACTION_PINBALL_NEXT : DMD_ACTION_SCENE_NEXT);
+    } else if (y < 390) {
+        return true;
+    } else if (x < 160) {
+        dmd_action_execute(DMD_ACTION_COLOR_FAMILY_NEXT);
     } else if (x < 320) {
-        dmd_action_execute(DMD_ACTION_COLOR_NEXT);
+        dmd_action_execute(DMD_ACTION_COLOR_THEME_NEXT);
     } else if (x < 480) {
         dmd_action_execute(DMD_ACTION_TOGGLE_INFORMATION);
     } else if (x < 640) {
@@ -786,16 +1101,23 @@ static bool handle_touch(int64_t now)
 void dmd_display_task(void *context)
 {
     (void)context;
+#if !CONFIG_DMD_QEMU
+    s_display_task = xTaskGetCurrentTaskHandle();
+#endif
     dmd_settings_t settings;
     dmd_settings_get(&settings);
 
-    bool playing_scene = settings.play_scene;
+    bool playing_scene =
+        settings.play_scene && dmd_scene_count() > 0;
     bool waiting_for_scene = false;
-    uint8_t active_scene = settings.scene_index;
+    uint16_t active_scene = settings.scene_index;
     uint8_t animations_remaining = 0;
     uint16_t scene_step = 0;
     uint16_t scene_frame = 0;
     uint32_t previous_revision = 0;
+    dmd_color_preset_t previous_color_preset = settings.color_preset;
+    dmd_plasma_palette_t previous_plasma_palette = settings.plasma_palette;
+    bool previous_playback_log_enabled = settings.playback_log_enabled;
     uint32_t handled_command_revision = 0;
     time_t previous_second = 0;
     time_t previous_reboot_minute = -1;
@@ -803,6 +1125,22 @@ void dmd_display_task(void *context)
     bool previous_schedule_override_active = false;
     bool previous_scheduled_off = false;
     int64_t monotonic_now = esp_timer_get_time();
+    int64_t startup_network_status_until =
+        monotonic_now + STARTUP_NETWORK_STATUS_US;
+    int64_t touch_test_started_at = 0;
+    int64_t touch_test_until = 0;
+    int64_t touch_test_result_until = 0;
+    bool startup_network_status_painted = false;
+    bool previous_startup_network_status_visible = true;
+    bool previous_touch_test_visible = false;
+    bool previous_touch_test_result_visible = false;
+    uint8_t previous_touch_test_target = UINT8_MAX;
+    uint8_t previous_touch_test_countdown = UINT8_MAX;
+    uint32_t touch_test_start_events = 0;
+    bool touch_test_start_events_captured = false;
+    uint32_t handled_touch_test_request_revision = 0;
+    bool previous_station_connected = false;
+    char previous_station_ip[16] = "";
     int64_t next_scene_frame_at = 0;
     int64_t next_mode_at =
         monotonic_now + (int64_t)settings.clock_display_seconds * 1000000;
@@ -813,6 +1151,7 @@ void dmd_display_task(void *context)
         settings.plasma_cycle_ms);
     int64_t next_plasma_frame_at = monotonic_now;
     uint32_t plasma_frames_rendered = 0;
+    uint32_t display_frames_rendered = 0;
     bool force_render = true;
 
     if (playing_scene) {
@@ -821,11 +1160,23 @@ void dmd_display_task(void *context)
             ESP_LOGW(TAG, "Initial scene unavailable: %s", esp_err_to_name(error));
             playing_scene = false;
             render_clock(&settings);
+        } else {
+            dmd_playback_log_scene(active_scene);
         }
     }
 
     while (true) {
         dmd_settings_get(&settings);
+        if (settings.revision != previous_revision &&
+            (settings.color_preset != previous_color_preset ||
+             settings.plasma_palette != previous_plasma_palette ||
+             (!previous_playback_log_enabled &&
+              settings.playback_log_enabled))) {
+            dmd_playback_log_theme(&settings);
+        }
+        previous_color_preset = settings.color_preset;
+        previous_plasma_palette = settings.plasma_palette;
+        previous_playback_log_enabled = settings.playback_log_enabled;
         time_t now = time(NULL);
         time_t reboot_minute = now / 60;
         if (reboot_minute != previous_reboot_minute ||
@@ -850,13 +1201,88 @@ void dmd_display_task(void *context)
             force_render = true;
         }
         monotonic_now = esp_timer_get_time();
+        xSemaphoreTake(s_state_lock, portMAX_DELAY);
+        if (s_touch_test_request_revision !=
+            handled_touch_test_request_revision) {
+            handled_touch_test_request_revision =
+                s_touch_test_request_revision;
+            touch_test_started_at =
+                monotonic_now < startup_network_status_until
+                    ? startup_network_status_until
+                    : monotonic_now;
+            touch_test_until =
+                touch_test_started_at +
+                TOUCH_TEST_TARGET_COUNT * TOUCH_TEST_TARGET_US;
+            touch_test_result_until =
+                touch_test_until + TOUCH_TEST_RESULT_US;
+            touch_test_start_events_captured = false;
+            force_render = true;
+        }
+        xSemaphoreGive(s_state_lock);
+        dmd_network_info_t network = {0};
+        dmd_network_get_info(&network);
+        bool startup_network_status_visible =
+            monotonic_now < startup_network_status_until;
+        bool touch_test_visible =
+            monotonic_now >= touch_test_started_at &&
+            monotonic_now < touch_test_until;
+        bool touch_test_result_visible =
+            monotonic_now >= touch_test_until &&
+            monotonic_now < touch_test_result_until;
+        uint8_t touch_test_target = 0;
+        uint8_t touch_test_countdown = 0;
+        if (touch_test_visible) {
+            int64_t touch_test_elapsed =
+                monotonic_now - touch_test_started_at;
+            touch_test_target =
+                (uint8_t)(touch_test_elapsed / TOUCH_TEST_TARGET_US);
+            int64_t target_elapsed =
+                touch_test_elapsed % TOUCH_TEST_TARGET_US;
+            touch_test_countdown =
+                (uint8_t)((TOUCH_TEST_TARGET_US - target_elapsed +
+                           999999) /
+                          1000000);
+        }
+        bool startup_network_status_changed =
+            startup_network_status_visible !=
+                previous_startup_network_status_visible ||
+            network.station_connected != previous_station_connected ||
+            strcmp(network.station_ip, previous_station_ip) != 0;
+        bool touch_test_changed =
+            touch_test_visible != previous_touch_test_visible ||
+            touch_test_result_visible !=
+                previous_touch_test_result_visible ||
+            touch_test_target != previous_touch_test_target ||
+            touch_test_countdown != previous_touch_test_countdown;
+        if (startup_network_status_changed || touch_test_changed) {
+            force_render = true;
+        }
+        dmd_touch_diagnostics_t touch_diagnostics = {0};
+        dmd_board_get_touch_diagnostics(&touch_diagnostics);
+        if (touch_test_visible && !touch_test_start_events_captured) {
+            touch_test_start_events = touch_diagnostics.event_count;
+            touch_test_start_events_captured = true;
+        }
         bool schedule_override_active =
             monotonic_now < schedule_awake_until;
-        if (handle_touch(monotonic_now)) {
-            schedule_awake_until =
-                monotonic_now + TOUCH_SCHEDULE_OVERRIDE_US;
-            schedule_override_active = true;
+        bool normal_touch_controls =
+            !startup_network_status_visible &&
+            !touch_test_visible &&
+            !touch_test_result_visible;
+        uint16_t touch_x = 0;
+        uint16_t touch_y = 0;
+        if (handle_touch(
+                monotonic_now,
+                normal_touch_controls,
+                &touch_x,
+                &touch_y)) {
+            if (normal_touch_controls) {
+                schedule_awake_until =
+                    monotonic_now + TOUCH_SCHEDULE_OVERRIDE_US;
+                schedule_override_active = true;
+            }
             force_render = true;
+            dmd_board_get_touch_diagnostics(&touch_diagnostics);
         }
         if (schedule_override_active !=
             previous_schedule_override_active) {
@@ -880,7 +1306,7 @@ void dmd_display_task(void *context)
 
         bool command_pending = false;
         bool command_play_scene = false;
-        uint8_t command_scene_index = 0;
+        uint16_t command_scene_index = 0;
         xSemaphoreTake(s_state_lock, portMAX_DELAY);
         if (s_command_revision != handled_command_revision) {
             handled_command_revision = s_command_revision;
@@ -899,6 +1325,7 @@ void dmd_display_task(void *context)
                 active_scene = command_scene_index;
                 esp_err_t error = dmd_scene_select(active_scene);
                 if (error == ESP_OK) {
+                    dmd_playback_log_scene(active_scene);
                     next_scene_frame_at = 0;
                 } else {
                     ESP_LOGW(
@@ -919,7 +1346,9 @@ void dmd_display_task(void *context)
         if (!playing_scene && monotonic_now >= next_mode_at) {
             if (waiting_for_scene) {
                 waiting_for_scene = false;
-            } else if (settings.automatic_cycle) {
+            } else if (
+                settings.automatic_cycle &&
+                dmd_scene_count() > 0) {
                 animations_remaining = settings.animations_per_cycle;
             }
             if (animations_remaining > 0) {
@@ -930,6 +1359,7 @@ void dmd_display_task(void *context)
                 esp_err_t error = dmd_scene_select(active_scene);
                 if (error == ESP_OK) {
                     playing_scene = true;
+                    dmd_playback_log_scene(active_scene);
                     scene_step = 0;
                     next_scene_frame_at = 0;
                 } else {
@@ -954,6 +1384,10 @@ void dmd_display_task(void *context)
 
         dmd_scene_info_t scene;
         dmd_scene_get_info(&scene);
+        bool visible_clock_tick_changed =
+            settings.show_seconds
+                ? now != previous_second
+                : now / 60 != previous_second / 60;
         if (playing_scene && monotonic_now >= next_scene_frame_at) {
             if (scene_step >= scene.step_count) {
                 playing_scene = false;
@@ -994,7 +1428,7 @@ void dmd_display_task(void *context)
             }
         } else if (
             !playing_scene &&
-            (force_render || now != previous_second ||
+            (force_render || visible_clock_tick_changed ||
              settings.revision != previous_revision)) {
             render_clock(&settings);
             force_render = true;
@@ -1020,8 +1454,43 @@ void dmd_display_task(void *context)
             animations_remaining,
             plasma_phase,
             plasma_frames_rendered,
-            schedule_override_seconds_remaining);
-        if (force_render) {
+            display_frames_rendered,
+            schedule_override_seconds_remaining,
+            touch_test_visible || touch_test_result_visible);
+        if (startup_network_status_visible) {
+            if (!startup_network_status_painted ||
+                startup_network_status_changed ||
+                settings.revision != previous_revision) {
+                paint_startup_network_status(&settings, &network);
+                refresh_display();
+                display_frames_rendered++;
+                startup_network_status_painted = true;
+            }
+            force_render = false;
+        } else if (touch_test_visible) {
+            if (force_render) {
+                paint_touch_test(
+                    &settings,
+                    touch_test_target,
+                    touch_test_countdown,
+                    touch_diagnostics.event_count -
+                        touch_test_start_events,
+                    &touch_diagnostics);
+                refresh_display();
+                display_frames_rendered++;
+            }
+            force_render = false;
+        } else if (touch_test_result_visible) {
+            if (force_render) {
+                paint_touch_test_result(
+                    &settings,
+                    touch_diagnostics.event_count -
+                        touch_test_start_events);
+                refresh_display();
+                display_frames_rendered++;
+            }
+            force_render = false;
+        } else if (force_render) {
             paint_dmd(
                 &settings,
                 &s_state,
@@ -1031,6 +1500,7 @@ void dmd_display_task(void *context)
                 current_controls_opacity,
                 plasma_phase);
             refresh_display();
+            display_frames_rendered++;
             force_render = false;
         }
         previous_second = now;
@@ -1039,6 +1509,17 @@ void dmd_display_task(void *context)
             schedule_override_active;
         previous_revision = settings.revision;
         previous_controls_opacity = current_controls_opacity;
+        previous_startup_network_status_visible =
+            startup_network_status_visible;
+        previous_touch_test_visible = touch_test_visible;
+        previous_touch_test_result_visible = touch_test_result_visible;
+        previous_touch_test_target = touch_test_target;
+        previous_touch_test_countdown = touch_test_countdown;
+        previous_station_connected = network.station_connected;
+        strlcpy(
+            previous_station_ip,
+            network.station_ip,
+            sizeof(previous_station_ip));
         vTaskDelay(pdMS_TO_TICKS(5));
     }
 }

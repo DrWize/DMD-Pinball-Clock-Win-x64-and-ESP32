@@ -11,7 +11,8 @@ This file preserves important project links between work sessions. The project's
   explicit license file
 - Modern Hackerspace DMDClock: https://gitlab.com/modernhackerspace/dmdclock
 - Build and usage instructions (PDF): https://gitlab.com/modernhackerspace/dmdclock/-/blob/master/DMD%20matrix%20build%20and%20Instructions.pdf?ref_type=heads
-- Internet Pinball Database complete game list: https://www.ipdb.org/lists.cgi?anonymously=true&list=games&submit=No+Thanks+-+Let+me+access+anonymously — a local export is used as the source for verified manufacturer, manufacturing date, player count, machine type, and theme data in `scene-metadata.json`.
+- Wikipedia list of pinball machines: https://en.wikipedia.org/wiki/List_of_pinball_machines — primary source for game manufacturer and release-year data in `scene-metadata.json`.
+- Internet Pinball Database collection list: https://www.ipdb.org/lists.cgi?puid=45565&list=games — supporting source for resolving title variants and for additional manufacturing date, player count, machine type, and theme data.
 
 ## Additional technical references
 

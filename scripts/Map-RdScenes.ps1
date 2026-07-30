@@ -80,6 +80,21 @@ $existing = if (Test-Path -LiteralPath $MetadataPath) {
     [pscustomobject]@{ schemaVersion = 1; prefixes = @(); files = @() }
 }
 
+$existingRdByPath = @{}
+foreach ($file in $existing.files) {
+    if ($file.path -match '(?i)^RD\d{4}\.scn$') {
+        $existingRdByPath[$file.path] = $file
+    }
+}
+foreach ($file in $mapped) {
+    if (-not $existingRdByPath.ContainsKey($file.path)) { continue }
+    foreach ($property in $existingRdByPath[$file.path].PSObject.Properties) {
+        if ($property.Name -notin @('path', 'title', 'game')) {
+            $file[$property.Name] = $property.Value
+        }
+    }
+}
+
 $nonRdFiles = @($existing.files | Where-Object { $_.path -notmatch '(?i)^RD\d{4}\.scn$' })
 $document = [ordered]@{}
 foreach ($property in $existing.PSObject.Properties) {
@@ -90,16 +105,16 @@ foreach ($property in $existing.PSObject.Properties) {
 }
 $document['rdIndexSource'] = 'external/DotClk-Resources/RD Index.txt'
 $document['rdIndexGameNotes'] = @(
-    [ordered]@{ range = 'RD0081-RD0119'; game = 'Avengers'; note = 'Exact pinball machine/version is not identified by the RD index; the base game name is intentionally used.' }
-    [ordered]@{ range = 'RD0122-RD0125'; game = 'Batman'; note = 'Exact pinball machine/version is not identified by the RD index; the base game name is intentionally used.' }
-    [ordered]@{ range = 'RD0792-RD0845'; game = 'Indiana Jones'; note = 'Exact pinball machine/version is not identified by the RD index; the base game name is intentionally used.' }
-    [ordered]@{ range = 'RD1566-RD1603'; game = 'Star Trek'; note = 'Exact pinball machine/version is not identified by the RD index; the base game name is intentionally used.' }
+    [ordered]@{ range = 'RD0081-RD0119'; game = 'Avengers'; note = 'The RD index uses the base game name, and the metadata list intentionally does the same; edition labels are omitted.' }
+    [ordered]@{ range = 'RD0122-RD0125'; game = 'Batman'; note = 'The RD index uses the base game name, and the metadata list intentionally does the same; edition labels are omitted.' }
+    [ordered]@{ range = 'RD0792-RD0845'; game = 'Indiana Jones'; note = 'The RD index uses the base game name, and the metadata list intentionally does the same; edition labels are omitted.' }
+    [ordered]@{ range = 'RD1566-RD1603'; game = 'Star Trek'; note = 'The RD index uses the base game name, and the metadata list intentionally does the same; edition labels are omitted.' }
 )
 $document['files'] = @($nonRdFiles) + @($mapped)
 
 $parent = Split-Path -Parent $MetadataPath
 if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
-$json = $document | ConvertTo-Json -Depth 20
+$json = ($document | ConvertTo-Json -Depth 20) -replace "`r`n", "`n"
 [IO.File]::WriteAllText([IO.Path]::GetFullPath($MetadataPath), "$json`n", [Text.UTF8Encoding]::new($false))
 
 [pscustomobject]@{

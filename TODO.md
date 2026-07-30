@@ -29,11 +29,11 @@ Automated tests cover SCN parsing/playback, settings, embedded DotClk fonts,
 screensaver arguments, library indexing, selection persistence, scene downloads,
 and compatibility reporting.
 
-The interactive installer is verified on clean Windows 10 and 11 systems without
-an installed .NET runtime. Remaining release work is in-place upgrade testing,
-read-only-directory testing, translation fallback behavior, SmartScreen/antivirus
-review, Authenticode signing, and confirmation that the original DotClk fonts can
-be redistributed publicly.
+The interactive installer and an in-place upgrade from an older installer build
+are verified, including clean Windows 10 and 11 systems without an installed .NET
+runtime. Remaining release work is read-only-directory testing, translation
+fallback behavior, SmartScreen/antivirus review, Authenticode signing, and
+confirmation that the original DotClk fonts can be redistributed publicly.
 
 ## End-user setup — no source code or SDK required
 
@@ -657,7 +657,7 @@ Acceptance criteria:
 - [x] Add `scripts\Build-Installer.ps1`, installer checksums, metadata, and archiving
 - [x] Complete automated silent install, screensaver registration, repeat-install,
       checksum, AppData-preservation, and uninstall tests
-- [ ] Test an in-place upgrade from an older installer build
+- [x] Test an in-place upgrade from an older installer build
 - [x] Test the interactive installer on clean Windows 10 and Windows 11 without .NET
 - [x] Add `scripts\Publish-GitHubRelease.ps1` with build-ID checks, release asset
       validation, generated SHA-256 checksums, dry-run support, and GitHub upload
@@ -692,6 +692,9 @@ Detailed status, commands, and acceptance criteria:
 
 - [ ] Scrolling C64-inspired palettes/raster bars with direction, speed, and disable controls
 - [ ] Selectable dot shape, spacing, and glow strength
+- [ ] Add an optional **Hot-core glow** dot style: a bright yellow-white centre
+      with a soft colour-matched radial halo, while keeping adjacent dots sharply
+      separated
 - [ ] Per-manufacturer or per-game color palettes
 - [ ] Pixel-perfect integer scaling when the available display size permits it
 
@@ -700,8 +703,65 @@ Detailed status, commands, and acceptance criteria:
 - [x] Build the first host-verified ESP32-S3 firmware slice with the 800×480 RGB
       panel, exact 6× DMD, brightness, clock, 11 embedded test scenes, persistent
       settings, recovery access point, and embedded web remote
+- [x] Document that ESP32-S3 Wi-Fi is **2.4 GHz (802.11 b/g/n) only**; it cannot
+      connect to a 5 GHz-only SSID, so provisioning must use a 2.4 GHz network
+- [x] For a first flash with home Wi-Fi preconfigured, run
+      `.\scripts\esp32\Set-DmdClockBootstrapWifi.ps1 -WifiSsid 'My Wi-Fi' -Build`,
+      enter the Wi-Fi password only at its masked prompt, and flash the explicit
+      COM port. After confirming the connection, run
+      `.\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build` and reflash
+      without erasing NVS so the saved credentials remain on the device but are
+      removed from the application image. Never record real credentials here or
+      in another tracked file.
+- [x] Show a dedicated network startup screen for 20 seconds with the configured
+      Wi-Fi name and `IP` with the assigned DHCP address or a
+      connecting/not-configured state. Show the setup IP only until a DHCP lease
+      exists; never show the Wi-Fi password.
+- [x] Show the running ESP-IDF application build and monotonic uptime as
+      `days hh:mm:ss` at the bottom of the device web remote.
+- [x] Expose GT911 touch diagnostics through `/api/state`: detected state,
+      raw-event count, last coordinates/status byte, interrupt level, and I2C
+      read errors.
+- [x] Use the MAC-derived `DMDClock-XXXX` access-point name as the device name,
+      station/AP hostname, startup-screen identity, API value, and web title so
+      multiple clocks remain distinguishable on the same network.
+- [x] Match Espressif's GT911 status handshake by acknowledging the status
+      register even when the data-ready bit is clear, preventing a low interrupt
+      from remaining stuck between samples.
+- [x] Provide a guided 25-second physical touch test across five visible targets
+      with a per-target countdown, live event count and last coordinates,
+      followed by a five-second result; start it explicitly from the webpage
+      instead of delaying every boot.
+- [x] Remove redundant `PINBALL` and `SCENE` prefixes from display metadata;
+      show the game, scene title, manufacturer, and year directly.
+- [x] Compact scene metadata to one fitted
+      `game - scene - manufacturer - year` row and add persistent information
+      colours for discreet grey, follow-theme, or a standalone custom colour.
+- [x] Mirror all web-editable settings to the human-readable SD file
+      `/dmd/config/settings.json`, load it over NVS at boot, migrate existing
+      NVS settings on first boot, and use atomic temporary-file replacement.
+- [x] Apply the 24-hour-clock and show-seconds switches immediately, matching
+      information-colour and theme controls.
+- [x] Apply the Scene information switch immediately when it changes on the web
+      remote, without requiring the separate Save changes button.
+- [x] Serve an embedded `/api-docs` subpage linked from the web remote with every
+      local HTTP endpoint, accepted setting, control action, example, and
+      local-network security limitation.
+- [x] Add a confirmed Reboot device button to the web remote and a delayed
+      `reboot` action to `POST /api/action`, allowing the HTTP response to
+      complete before the ESP32 restarts.
+- [x] Add Home Assistant-ready diagnostics to `/api/state` and a compact web
+      footer: approximate chip temperature, RSSI, heap/PSRAM, SD capacity,
+      settings-file health, flash/CPU, boot/reset data, render counts, NTP, and
+      touch health.
+- [x] Show the effective physical screen state in the diagnostics footer,
+      distinguishing On, the manual Screen switch, the weekly schedule, and a
+      temporary touch-wake override.
 - [x] Add all eight Basic, eight Gradient, and sixteen Raster themes with the same
       stable preset IDs used by Windows
+- [x] Add a persistent Custom choice to all four ESP32 colour families: one
+      Basic colour, two Gradient colours, four Raster bands, and the existing
+      four-stop Plasma palette, with matching API controls and web previews
 - [x] Port the frozen 256-step integer Plasma field, phase calculation, 128-colour
       cyclic interpolation, and the four existing Windows reference vectors
 - [x] Add all eight Plasma presets plus Custom, persistent 1–60 second cycle
@@ -713,24 +773,47 @@ Detailed status, commands, and acceptance criteria:
       custom stops, 4-bit intensity, glow, clock, and representative SCN frames
 - [x] Add a lightweight per-dot glow halo with persistent 0–100% strength,
       matching transient touchscreen/web toggles, and a web strength slider
+- [ ] Add the optional **Hot-core glow** dot style on ESP32-S3 using a bright
+      centre and a soft colour-matched halo; preserve dot separation and verify
+      frame time, CPU load, and control responsiveness at 100% glow strength
 - [x] Show the full device-local timestamp, browser clock difference, time source,
       NTP progress, configured servers, and successful synchronization state in
       the web remote
+- [x] Show the exact last NTP synchronization time and elapsed age in the web
+      remote; show `NTP OK` plus the elapsed age on the physical NTP button after
+      a successful check.
 - [x] Add automatic NTP through `pool.ntp.org` and `time.cloudflare.com`, a manual
       NTP action, and browser-time fallback
 - [x] Match the Windows scene-session behavior for first-frame timing, regular
       frames, masks, blank first/last steps, clock layers, final holds, one-shot
       return to clock, sequential/random order, scenes per cycle, and scene gaps
-- [x] Add matching local/web actions for previous/next colour, animation
-      information on/off, and manual NTP sync; also expose previous/next scene and
-      return-to-clock in the web remote
+- [x] Make the physical and web `Colour` action advance
+      Basic → Gradient → Raster → Plasma and make `Next theme` advance only
+      within the selected family (including Plasma palettes).
+- [x] Add top-row `Next pinball` and `Next scene` controls; the first advances
+      to another metadata game and the second advances within the current game.
+      Keep information, glow, NTP, return-to-clock, and touch-test web actions.
 - [x] Add the original board's GT911 touch implementation using GPIO4,
       GPIO8/GPIO9, and CH422G EXIO1, while allowing non-touch boards to boot
 - [x] Keep the on-screen touch buttons visible for eight seconds after
       interaction, fade them out, and use the first touch only to reveal fully
       hidden controls
-- [ ] Verify GT911 detection, coordinate orientation, debounce, and all five
-      bottom-row touch targets on the physical 800×480 board
+- [x] Verify GT911 detection, coordinate orientation, debounce, guided-test
+      reporting, and live overlay actions on the physical 800×480 board
+- [x] Replace the five equal bottom touch targets with a two-row overlay:
+      two wide top buttons for `Next pinball` and `Next scene`, plus bottom
+      controls for colour family, next theme, information, glow, and NTP.
+      Keep the first hidden-screen tap reveal-only.
+- [x] Remove `CONFIG_LCD_RGB_RESTART_IN_VSYNC`: in ESP-IDF 5.5.2 it restarts
+      RGB DMA at every VSYNC and made the physical flicker worse; Waveshare
+      leaves it disabled.
+- [x] Recheck physical flicker with double-buffered frame-boundary swaps and
+      normal continuous DMA at the Waveshare 16 MHz baseline. The current
+      820×500 total timing produces approximately 39.0 Hz and is visually stable
+      on the connected board.
+- [ ] Quantify framebuffer handoff time and PSRAM/DMA errors, then hardware-test
+      supported pixel-clock steps before accepting any value above the vendor
+      baseline.
 - [ ] Run physical rendering, persistence, responsiveness, and one-hour soak
       tests for Basic, Gradient, Raster, glow, clock/scene cycling, NTP, and touch
 - [ ] Serve a first-run setup page that creates the web administrator password
@@ -745,8 +828,17 @@ Detailed status, commands, and acceptance criteria:
       extended web assets, exported configuration, backups, bounded logs,
       rebuildable caches, and verified downloads
 - [x] Add non-fatal SPI TF mounting on GPIO11/12/13 with CH422G EXIO4 enable,
-      create the `/dmd` content root, load the known scene catalog into PSRAM,
-      and retain a 6 KB internal scene fallback when storage is unavailable
+      create the `/dmd` content root, scan the complete flat SCN directory into
+      PSRAM,
+      embed no production SCN files, and remain in clock-only mode when storage
+      has no valid scenes
+- [x] Remove the production 11-scene filename allowlist, widen scene IDs to
+      16 bits, and verify all 2,324 prepared SCNs appear in the live ESP32 API
+      and web scene catalog. Keep the deterministic 11-scene QEMU projection.
+- [x] Add optional bounded SD playback logging at
+      `/dmd/logs/playback.log`: record timestamped SCN/game/title and colour
+      family/subtheme events, expose its path/size/state in the API and webpage,
+      cap it at 256 KB, and keep one rotated previous log.
 - [x] Make Windows and ESP32 resolve scene titles, games, manufacturers, years,
       prefix rules, and exact overrides from the same schema-1
       `scene-metadata.json`; keep SCN storyboard timing authoritative
@@ -754,9 +846,10 @@ Detailed status, commands, and acceptance criteria:
       embed an automatically generated 11-scene projection in QEMU for
       deterministic tests, and release its parsed JSON tree after the ESP32
       scene records have been resolved
-- [ ] Verify FAT32 mounting, card removal/failure behavior, PSRAM scene loading,
-      shared metadata loading, and `/dmd` directory creation on the physical
-      board and 64 GB card
+- [x] Verify FAT32 mounting, PSRAM loading of all 2,324 scenes, shared metadata,
+      settings backup, playback log, and `/dmd` directory creation on the
+      physical board and 64 GB card.
+- [ ] Verify live card removal, corruption, full-card, and power-loss behavior.
 - [ ] Let the ESP32 web server download SCN files directly over HTTPS into the TF
       card, with progress, cancellation, free-space checks, maximum-size limits,
       format validation, optional manifest hashes, temporary files, and atomic
@@ -790,7 +883,7 @@ Detailed status, commands, and acceptance criteria:
 - [ ] Add an authenticated **Statistics** web page with live cards and short
       history charts for system, temperature, memory, display, storage, network,
       time, web/MQTT, and OTA measurements
-- [ ] Label the built-in ESP32-S3 temperature explicitly as **Chip temperature
+- [x] Label the built-in ESP32-S3 temperature explicitly as **Chip temperature
       (approximate)**; never present it as room/ambient temperature
 - [ ] Auto-update the Statistics page through a bounded low-rate Server-Sent
       Events stream, support pause/resume and JSON snapshot download, and ensure

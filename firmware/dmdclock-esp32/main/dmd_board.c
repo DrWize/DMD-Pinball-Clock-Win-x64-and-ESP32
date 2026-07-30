@@ -4,6 +4,7 @@
 
 #include "esp_check.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
@@ -28,6 +29,14 @@ bool dmd_board_read_touch(uint16_t *x, uint16_t *y)
 bool dmd_board_touch_available(void)
 {
     return false;
+}
+
+void dmd_board_get_touch_diagnostics(dmd_touch_diagnostics_t *diagnostics)
+{
+    if (diagnostics != NULL) {
+        memset(diagnostics, 0, sizeof(*diagnostics));
+        diagnostics->interrupt_level = -1;
+    }
 }
 
 esp_err_t dmd_board_set_sd_enabled(bool enabled)
@@ -59,6 +68,9 @@ static i2c_master_dev_handle_t s_ch422_output;
 static i2c_master_dev_handle_t s_touch;
 static uint8_t s_ch422_state = 0x1e;
 static bool s_touch_available;
+static dmd_touch_diagnostics_t s_touch_diagnostics = {
+    .interrupt_level = -1,
+};
 
 static esp_err_t add_device(
     uint8_t address,
@@ -122,12 +134,14 @@ static esp_err_t initialize_touch(void)
         write_ch422(s_ch422_state & ~(1U << 1)),
         TAG,
         "assert GT911 reset");
-    vTaskDelay(pdMS_TO_TICKS(15));
+    vTaskDelay(pdMS_TO_TICKS(100));
+    gpio_set_level(TOUCH_INTERRUPT, 0);
+    vTaskDelay(pdMS_TO_TICKS(100));
     ESP_RETURN_ON_ERROR(
         write_ch422(s_ch422_state | (1U << 1)),
         TAG,
         "release GT911 reset");
-    vTaskDelay(pdMS_TO_TICKS(60));
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     interrupt_config.mode = GPIO_MODE_INPUT;
     interrupt_config.pull_up_en = GPIO_PULLUP_ENABLE;
@@ -154,6 +168,10 @@ static esp_err_t initialize_touch(void)
     char product[5] = {0};
     memcpy(product, product_id, sizeof(product_id));
     ESP_LOGI(TAG, "GT911 touch ready at 0x%02x (ID %s)", address, product);
+    ESP_RETURN_ON_ERROR(
+        touch_write_u8(GT911_TOUCH_STATUS, 0),
+        TAG,
+        "clear GT911 touch status");
     s_touch_available = true;
     return ESP_OK;
 }
@@ -202,8 +220,15 @@ bool dmd_board_read_touch(uint16_t *x, uint16_t *y)
     }
 
     uint8_t status = 0;
-    if (touch_read(GT911_TOUCH_STATUS, &status, 1) != ESP_OK ||
-        (status & 0x80) == 0) {
+    if (touch_read(GT911_TOUCH_STATUS, &status, 1) != ESP_OK) {
+        s_touch_diagnostics.read_error_count++;
+        return false;
+    }
+    s_touch_diagnostics.last_status = status;
+    if ((status & 0x80) == 0) {
+        if (touch_write_u8(GT911_TOUCH_STATUS, 0) != ESP_OK) {
+            s_touch_diagnostics.read_error_count++;
+        }
         return false;
     }
     uint8_t point_count = status & 0x0f;
@@ -211,22 +236,44 @@ bool dmd_board_read_touch(uint16_t *x, uint16_t *y)
     if (point_count > 0 && point_count <= 5) {
         uint8_t point[8] = {0};
         if (touch_read(GT911_FIRST_POINT, point, sizeof(point)) == ESP_OK) {
-            uint16_t point_x = point[1] | ((uint16_t)point[2] << 8);
-            uint16_t point_y = point[3] | ((uint16_t)point[4] << 8);
+            uint16_t point_x = point[0] | ((uint16_t)point[1] << 8);
+            uint16_t point_y = point[2] | ((uint16_t)point[3] << 8);
             if (point_x < 800 && point_y < 480) {
                 *x = point_x;
                 *y = point_y;
                 touched = true;
             }
+        } else {
+            s_touch_diagnostics.read_error_count++;
         }
     }
-    touch_write_u8(GT911_TOUCH_STATUS, 0);
+    if (touch_write_u8(GT911_TOUCH_STATUS, 0) != ESP_OK) {
+        s_touch_diagnostics.read_error_count++;
+    }
+    if (touched) {
+        s_touch_diagnostics.event_count++;
+        s_touch_diagnostics.last_x = *x;
+        s_touch_diagnostics.last_y = *y;
+        s_touch_diagnostics.last_event_ms =
+            (uint32_t)(esp_timer_get_time() / 1000);
+    }
     return touched;
 }
 
 bool dmd_board_touch_available(void)
 {
     return s_touch_available;
+}
+
+void dmd_board_get_touch_diagnostics(dmd_touch_diagnostics_t *diagnostics)
+{
+    if (diagnostics == NULL) {
+        return;
+    }
+    *diagnostics = s_touch_diagnostics;
+    diagnostics->available = s_touch_available;
+    diagnostics->interrupt_level =
+        gpio_get_level(TOUCH_INTERRUPT);
 }
 
 esp_err_t dmd_board_set_sd_enabled(bool enabled)
