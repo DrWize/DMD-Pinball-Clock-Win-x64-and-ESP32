@@ -21,6 +21,8 @@ esp_err_t dmd_storage_init(void)
 
 #include "driver/spi_common.h"
 #include "esp_vfs_fat.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "sdmmc_cmd.h"
 
 #define SD_MOSI GPIO_NUM_11
@@ -50,6 +52,7 @@ esp_err_t dmd_storage_init(void)
         spi_bus_free(host.slot);
         return ESP_OK;
     }
+    vTaskDelay(pdMS_TO_TICKS(150));
 
     const esp_vfs_fat_sdmmc_mount_config_t mount_config = {
         .format_if_mount_failed = false,
@@ -60,12 +63,35 @@ esp_err_t dmd_storage_init(void)
     slot_config.gpio_cs = GPIO_NUM_NC;
     slot_config.host_id = host.slot;
     sdmmc_card_t *card = NULL;
-    error = esp_vfs_fat_sdspi_mount(
-        "/sd",
-        &host,
-        &slot_config,
-        &mount_config,
-        &card);
+    for (uint8_t attempt = 1; attempt <= 3; attempt++) {
+        error = esp_vfs_fat_sdspi_mount(
+            "/sd",
+            &host,
+            &slot_config,
+            &mount_config,
+            &card);
+        if (error == ESP_OK) {
+            break;
+        }
+        ESP_LOGW(
+            TAG,
+            "TF mount attempt %u failed: %s",
+            attempt,
+            esp_err_to_name(error));
+        if (attempt < 3) {
+            dmd_board_set_sd_enabled(false);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            error = dmd_board_set_sd_enabled(true);
+            if (error != ESP_OK) {
+                ESP_LOGW(
+                    TAG,
+                    "TF re-enable failed: %s",
+                    esp_err_to_name(error));
+                break;
+            }
+            vTaskDelay(pdMS_TO_TICKS(250));
+        }
+    }
     if (error != ESP_OK) {
         ESP_LOGW(
             TAG,

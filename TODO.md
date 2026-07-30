@@ -32,6 +32,8 @@ Final user-facing release pass:
       expose the persistent switch in the remote.
 - [x] Document current Wi-Fi storage, plain-text SD backup, recovery AP password,
       lack of web login/HTTPS, release links, and compatible enclosure links.
+- [x] Recover a stale TF-card SPI state with three bounded enable/settle mount
+      attempts; verify the live card remounts and all 2,324 scenes return.
 
 The application, Windows screensaver, portable ZIP, standalone single-file ZIP,
 per-user installer, shared scene selection, and live Scene Reviewer are functional.
