@@ -29,11 +29,11 @@ Automated tests cover SCN parsing/playback, settings, embedded DotClk fonts,
 screensaver arguments, library indexing, selection persistence, scene downloads,
 and compatibility reporting.
 
-The interactive installer is verified on clean Windows 10 and 11 systems without
-an installed .NET runtime. Remaining release work is in-place upgrade testing,
-read-only-directory testing, translation fallback behavior, SmartScreen/antivirus
-review, Authenticode signing, and confirmation that the original DotClk fonts can
-be redistributed publicly.
+The interactive installer and an in-place upgrade from an older installer build
+are verified, including clean Windows 10 and 11 systems without an installed .NET
+runtime. Remaining release work is read-only-directory testing, translation
+fallback behavior, SmartScreen/antivirus review, Authenticode signing, and
+confirmation that the original DotClk fonts can be redistributed publicly.
 
 ## End-user setup — no source code or SDK required
 
@@ -657,7 +657,7 @@ Acceptance criteria:
 - [x] Add `scripts\Build-Installer.ps1`, installer checksums, metadata, and archiving
 - [x] Complete automated silent install, screensaver registration, repeat-install,
       checksum, AppData-preservation, and uninstall tests
-- [ ] Test an in-place upgrade from an older installer build
+- [x] Test an in-place upgrade from an older installer build
 - [x] Test the interactive installer on clean Windows 10 and Windows 11 without .NET
 - [x] Add `scripts\Publish-GitHubRelease.ps1` with build-ID checks, release asset
       validation, generated SHA-256 checksums, dry-run support, and GitHub upload
