@@ -9,6 +9,7 @@
 typedef struct {
     bool station_connected;
     char station_ip[16];
+    char device_name[33];
     char access_point_ssid[33];
     char access_point_ip[16];
     bool ntp_started;

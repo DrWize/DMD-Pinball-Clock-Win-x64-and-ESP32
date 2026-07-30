@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#110700">
+  <title>DMDClock API reference</title>
+  <style>
+    :root{color-scheme:dark;--orange:#ff700e;--amber:#ffad42;--ink:#fff4e8;--muted:#bca998;--panel:#1b1009;--line:#3d2414}
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(circle at 50% -20%,#4b2009 0,#160b05 42%,#080503 100%);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{width:min(1080px,calc(100% - 28px));margin:0 auto;padding:34px 0 70px}
+    header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:24px}
+    h1{margin:0;font-size:clamp(1.8rem,5vw,3rem)}
+    h2{margin:0 0 12px;font-size:1.12rem}
+    h3{margin:22px 0 8px;color:var(--amber);font-size:.95rem}
+    p,li,td,th{font-size:.88rem;line-height:1.55}
+    p{color:var(--muted)}
+    a{color:var(--amber);font-weight:700;text-decoration:none}
+    .panel{margin:14px 0;padding:20px;border:1px solid var(--line);border-radius:15px;background:#140c08dd}
+    .endpoint{display:grid;grid-template-columns:74px 1fr;gap:12px;align-items:center;margin-bottom:14px}
+    .method{display:inline-grid;place-items:center;padding:6px 8px;border:1px solid var(--orange);border-radius:8px;background:#4b260f;color:var(--ink);font-weight:850;font-size:.78rem}
+    code,pre{font-family:ui-monospace,"SFMono-Regular",Consolas,monospace}
+    code{color:#ffd0a9}
+    pre{overflow:auto;margin:10px 0;padding:13px;border:1px solid #382116;border-radius:10px;background:#090604;color:#ffe5cc;font-size:.78rem;line-height:1.5}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px 9px;border-bottom:1px solid #382116;text-align:left;vertical-align:top}
+    th{color:var(--amber)}
+    td:first-child{white-space:nowrap;color:#ffd0a9;font-family:ui-monospace,"SFMono-Regular",Consolas,monospace}
+    .note{padding:10px 12px;border-left:3px solid var(--orange);background:#2a160b;color:var(--muted)}
+    .columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media(max-width:720px){header{display:block}.columns{grid-template-columns:1fr}.endpoint{grid-template-columns:64px 1fr}table{display:block;overflow-x:auto}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>DMDClock device API</h1>
+      <p>Local HTTP/JSON reference for this ESP32. All paths are relative to the device address, such as <code>http://DMDClock-59D9/</code>.</p>
+    </div>
+    <a href="/">← Back to remote</a>
+  </header>
+
+  <div class="note">
+    The API is intended for the trusted local network and currently has no authentication or CORS headers. JSON POST bodies must be smaller than 2 KB. Partial settings updates are supported: omitted fields keep their current values.
+  </div>
+
+  <section class="panel">
+    <div class="endpoint"><span class="method">GET</span><h2><code>/api/state</code> — live device state</h2></div>
+    <p>Returns the current clock, display, settings, network, storage, rendering, touch, NTP and diagnostic state. This lightweight endpoint is suitable for polling and Home Assistant REST sensors.</p>
+    <div class="columns">
+      <div>
+        <h3>Display and playback</h3>
+        <p><code>displayOn</code>, <code>playScene</code>, <code>waitingForScene</code>, <code>sceneIndex</code>, <code>sceneStep</code>, <code>sceneFrame</code>, <code>scene</code>, <code>sceneFile</code>, metadata fields, <code>sceneCount</code>, cycle settings, brightness, glow, theme and information settings.</p>
+        <h3>Time and network</h3>
+        <p>Device time/epoch/timezone, Wi-Fi connection and IP, device/AP identity, NTP state, last-sync epoch, elapsed sync age and configured servers.</p>
+      </div>
+      <div>
+        <h3>Health and diagnostics</h3>
+        <p>Approximate internal chip temperature, RSSI, heap/PSRAM, SD capacity, flash/CPU, boot/reset, frame counters, touch events/errors and settings-backup status.</p>
+        <h3>Playback log</h3>
+        <p><code>playbackLogEnabled</code>, <code>playbackLogPath</code>, <code>playbackLogPresent</code> and <code>playbackLogBytes</code>.</p>
+      </div>
+    </div>
+    <pre>curl http://DMDClock-59D9/api/state</pre>
+  </section>
+
+  <section class="panel">
+    <div class="endpoint"><span class="method">GET</span><h2><code>/api/scenes</code> — complete SD scene catalog</h2></div>
+    <p>Returns <code>sceneCount</code> and the full <code>scenes</code> array. Each entry contains index, filename, display name, title, game, manufacturer, year and metadata-match status. This response is much larger than <code>/api/state</code>; load it once rather than polling it.</p>
+    <pre>curl http://DMDClock-59D9/api/scenes</pre>
+  </section>
+
+  <section class="panel">
+    <div class="endpoint"><span class="method">POST</span><h2><code>/api/settings</code> — update persistent settings</h2></div>
+    <p>Applies a partial settings object immediately, then mirrors it to NVS and <code>/dmd/config/settings.json</code>. Returns <code>{"ok":true,"wifiReconnecting":false}</code>.</p>
+    <table>
+      <thead><tr><th>Field</th><th>Accepted value and effect</th></tr></thead>
+      <tbody>
+        <tr><td>displayOn</td><td>Boolean master display power state.</td></tr>
+        <tr><td>brightness</td><td>Number 0–100.</td></tr>
+        <tr><td>glowStrength</td><td>Number 0–100.</td></tr>
+        <tr><td>colorPreset</td><td>Valid numeric theme preset ID.</td></tr>
+        <tr><td>basicCustomColors</td><td>Array containing one <code>#RRGGBB</code> colour.</td></tr>
+        <tr><td>gradientCustomColors</td><td>Array containing two <code>#RRGGBB</code> colours.</td></tr>
+        <tr><td>rasterCustomColors</td><td>Array containing four <code>#RRGGBB</code> colours.</td></tr>
+        <tr><td>plasmaPalette</td><td>Palette 0–8: Neon, Lava, Ocean, Aurora, Custom, Toxic, Vapor, Solar or Arctic.</td></tr>
+        <tr><td>plasmaCycleMilliseconds</td><td>1,000–60,000 ms.</td></tr>
+        <tr><td>plasmaCustomColors</td><td>Array containing four <code>#RRGGBB</code> stops.</td></tr>
+        <tr><td>use24Hour</td><td>Boolean 24-hour clock mode.</td></tr>
+        <tr><td>showSeconds</td><td>Boolean seconds display.</td></tr>
+        <tr><td>showInformation</td><td>Boolean scene-information row; applies immediately.</td></tr>
+        <tr><td>informationColorMode</td><td>0 discreet grey, 1 follow theme, 2 custom.</td></tr>
+        <tr><td>informationCustomColor</td><td>Standalone <code>#RRGGBB</code> information colour.</td></tr>
+        <tr><td>playScene</td><td>Boolean scene/clock mode.</td></tr>
+        <tr><td>sceneIndex</td><td>Scene index from <code>/api/scenes</code>.</td></tr>
+        <tr><td>automaticCycle</td><td>Boolean automatic clock/scene cycle.</td></tr>
+        <tr><td>randomPlayback</td><td>Boolean random rather than sequential scene order.</td></tr>
+        <tr><td>animationsPerCycle</td><td>1–20 scenes per cycle.</td></tr>
+        <tr><td>clockDisplaySeconds</td><td>5–3,600 seconds of clock time.</td></tr>
+        <tr><td>animationGapSeconds</td><td>0–3,600 seconds between scenes.</td></tr>
+        <tr><td>playbackLogEnabled</td><td>Boolean recording to the bounded SD playback log.</td></tr>
+        <tr><td>screenScheduleEnabled</td><td>Boolean weekly screen schedule.</td></tr>
+        <tr><td>screenOffSchedule</td><td>Seven strings, Sunday first; each has 24 zero/one characters where 1 means off.</td></tr>
+        <tr><td>rebootScheduleEnabled</td><td>Boolean weekly reboot schedule.</td></tr>
+        <tr><td>rebootWeekday</td><td>0 Sunday through 6 Saturday.</td></tr>
+        <tr><td>rebootHour</td><td>0–23 local device hour.</td></tr>
+        <tr><td>rebootMinute</td><td>0–59.</td></tr>
+        <tr><td>timezone</td><td>Supported POSIX timezone string supplied by the remote.</td></tr>
+        <tr><td>wifiSsid</td><td>Home Wi-Fi network name.</td></tr>
+        <tr><td>wifiPassword</td><td>Home Wi-Fi password; omit it to preserve the current password.</td></tr>
+      </tbody>
+    </table>
+    <pre>curl -X POST http://DMDClock-59D9/api/settings ^
+  -H "Content-Type: application/json" ^
+  -d "{\"showInformation\":true,\"brightness\":80}"</pre>
+  </section>
+
+  <section class="panel">
+    <div class="endpoint"><span class="method">POST</span><h2><code>/api/action</code> — perform a named control action</h2></div>
+    <p>Send <code>{"action":"name"}</code>. Successful actions return <code>{"ok":true}</code>.</p>
+    <table>
+      <thead><tr><th>Action</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td>pinballNext</td><td>Select the first scene belonging to the next metadata game.</td></tr>
+        <tr><td>sceneNext</td><td>Select the next scene within the current metadata game.</td></tr>
+        <tr><td>colorFamilyNext</td><td>Cycle Basic → Gradient → Raster → Plasma.</td></tr>
+        <tr><td>colorThemeNext</td><td>Advance the subtheme within the current family; advances Plasma palettes in Plasma mode.</td></tr>
+        <tr><td>toggleInformation</td><td>Toggle the scene-information row.</td></tr>
+        <tr><td>toggleGlow</td><td>Toggle glow between off and 35%.</td></tr>
+        <tr><td>syncNtp</td><td>Restart an immediate NTP synchronization check.</td></tr>
+        <tr><td>showClock</td><td>Stop the current scene and show the clock.</td></tr>
+        <tr><td>touchTest</td><td>Start/restart the guided five-target touchscreen test.</td></tr>
+        <tr><td>reboot</td><td>Return a successful response, then restart the device after a short delay.</td></tr>
+      </tbody>
+    </table>
+    <pre>curl -X POST http://DMDClock-59D9/api/action ^
+  -H "Content-Type: application/json" ^
+  -d "{\"action\":\"sceneNext\"}"</pre>
+  </section>
+
+  <section class="panel">
+    <div class="endpoint"><span class="method">POST</span><h2><code>/api/time</code> — browser/manual clock fallback</h2></div>
+    <p>Sets Unix time when NTP is unavailable. Send <code>{"epoch":SECONDS}</code>; epoch must be at least 1,700,000,000. The source is reported as Browser until NTP synchronizes.</p>
+    <pre>curl -X POST http://DMDClock-59D9/api/time ^
+  -H "Content-Type: application/json" ^
+  -d "{\"epoch\":1785369600}"</pre>
+  </section>
+
+  <section class="panel">
+    <div class="endpoint"><span class="method">GET</span><h2><code>/</code> and <code>/api-docs</code></h2></div>
+    <p><code>/</code> serves the interactive device remote. <code>/api-docs</code> serves this reference. <code>/favicon.ico</code> returns an empty response to avoid browser errors.</p>
+  </section>
+</main>
+</body>
+</html>

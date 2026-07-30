@@ -17,10 +17,16 @@ compiler on the global `PATH`.
 # Build another cached hardware test.
 .\scripts\esp32\Build-WaveshareExample.ps1 -Example SD
 
+# Validate and preview preparation of an already-formatted FAT32 card.
+.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F -WhatIf
+
+# Download, validate, and idempotently install the complete DotClk scene set.
+.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F
+
 # Run any idf.py operation against an explicit project.
 .\scripts\esp32\Invoke-Idf.ps1 -ProjectPath <path> build
 
-# Build the barebones DMDClock firmware. This never flashes a device.
+# Build the production DMDClock firmware. This never flashes a device.
 .\scripts\esp32\Build-DmdClock.ps1
 
 # Generate a one-time, ignored first-flash Wi-Fi header and build with it.
@@ -38,6 +44,15 @@ compiler on the global `PATH`.
 # Flash the exact connected port after confirming the 800x480 N16R8 board.
 .\scripts\esp32\Flash-DmdClock.ps1 -Port COM5 -Monitor
 ```
+
+After the clock boots, it creates `/dmd/config/settings.json` and mirrors every
+web setting change to it. Back up that file before replacing or reformatting a
+card. It includes the Wi-Fi password in plain text.
+
+Production firmware indexes every flat `.scn` file in `/dmd/scenes` (up to
+4,096 files); the prepared DotClk card currently contains 2,324. Optional
+playback logging is controlled from the web remote and writes the bounded
+`/dmd/logs/playback.log` plus one rotated previous file.
 
 The vendor package is ignored by Git and stored at
 `external\waveshare-esp32-s3-touch-lcd-7`. Its downloaded archive has SHA-256

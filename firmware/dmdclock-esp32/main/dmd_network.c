@@ -112,6 +112,10 @@ esp_err_t dmd_network_init(void)
     memset(&s_info, 0, sizeof(s_info));
     strlcpy(s_info.time_source, "Unset", sizeof(s_info.time_source));
     strlcpy(s_info.access_point_ssid, "QEMU", sizeof(s_info.access_point_ssid));
+    strlcpy(
+        s_info.device_name,
+        s_info.access_point_ssid,
+        sizeof(s_info.device_name));
     strlcpy(s_info.access_point_ip, "localhost:8080", sizeof(s_info.access_point_ip));
 
     ESP_RETURN_ON_ERROR(esp_netif_init(), TAG, "initialize TCP/IP");
@@ -259,6 +263,18 @@ esp_err_t dmd_network_init(void)
         "DMDClock-%02X%02X",
         mac[4],
         mac[5]);
+    strlcpy(
+        s_info.device_name,
+        s_info.access_point_ssid,
+        sizeof(s_info.device_name));
+    ESP_RETURN_ON_ERROR(
+        esp_netif_set_hostname(s_station_netif, s_info.device_name),
+        TAG,
+        "set station hostname");
+    ESP_RETURN_ON_ERROR(
+        esp_netif_set_hostname(ap_netif, s_info.device_name),
+        TAG,
+        "set access-point hostname");
 
     wifi_config_t access_point = {0};
     strlcpy(

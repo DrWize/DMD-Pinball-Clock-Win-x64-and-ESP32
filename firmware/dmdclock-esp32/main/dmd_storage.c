@@ -69,7 +69,7 @@ esp_err_t dmd_storage_init(void)
     if (error != ESP_OK) {
         ESP_LOGW(
             TAG,
-            "TF card unavailable; internal fallback remains active: %s",
+            "TF card unavailable; clock-only mode remains active: %s",
             esp_err_to_name(error));
         dmd_board_set_sd_enabled(false);
         spi_bus_free(host.slot);
@@ -79,6 +79,8 @@ esp_err_t dmd_storage_init(void)
     mkdir(DMD_STORAGE_ROOT, 0755);
     mkdir(DMD_STORAGE_SCENES, 0755);
     mkdir(DMD_STORAGE_PLASMA, 0755);
+    mkdir(DMD_STORAGE_CONFIG, 0755);
+    mkdir(DMD_STORAGE_LOGS, 0755);
     s_available = true;
     ESP_LOGI(
         TAG,

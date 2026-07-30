@@ -2,8 +2,10 @@
 
 Project repository:
 [DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32).
-ESP32 work remains on the dedicated `test/esp32-s3` branch until physical-board
-validation is complete.
+
+ESP32 work is developed on dedicated feature branches and merged only after the
+production and QEMU profiles build and the connected board passes the relevant
+live checks.
 
 This roadmap defines a separate embedded product for the
 **Waveshare ESP32-S3-Touch-LCD-7** while keeping the Windows application as the
@@ -24,12 +26,13 @@ fixtures, and behavioral test vectors as the .NET implementation.
   Windows.
 - Use touch for an overlay menu without permanently occupying display space.
 - Store scenes and library data on the onboard TF card.
-- Synchronize time over Wi-Fi and preserve a useful offline clock.
+- Synchronize time over Wi-Fi while preserving a useful clock during temporary
+  network or NTP loss.
 - Support local USB flashing, serial diagnostics, OTA updates, rollback, and a
   recoverable factory image.
 - Build, test, package, flash, and monitor on the developer's local Windows
   workstation. ChatGPT may edit source and run the local scripts, but compilation
-  must not depend on a ChatGPT-hosted build service.
+  must not depend on a hosted build service or an active AI subscription.
 
 ## Non-goals for the first firmware release
 
@@ -43,42 +46,58 @@ fixtures, and behavioral test vectors as the .NET implementation.
 
 ## Build-readiness audit
 
-This is the current repository and workstation state as verified on 2026-07-28.
-It is the starting point for the ordered plan below.
+This is the current repository, workstation, and connected-hardware state as
+verified on 2026-07-30. It is the starting point for the ordered plan below.
+
+Live hardware update, 2026-07-30:
+
+- The connected Waveshare 800×480 N16R8 board is available as
+  `DMDClock-59D9` and flashes on COM4.
+- Production firmware scans `/dmd/scenes` instead of using the former
+  11-filename allowlist; the live 64 GB card exposes all 2,324 SCNs.
+- The touch overlay uses wide `Next pinball` and `Next scene` controls plus
+  colour-family, next-theme, information, glow, and NTP controls.
+- NTP shows successful-check age on-device and exact last-sync time plus age in
+  the web remote.
+- Optional 256 KB rotated playback logging records scene and theme events under
+  `/dmd/logs`.
+- Web-editable settings are mirrored to `/dmd/config/settings.json`, and the
+  embedded `/api-docs` page describes all current local HTTP calls.
+- The web remote shows effective screen state and provides a confirmed reboot
+  action; both were verified against the live device.
 
 | Area | Current state | Required fix |
 |---|---|---|
 | Windows reference | Plasma and the versioned release pipeline are merged into `master`; the expanded color controls build locally | Preserve this baseline through every shared-data migration |
-| Working branch | ESP32 work is published separately on `test/esp32-s3` | Keep it isolated until the physical-board gates pass |
+| Working branch | ESP32 work is published on dedicated feature branches | Keep each branch scoped and require production, QEMU, and relevant live checks before merge |
 | Theme definitions | Repeated across settings, renderer, menu labels, swatches, and localization | Move stable IDs and RGB/band data into canonical shared definitions |
 | Plasma | Windows and ESP32 use the frozen integer field, eight palettes plus Custom, and startup vectors | Add cross-platform palette and framebuffer hash tests |
-| ESP32 firmware | Barebones ESP-IDF firmware, QEMU display, SCN playback, Plasma, NTP, touch actions, and web control compile | Validate the production profile on the exact physical board |
+| ESP32 firmware | Production ESP-IDF firmware is running on the exact board with SD scenes, NTP, touch controls, diagnostics, and web/API control | Complete extended soak, flicker measurement, recovery, and security work |
 | Shared inputs | No `shared` directory | Add schema-validated canonical definitions and deterministic generation |
-| ESP32 scripts | Doctor, vendor-example build, production/QEMU build, QEMU run, and explicit-port flash entry points work | Add packaging and hardware-test automation after the board arrives |
+| ESP32 scripts | Doctor, vendor-example build, production/QEMU build, QEMU run, explicit-port flash, and idempotent SD preparation work | Add packaging and repeatable hardware-test automation |
 | Build automation | No `.github/workflows` directory | Keep local builds primary; add independent verification only after local firmware is reproducible |
 | Local .NET | Workspace-local .NET 10 is working | Reuse it for the shared generator and Windows contract tests |
 | Local firmware tools | Pinned ESP-IDF 5.5.2 toolchain is installed and a full ESP32-S3 build passes | Keep Arduino and PlatformIO out of the primary pipeline |
-| Local machine | i7-13700KF, 24 threads, 63.8 GB RAM | Default local builds to 20 jobs |
-| Connected board | No serial port or relevant USB device was detected | Connect the UART USB port, install/verify its driver, and record the COM port |
-| Exact board revision | Product information suggests the original 800×480 board | Confirm `ESP32-S3-Touch-LCD-7` and `N16R8` from physical markings; do not assume it is not a 7B |
+| Connected board | Waveshare board is connected as COM4 and runs as `DMDClock-59D9` | Keep explicit-port flashing and never infer a destructive target |
+| Exact board revision | Original 800×480 `ESP32-S3-Touch-LCD-7` with N16R8 module is confirmed | Keep the 1024×600 7B as a separate unsupported target |
 | Recovery | Official package and its `Firmware/*.bin` recovery images are archived under ignored `external/` | Identify the correct factory image and test its documented `0x00` restore before custom flashing |
-| TF card | Onboard slot is known but no card has been verified | Prepare a FAT32 test card and pass the vendor SD example |
-| Scene redistribution | Original scenes have redistribution caveats | Keep them out of public firmware/TF packages and download them from their original source |
+| TF card | A 64 GB FAT32 card mounts and exposes all 2,324 prepared scenes plus metadata and settings | Test removal, corruption, full-card, and power-loss behavior |
+| Scene redistribution | Original scenes have redistribution caveats | Keep them out of public firmware/card images; let users obtain them from their original source |
 | OTA/recovery | Not designed or tested | Defer OTA until USB recovery and a stable partition table work |
 
 ## Required resources
 
 ### Hardware on the desk
 
-- [ ] Waveshare `ESP32-S3-Touch-LCD-7`, physically confirmed as 800×480.
-- [ ] Module marking physically confirmed as `ESP32-S3-WROOM-1-N16R8`.
-- [ ] Data-capable USB cable connected to the port labeled `UART` for initial
+- [x] Waveshare `ESP32-S3-Touch-LCD-7`, physically confirmed as 800×480.
+- [x] Module confirmed as `ESP32-S3-WROOM-1-N16R8`.
+- [x] Data-capable USB cable connected to the port labeled `UART` for initial
       flashing and serial logs.
 - [ ] A second data-capable cable for native USB/JTAG testing if the board exposes
       both connectors.
-- [ ] Stable 5 V USB power.
-- [ ] Reliable TF/microSD card prepared as FAT32.
-- [ ] A local folder containing the vendor schematic, current example source,
+- [x] Stable 5 V USB power.
+- [x] Reliable TF/microSD card prepared as FAT32.
+- [x] A local folder containing the vendor schematic, current example source,
       factory binary, and recovery notes.
 
 ### Software on the workstation
@@ -98,20 +117,23 @@ Do not install several competing toolchains initially. Bring up the official boa
 example with one pinned ESP-IDF environment first. Arduino or PlatformIO can be
 evaluated later, but they are not required for the primary firmware pipeline.
 
-## What must be fixed before feature development
+## Remaining safety and shared-data work
 
 ### P0 — repository and recovery safety
 
-1. Stabilize and commit the current Windows color/menu work.
-2. Create `feature/esp32-waveshare7` from that known baseline.
-3. Confirm the exact physical board and module revision.
-4. Archive the vendor factory image and test restoring it.
-5. Record the correct USB connector, driver, COM port, flash command, and reset/
-   boot-button sequence.
+- [x] Stabilize the Windows colour/menu baseline.
+- [x] Keep ESP32 work on scoped feature branches.
+- [x] Confirm the exact physical board and module revision.
+- [x] Archive the vendor factory image.
+- [ ] Test the complete factory-image restore procedure.
+- [x] Record the USB connector, driver, COM port, flash command, and reset/
+      boot-button sequence.
 
-No custom firmware should be flashed before these five items are complete.
+Current development flashing uses an explicit COM port and does not erase NVS
+unless an erase operation is requested. Factory restore must be proven before
+OTA work or a firmware release is considered complete.
 
-### P0 — eliminate cross-platform color drift
+### P0 — eliminate remaining cross-platform colour drift
 
 The current color implementation contains multiple handwritten representations:
 
@@ -120,7 +142,8 @@ The current color implementation contains multiple handwritten representations:
 - visual menu swatches and background defaults in `MainWindow.axaml.cs`;
 - display names in localization JSON.
 
-Before adding the same constants to firmware:
+Firmware currently mirrors the stable Windows IDs. Before the first firmware
+release, replace those parallel handwritten definitions with:
 
 1. Define stable IDs and color data once under `shared/dmd`.
 2. Generate the C# runtime tables and C++ firmware tables.
@@ -308,6 +331,9 @@ Actions:
 - Add Gradient and Raster from generated shared definitions.
 - Add Plasma only after fixed-color rendering, clock, SCN playback, web controls,
   logging, and CPU instrumentation are stable.
+- Add the optional **Hot-core glow** dot style with a bright centre and soft
+  colour-matched halo. Preserve clear separation between adjacent dots and keep
+  the existing lightweight glow as the fallback.
 - Run shared lookup/framebuffer vectors and measure per-effect CPU load, frame
   time, PSRAM bandwidth, dropped frames, and control responsiveness.
 - Retain an automatic fixed-color fallback if an advanced effect cannot sustain
@@ -584,7 +610,7 @@ Clock/date ────────────────────┤
 ```
 
 - Internal flash: firmware, OTA slots, recovery metadata, minimal recovery web
-  assets, one fallback bitmap font, a small fallback scene, and NVS.
+  assets, one fallback bitmap font, and NVS. Production embeds no SCN files.
 - TF card: a single `/dmd` root containing scenes, optional converted font
   packs, Plasma assets, extended web assets, exported configuration, backups,
   bounded logs, rebuildable indexes/caches, downloaded manifests, temporary
@@ -826,11 +852,12 @@ fail if either generated target is stale.
 - [x] Create the ESP-IDF project from the official Waveshare board example.
 - [x] Pin RGB timing, LCD GPIO mapping, CH422G backlight control, GT911 touch
       configuration, and PSRAM for the original 800×480 board.
-- [ ] Verify GT911 orientation/calibration and add TF-card pin handling on the
+- [x] Verify GT911 orientation and add TF-card pin handling on the
       physical board.
 - [ ] Display color bars and framebuffer diagnostics.
-- [ ] Read touch points and validate orientation/calibration.
-- [ ] Mount a FAT32 TF card and run read/write/power-loss checks.
+- [x] Read touch points and validate orientation on the live overlay.
+- [x] Mount and read/write the prepared FAT32 TF card.
+- [ ] Test card removal, corruption, full-card, and power-loss recovery.
 - [ ] Print firmware, board, flash, PSRAM, and partition versions at boot.
 
 Exit: display, touch, PSRAM, TF card, and serial recovery work independently.
@@ -839,8 +866,8 @@ Exit: display, touch, PSRAM, TF card, and serial recovery work independently.
 
 - [x] Implement the packed 128×32 four-bit framebuffer.
 - [x] Draw separated round dots at exact 6× scale.
-- [ ] Implement brightness and optional glow within measured frame-time limits.
-- [ ] Add single- and double-buffer modes for comparison.
+- [x] Implement brightness and the lightweight configurable glow.
+- [x] Use double-buffered frame-boundary swaps for the production RGB panel.
 - [ ] Validate synthetic frames against Windows framebuffer hashes.
 - [ ] Record refresh rate, CPU load, PSRAM bandwidth, and dropped frames.
 
@@ -850,7 +877,7 @@ resets.
 ### Phase 4 — Fixed Basic colors
 
 - [ ] Consume only the generated C++ theme definitions.
-- [ ] Implement the fixed Basic renderer, brightness, and explicit backgrounds.
+- [x] Implement the fixed Basic renderer, brightness, and black background.
 - [ ] Verify every Basic color with intensity levels 0–15.
 - [ ] Add a cross-platform test that hashes one rendered frame per Basic color.
 - [ ] Record per-core CPU/task use, frame time, heap, PSRAM, and dropped frames.
@@ -867,9 +894,30 @@ interface remains stable before advanced effects are introduced.
       synchronization interval, manual sync, timezone, and daylight-saving
       behavior.
 - [x] Add automatic primary/secondary NTP, manual synchronization, browser-time
-      fallback, and live source/sync state to the current barebones remote.
-- [ ] Show last synchronization, clock source, offset, and failure state through
-      the diagnostics API.
+      fallback, and live source/sync state to the device remote.
+- [x] Show the configured Wi-Fi name and `IP` with its assigned DHCP address or
+      connection state on a dedicated 20-second startup screen. Hide the setup
+      IP after DHCP succeeds and never display the Wi-Fi password.
+- [x] Show the application build and monotonic `days hh:mm:ss` uptime at the
+      bottom of the web remote.
+- [x] Publish GT911 event count, last coordinates/status byte, interrupt level,
+      and I2C errors through the diagnostics state used by the web remote.
+- [x] Use the MAC-derived `DMDClock-XXXX` access-point name as the device name,
+      station/AP hostname, startup-screen identity, API value, and web title so
+      multiple clocks remain distinguishable on the same network.
+- [x] Acknowledge GT911 status on every poll, including no-data polls, matching
+      the Espressif driver and preventing a stuck-low touch interrupt.
+- [x] Follow network startup with five guided touch targets, five seconds each,
+      live event/coordinate feedback, and a five-second result screen.
+- [x] Show scene metadata without redundant `PINBALL` and `SCENE` prefixes:
+      game, scene title, manufacturer, then year.
+- [x] Keep `CONFIG_LCD_RGB_RESTART_IN_VSYNC` disabled because ESP-IDF 5.5.2
+      restarts RGB DMA on every VSYNC when it is enabled; use double-buffered
+      frame-boundary handoff and diagnose actual underruns separately.
+- [x] Show last synchronization, elapsed age, clock source, progress, and failure
+      state through the diagnostics API and web remote.
+- [ ] Measure and expose the actual NTP offset independently of the browser
+      comparison.
 - [ ] Store settings in versioned NVS records.
 - [ ] Add settings migration and reset-without-erasing-factory-recovery.
 - [ ] Preserve a useful clock across temporary network loss.
@@ -886,7 +934,8 @@ Exit: the device boots directly into a reliable clock and retains settings.
 - [x] Resolve the ESP32 scene catalog from the same schema-1
       `scene-metadata.json` used by Windows, including exact-file and
       longest-prefix rules, while leaving timing and masks in the SCN.
-- [ ] Add recursive TF-card library scanning and a compact cached index.
+- [x] Scan the complete flat TF-card scene directory into a compact PSRAM index.
+- [ ] Add recursive subdirectory scanning and a rebuildable on-card cache.
 - [x] Add sequential/random playback and automatic clock/animation cycles for
       the embedded test set.
 - [ ] Define safe behavior for card removal, corrupt files, and low memory.
@@ -896,12 +945,24 @@ Windows reference within documented clock tolerance.
 
 ### Phase 7 — Touch and local web settings
 
-- [x] Add the barebones shared touch/web actions for previous/next colour,
-      information on/off, manual NTP sync, previous/next scene, and show clock.
+- [x] Add shared touch/web actions for next pinball, next scene, colour family,
+      next theme, information, glow, NTP sync, show clock, touch test, and
+      confirmed device reboot.
 - [x] Add an optimized per-dot glow halo, persistent 0–100% strength, and
       matching local/web glow controls.
 - [x] Show the live device timestamp, browser comparison, NTP state, selected
       scene, selected colour family/preset, and cycle settings in the web remote.
+- [x] Apply the Scene information checkbox to the physical display immediately
+      and keep it synchronized with changes made through other controls.
+- [x] Add a device-hosted `/api-docs` reference linked from the remote, covering
+      all current GET/POST routes, partial settings fields, named actions,
+      examples, persistence behavior, and the current trusted-LAN security model.
+- [x] Add a confirmation-protected web reboot control backed by the documented
+      `reboot` API action, with a delayed restart so callers receive success
+      before the connection drops.
+- [x] Show the effective On/Off screen state in the web diagnostics footer,
+      including whether Off comes from the master switch or weekly schedule and
+      whether a scheduled-off screen is temporarily awake after touch.
 - [x] Make the local button row transient: eight seconds at full visibility,
       a short fade, and a safe reveal-only first touch once hidden.
 - [ ] Single tap toggles the transient control overlay.
@@ -910,8 +971,8 @@ Windows reference within documented clock tolerance.
 - [ ] Implement first-run administrator enrollment with a per-device setup code,
       forced password creation, salted verification, sessions, rate limiting, and
       physical/USB password recovery.
-- [ ] Reproduce color-family swatches and current-selection summaries.
-- [ ] Add scene, clock, date, brightness, background, network, and NTP settings.
+- [x] Reproduce colour-family swatches and current-selection summaries.
+- [x] Add scene, clock, brightness, colour, network, schedule, and NTP settings.
 - [ ] Validate NTP hostnames and intervals, apply changes without rebooting, and
       provide `Sync now` with non-blocking status updates.
 - [ ] Let the device download selected SCN files over HTTPS to temporary TF-card
@@ -955,6 +1016,15 @@ device remains a standalone clock.
       vectors at firmware startup.
 - [x] Add persistent Plasma palette/custom-stop/cycle settings, API/web controls,
       shared colour selection, and a 30 FPS maximum animation scheduler.
+- [x] Give Basic, Gradient, Raster, and Plasma separate persistent Custom themes
+      in the firmware API and web remote.
+- [x] Render scene information as one compact metadata row with selectable
+      discreet-grey, follow-theme, and custom standalone colours.
+- [x] Keep editable, backup-friendly settings in `/dmd/config/settings.json`
+      with NVS fallback; web changes update both stores and SD wins at boot.
+- [x] Move the guided touch test from mandatory startup into a web action.
+- [x] Publish chip, network, memory, storage, reset, rendering, touch, time, and
+      settings-save diagnostics for the web footer and future HA discovery.
 - [ ] Verify every advanced theme with intensity levels 0–15.
 - [ ] Add a cross-platform framebuffer hash for every advanced theme.
 - [ ] Compare CPU, task, frame-time, PSRAM-bandwidth, and dropped-frame metrics

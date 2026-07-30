@@ -1,5 +1,6 @@
 #include "dmd_board.h"
 #include "dmd_display.h"
+#include "dmd_diagnostics.h"
 #include "dmd_network.h"
 #include "dmd_scene.h"
 #include "dmd_settings.h"
@@ -28,13 +29,16 @@ void app_main(void)
     ESP_ERROR_CHECK(dmd_storage_init());
     ESP_ERROR_CHECK(dmd_scene_init());
     ESP_ERROR_CHECK(dmd_settings_init());
+    ESP_ERROR_CHECK(dmd_diagnostics_init());
     dmd_settings_t settings;
     dmd_settings_get(&settings);
     if (settings.scene_index >= dmd_scene_count()) {
         settings.scene_index = 0;
         ESP_ERROR_CHECK(dmd_settings_update(&settings));
     }
-    ESP_ERROR_CHECK(dmd_scene_select(settings.scene_index));
+    if (dmd_scene_count() > 0) {
+        ESP_ERROR_CHECK(dmd_scene_select(settings.scene_index));
+    }
     ESP_ERROR_CHECK(dmd_display_init());
     ESP_ERROR_CHECK(dmd_network_init());
     ESP_ERROR_CHECK(dmd_web_start());

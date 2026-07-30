@@ -37,9 +37,12 @@ typedef enum {
     DMD_COLOR_RASTER_FOREST_LAYERS = 30,
     DMD_COLOR_RASTER_ARCTIC_BANDS = 31,
     DMD_COLOR_RASTER_CANDY_STRIPE = 32,
+    DMD_COLOR_BASIC_CUSTOM = 33,
+    DMD_COLOR_GRADIENT_CUSTOM = 34,
+    DMD_COLOR_RASTER_CUSTOM = 35,
 } dmd_color_preset_t;
 
-#define DMD_COLOR_PRESET_MAX DMD_COLOR_RASTER_CANDY_STRIPE
+#define DMD_COLOR_PRESET_MAX DMD_COLOR_RASTER_CUSTOM
 
 typedef struct {
     uint8_t red;
@@ -52,5 +55,11 @@ const char *dmd_color_name(dmd_color_preset_t preset);
 const char *dmd_color_family(dmd_color_preset_t preset);
 dmd_rgb_t dmd_color_at(
     dmd_color_preset_t preset,
+    uint8_t x,
+    uint8_t y);
+dmd_rgb_t dmd_color_custom_at(
+    dmd_color_preset_t preset,
+    const dmd_rgb_t *custom_colors,
+    uint8_t custom_color_count,
     uint8_t x,
     uint8_t y);

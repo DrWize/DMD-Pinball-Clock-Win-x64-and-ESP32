@@ -4,19 +4,24 @@ idf_component_register(
         "dmd_actions.c"
         "dmd_board.c"
         "dmd_display.c"
+        "dmd_diagnostics.c"
         "dmd_color.c"
         "dmd_settings.c"
+        "dmd_settings_json.c"
         "dmd_storage.c"
         "dmd_network.c"
+        "dmd_playback_log.c"
         "dmd_plasma.c"
         "dmd_scene.c"
         "dmd_scene_metadata.c"
         "dmd_web.c"
     INCLUDE_DIRS "."
-    EMBED_TXTFILES "web/index.html"
+    EMBED_TXTFILES "web/index.html" "web/api.html"
     REQUIRES
         esp_driver_i2c
+        esp_driver_tsens
         esp_event
+        esp_app_format
         esp_http_server
         esp_lcd
         esp_netif
@@ -29,6 +34,7 @@ idf_component_register(
         json
         lwip
         nvs_flash
+        spi_flash
 )
 
 if(DMD_BOOTSTRAP_WIFI_HEADER AND NOT CONFIG_DMD_QEMU)
@@ -94,12 +100,6 @@ if(CONFIG_DMD_QEMU)
         "scene_08.scn|RD1695.scn"
         "scene_09.scn|RD1701.scn"
         "scene_10.scn|RD1891.scn"
-    )
-else()
-    # Keep one very small boot-safe scene in flash. The full library belongs
-    # under /dmd/scenes on the TF card.
-    set(DMD_EMBEDDED_SCENES
-        "scene_00.scn|RD1695.scn"
     )
 endif()
 foreach(DMD_EMBEDDED_SCENE IN LISTS DMD_EMBEDDED_SCENES)

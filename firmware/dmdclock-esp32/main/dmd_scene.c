@@ -1,6 +1,7 @@
 #include "dmd_scene.h"
 
 #include <stdbool.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,8 +35,8 @@ typedef struct {
     extern const uint8_t scene_##number##_end[] \
         asm("_binary_scene_" #number "_scn_end")
 
-DECLARE_SCENE(00);
 #if CONFIG_DMD_QEMU
+DECLARE_SCENE(00);
 DECLARE_SCENE(01);
 DECLARE_SCENE(02);
 DECLARE_SCENE(03);
@@ -49,7 +50,7 @@ DECLARE_SCENE(10);
 #endif
 
 #if CONFIG_DMD_QEMU
-static const scene_blob_t QEMU_SCENES[DMD_SCENE_COUNT] = {
+static const scene_blob_t QEMU_SCENES[DMD_QEMU_SCENE_COUNT] = {
     {scene_00_start, scene_00_end, "got06.scn", "GOT06 - Game of Thrones"},
     {scene_01_start, scene_01_end, "afm01.scn", "AFM01 - Attack from Mars"},
     {scene_02_start, scene_02_end, "RD0868.scn", "RD0868"},
@@ -64,32 +65,11 @@ static const scene_blob_t QEMU_SCENES[DMD_SCENE_COUNT] = {
 };
 #endif
 
-#if !CONFIG_DMD_QEMU
-typedef struct {
-    const char *file_name;
-    const char *display_name;
-} known_scene_t;
-
-static const known_scene_t KNOWN_SCENES[DMD_SCENE_COUNT] = {
-    {"got06.scn", "GOT06 - Game of Thrones"},
-    {"afm01.scn", "AFM01 - Attack from Mars"},
-    {"RD0868.scn", "RD0868"},
-    {"RD0959.scn", "RD0959"},
-    {"RD1116.scn", "RD1116"},
-    {"RD1385.scn", "RD1385"},
-    {"RD1448.scn", "RD1448"},
-    {"RD1474.scn", "RD1474"},
-    {"RD1695.scn", "RD1695"},
-    {"RD1701.scn", "RD1701"},
-    {"RD1891.scn", "RD1891"},
-};
-#endif
-
 static const char *TAG = "dmd_scene";
 static SemaphoreHandle_t s_lock;
-static scene_blob_t s_scenes[DMD_SCENE_COUNT];
-static dmd_scene_metadata_t s_metadata[DMD_SCENE_COUNT];
-static uint8_t s_scene_count;
+static scene_blob_t *s_scenes;
+static dmd_scene_metadata_t *s_metadata;
+static uint16_t s_scene_count;
 static const uint8_t *s_data;
 static size_t s_size;
 static uint8_t *s_owned_data;
@@ -98,21 +78,11 @@ static uint32_t s_mask_offsets[SCN_MAX_FRAMES];
 static dmd_scene_info_t s_info;
 
 #if !CONFIG_DMD_QEMU
-static void use_internal_fallback(void)
+static int scene_name_compare(const void *left, const void *right)
 {
-    dmd_scene_metadata_resolve(NULL, "RD1695.scn", &s_metadata[0]);
-    strlcpy(
-        s_metadata[0].display_name,
-        "RD1695 - Internal fallback",
-        sizeof(s_metadata[0].display_name));
-    s_scenes[0] = (scene_blob_t){
-        .start = scene_00_start,
-        .end = scene_00_end,
-        .file_name = "RD1695.scn",
-        .display_name = s_metadata[0].display_name,
-    };
-    s_scene_count = 1;
-    ESP_LOGW(TAG, "Using the internal scene fallback");
+    const scene_blob_t *left_scene = left;
+    const scene_blob_t *right_scene = right;
+    return strcasecmp(left_scene->file_name, right_scene->file_name);
 }
 #endif
 
@@ -185,7 +155,7 @@ static esp_err_t load_scene_data(const scene_blob_t *scene)
     return ESP_OK;
 }
 
-static esp_err_t parse_scene(uint8_t index)
+static esp_err_t parse_scene(uint16_t index)
 {
     if (index >= s_scene_count) {
         return ESP_ERR_INVALID_ARG;
@@ -316,30 +286,70 @@ esp_err_t dmd_scene_init(void)
     }
 
 #if CONFIG_DMD_QEMU
-    memcpy(s_scenes, QEMU_SCENES, sizeof(s_scenes));
-    s_scene_count = DMD_SCENE_COUNT;
+    s_scene_count = DMD_QEMU_SCENE_COUNT;
+    s_scenes = calloc(s_scene_count, sizeof(*s_scenes));
+    s_metadata = calloc(s_scene_count, sizeof(*s_metadata));
+    if (s_scenes == NULL || s_metadata == NULL) {
+        return ESP_ERR_NO_MEM;
+    }
+    memcpy(s_scenes, QEMU_SCENES, sizeof(QEMU_SCENES));
 #else
     if (dmd_storage_available()) {
-        for (uint8_t index = 0; index < DMD_SCENE_COUNT; index++) {
-            char path[96];
-            snprintf(
-                path,
-                sizeof(path),
-                "%s/%s",
-                DMD_STORAGE_SCENES,
-                KNOWN_SCENES[index].file_name);
-            FILE *file = fopen(path, "rb");
-            if (file != NULL) {
-                fclose(file);
+        s_scenes = heap_caps_calloc(
+            DMD_SCENE_MAX_COUNT,
+            sizeof(*s_scenes),
+            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (s_scenes == NULL) {
+            s_scenes = calloc(DMD_SCENE_MAX_COUNT, sizeof(*s_scenes));
+        }
+        if (s_scenes == NULL) {
+            return ESP_ERR_NO_MEM;
+        }
+        DIR *directory = opendir(DMD_STORAGE_SCENES);
+        if (directory != NULL) {
+            struct dirent *entry;
+            while ((entry = readdir(directory)) != NULL &&
+                   s_scene_count < DMD_SCENE_MAX_COUNT) {
+                const char *extension = strrchr(entry->d_name, '.');
+                if (extension == NULL || strcasecmp(extension, ".scn") != 0) {
+                    continue;
+                }
+                char *file_name = strdup(entry->d_name);
+                if (file_name == NULL) {
+                    closedir(directory);
+                    return ESP_ERR_NO_MEM;
+                }
                 s_scenes[s_scene_count++] = (scene_blob_t){
-                    .file_name = KNOWN_SCENES[index].file_name,
-                    .display_name = KNOWN_SCENES[index].display_name,
+                    .file_name = file_name,
+                    .display_name = file_name,
                 };
             }
+            closedir(directory);
+        } else {
+            ESP_LOGW(TAG, "Could not open scene directory %s", DMD_STORAGE_SCENES);
         }
-    }
-    if (s_scene_count == 0) {
-        use_internal_fallback();
+        if (s_scene_count == DMD_SCENE_MAX_COUNT) {
+            ESP_LOGW(TAG, "Scene index reached its %u-file limit", DMD_SCENE_MAX_COUNT);
+        }
+        if (s_scene_count > 1) {
+            qsort(
+                s_scenes,
+                s_scene_count,
+                sizeof(*s_scenes),
+                scene_name_compare);
+        }
+        if (s_scene_count > 0) {
+            s_metadata = heap_caps_calloc(
+                s_scene_count,
+                sizeof(*s_metadata),
+                MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            if (s_metadata == NULL) {
+                s_metadata = calloc(s_scene_count, sizeof(*s_metadata));
+            }
+            if (s_metadata == NULL) {
+                return ESP_ERR_NO_MEM;
+            }
+        }
     }
 #endif
 
@@ -351,7 +361,7 @@ esp_err_t dmd_scene_init(void)
             "Shared scene metadata not applied: %s",
             esp_err_to_name(metadata_error));
     }
-    for (uint8_t index = 0; index < s_scene_count; index++) {
+    for (uint16_t index = 0; index < s_scene_count; index++) {
         dmd_scene_metadata_resolve(
             catalog,
             s_scenes[index].file_name,
@@ -361,39 +371,20 @@ esp_err_t dmd_scene_init(void)
     dmd_scene_metadata_free(catalog);
 
 #if CONFIG_DMD_QEMU
-    for (uint8_t index = 0; index < s_scene_count; index++) {
+    for (uint16_t index = 0; index < s_scene_count; index++) {
         esp_err_t error = parse_scene(index);
         if (error != ESP_OK) {
             return error;
         }
     }
-#else
-    for (uint8_t index = 0; index < s_scene_count;) {
-        esp_err_t error = parse_scene(index);
-        if (error == ESP_OK) {
-            index++;
-            continue;
-        }
+#endif
+    if (s_scene_count == 0) {
         ESP_LOGW(
             TAG,
-            "Skipping invalid TF scene %s: %s",
-            s_scenes[index].file_name,
-            esp_err_to_name(error));
-        memmove(
-            &s_scenes[index],
-            &s_scenes[index + 1],
-            (s_scene_count - index - 1) * sizeof(s_scenes[0]));
-        memmove(
-            &s_metadata[index],
-            &s_metadata[index + 1],
-            (s_scene_count - index - 1) * sizeof(s_metadata[0]));
-        s_scene_count--;
+            "No valid scenes found in %s; clock-only mode is active",
+            DMD_STORAGE_SCENES);
+        return ESP_OK;
     }
-    if (s_scene_count == 0) {
-        use_internal_fallback();
-        ESP_RETURN_ON_ERROR(parse_scene(0), TAG, "validate fallback scene");
-    }
-#endif
     ESP_RETURN_ON_ERROR(parse_scene(0), TAG, "select default scene");
     ESP_LOGI(TAG, "%u scenes validated", s_scene_count);
     ESP_LOGI(
@@ -406,7 +397,7 @@ esp_err_t dmd_scene_init(void)
     return ESP_OK;
 }
 
-esp_err_t dmd_scene_select(uint8_t index)
+esp_err_t dmd_scene_select(uint16_t index)
 {
     if (s_lock == NULL || index >= s_scene_count) {
         return ESP_ERR_INVALID_ARG;
@@ -420,22 +411,22 @@ esp_err_t dmd_scene_select(uint8_t index)
     return error;
 }
 
-uint8_t dmd_scene_count(void)
+uint16_t dmd_scene_count(void)
 {
     return s_scene_count;
 }
 
-const char *dmd_scene_file_name(uint8_t index)
+const char *dmd_scene_file_name(uint16_t index)
 {
     return index < s_scene_count ? s_scenes[index].file_name : "";
 }
 
-const char *dmd_scene_display_name(uint8_t index)
+const char *dmd_scene_display_name(uint16_t index)
 {
     return index < s_scene_count ? s_scenes[index].display_name : "";
 }
 
-void dmd_scene_get_metadata(uint8_t index, dmd_scene_metadata_t *metadata)
+void dmd_scene_get_metadata(uint16_t index, dmd_scene_metadata_t *metadata)
 {
     if (metadata == NULL) {
         return;
@@ -445,6 +436,43 @@ void dmd_scene_get_metadata(uint8_t index, dmd_scene_metadata_t *metadata)
         return;
     }
     *metadata = s_metadata[index];
+}
+
+uint16_t dmd_scene_next_game(uint16_t current)
+{
+    if (s_scene_count == 0) {
+        return 0;
+    }
+    if (current >= s_scene_count) {
+        current = 0;
+    }
+    const char *current_game = s_metadata[current].game;
+    for (uint16_t offset = 1; offset < s_scene_count; offset++) {
+        uint16_t candidate = (uint16_t)((current + offset) % s_scene_count);
+        const char *candidate_game = s_metadata[candidate].game;
+        if (strcasecmp(candidate_game, current_game) != 0) {
+            return candidate;
+        }
+    }
+    return current;
+}
+
+uint16_t dmd_scene_next_in_game(uint16_t current)
+{
+    if (s_scene_count == 0) {
+        return 0;
+    }
+    if (current >= s_scene_count) {
+        current = 0;
+    }
+    const char *current_game = s_metadata[current].game;
+    for (uint16_t offset = 1; offset < s_scene_count; offset++) {
+        uint16_t candidate = (uint16_t)((current + offset) % s_scene_count);
+        if (strcasecmp(s_metadata[candidate].game, current_game) == 0) {
+            return candidate;
+        }
+    }
+    return current;
 }
 
 void dmd_scene_get_info(dmd_scene_info_t *info)

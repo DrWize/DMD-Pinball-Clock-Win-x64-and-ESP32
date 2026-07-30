@@ -53,6 +53,20 @@ $serialPorts = @(
     Get-CimInstance Win32_SerialPort -ErrorAction SilentlyContinue |
         Select-Object DeviceID, Name, PNPDeviceID
 )
+if ($serialPorts.Count -eq 0) {
+    $serialPorts = @(
+        Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue |
+            ForEach-Object {
+                if ($_.Name -match '\((COM\d+)\)') {
+                    [pscustomobject]@{
+                        DeviceID = $Matches[1]
+                        Name = $_.Name
+                        PNPDeviceID = $_.PNPDeviceID
+                    }
+                }
+            }
+    )
+}
 $likelyUsbDevices = @(
     Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue |
         Where-Object {
@@ -103,4 +117,8 @@ if ($missing.Count -gt 0) {
     throw "Toolchain check failed: $($missing.Name -join ', ')"
 }
 
-Write-Host '[READY] Local compilation is available. Hardware detection remains pending.'
+if ($serialPorts.Count -gt 0) {
+    Write-Host '[READY] Local compilation and serial hardware detection are available.'
+} else {
+    Write-Host '[READY] Local compilation is available. Hardware detection remains pending.'
+}
