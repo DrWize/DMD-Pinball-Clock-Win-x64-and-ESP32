@@ -842,7 +842,7 @@ Current phase status:
 | 3 — DMD renderer | **Core complete** — packed framebuffer, exact 6× dots, brightness, glow, and double buffering run on hardware | Cross-platform hashes and measured CPU/PSRAM/frame-drop data |
 | 4 — Fixed Basic colours | **Core complete** | Generated definitions, every-intensity verification, hashes, and performance measurements |
 | 5 — Clock, date, and settings | **Operational** — clock, timezone, Wi-Fi, NTP, schedules, diagnostics, NVS, and SD settings backup work | Configurable NTP servers/interval, versioned NVS, factory reset, and longer offline tests |
-| 6 — SCN and TF-card playback | **Operational for flat libraries** — all 2,324 prepared scenes and shared metadata are indexed from SD | Streaming reads, recursive cache, malformed-input parity, and card-removal/corruption handling |
+| 6 — SCN and TF-card playback | **Operational for flat libraries** — all 2,324 prepared scenes and shared metadata are indexed from SD; bounded enable/settle retries recover stale cards after reset | Streaming reads, recursive cache, malformed-input parity, and card-removal/corruption handling |
 | 7 — Touch and local web | **Daily controls complete** — touch overlay, web settings, diagnostics, API reference, default-on LAN boundary, logging, and reboot work | Optional future authentication/HTTPS, gestures, device-side downloads/uploads, live log viewer, full statistics page, and mDNS |
 | 7b — Home Assistant | **Not started** | MQTT configuration, discovery, entities, and broker-failure testing |
 | 7c — Gradient, Raster, Plasma | **Core complete** — all families, presets, Custom themes, Plasma, glow, and metadata colours run | Exhaustive intensity/hash/performance testing and automatic fallback |

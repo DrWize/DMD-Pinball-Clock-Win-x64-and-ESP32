@@ -241,6 +241,12 @@ is updated, and unrelated user scenes are preserved. The final summary reports
 readers report media as a fixed disk; after checking the drive letter carefully,
 use `-AllowFixedDrive` for those readers.
 
+At boot, firmware gives the card three bounded mount attempts. Between attempts
+it resets the board's TF enable line and waits briefly for the card to settle.
+This recovers cards left in a stale SPI state by a soft reset or reflash; after
+three failures the device continues safely in clock-only mode and never formats
+the card.
+
 The firmware creates `/dmd/config/settings.json` after boot. It is normal,
 formatted JSON that can be backed up or edited on a PC while the card is removed
 from the clock, and it takes priority over NVS at the next boot. A complete
