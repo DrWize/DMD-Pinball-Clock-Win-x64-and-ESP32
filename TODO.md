@@ -515,9 +515,9 @@ Acceptance criteria:
 ### Hot-core glow — Windows implemented; ESP32-S3 follows after v1.3.0 validation
 
 - [x] Add the optional Windows Hot-core style with persistent Classic amber,
-      Follow theme, and Dual colour modes plus Flat, Subtle, and Deep dot depth.
+      Follow theme, and Dual colour modes.
 - [x] Capture real Windows clock comparisons for all three Hot-core colour modes
-      using Subtle dot depth and document the controls in the settings guide.
+      and document the controls in the settings guide.
 - [ ] Port the accepted Hot-core style to ESP32-S3 after the owner completes the
       v1.3.0 manual Windows checklist.
 - [x] Render three controlled Windows layers: a small warm or selected core, the

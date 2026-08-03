@@ -11,7 +11,6 @@ public sealed class DmdClockSettingsStoreTests
         Assert.Equal(15, (int)DmdColorPreset.C64Rainbow);
         Assert.Equal(4, (int)PlasmaPalettePreset.Custom);
         Assert.Equal(2, (int)HotCoreStyle.DualColor);
-        Assert.Equal(2, (int)DotDepthStyle.Deep);
     }
 
     [Theory]
@@ -64,8 +63,7 @@ public sealed class DmdClockSettingsStoreTests
                 PlasmaCycleMilliseconds = 4_321,
                 HotCoreEnabled = true,
                 HotCoreStyle = HotCoreStyle.DualColor,
-                HotCoreColor = "#ffeedd",
-                DotDepth = DotDepthStyle.Deep
+                HotCoreColor = "#ffeedd"
             };
             await store.SaveAtomicAsync(settings, path);
             var loaded = await store.LoadAsync(path);
@@ -99,7 +97,6 @@ public sealed class DmdClockSettingsStoreTests
             Assert.True(loaded.HotCoreEnabled);
             Assert.Equal(HotCoreStyle.DualColor, loaded.HotCoreStyle);
             Assert.Equal("#FFEEDD", loaded.HotCoreColor);
-            Assert.Equal(DotDepthStyle.Deep, loaded.DotDepth);
         }
         finally
         {
@@ -108,20 +105,18 @@ public sealed class DmdClockSettingsStoreTests
     }
 
     [Fact]
-    public void Normalize_InvalidHotCoreValues_UsesSafeClassicFlatDefaults()
+    public void Normalize_InvalidHotCoreValues_UsesSafeClassicDefaults()
     {
         var normalized = (DmdClockSettings.Default with
         {
             HotCoreEnabled = null,
             HotCoreStyle = (HotCoreStyle)999,
-            HotCoreColor = "not-a-color",
-            DotDepth = (DotDepthStyle)999
+            HotCoreColor = "not-a-color"
         }).Normalize();
 
         Assert.False(normalized.HotCoreEnabled);
         Assert.Equal(HotCoreStyle.Classic, normalized.HotCoreStyle);
         Assert.Equal("#FFF2B0", normalized.HotCoreColor);
-        Assert.Equal(DotDepthStyle.Flat, normalized.DotDepth);
     }
 
     [Fact]
@@ -262,7 +257,6 @@ public sealed class DmdClockSettingsStoreTests
             Assert.False(loaded.HotCoreEnabled);
             Assert.Equal(HotCoreStyle.Classic, loaded.HotCoreStyle);
             Assert.Equal("#FFF2B0", loaded.HotCoreColor);
-            Assert.Equal(DotDepthStyle.Flat, loaded.DotDepth);
         }
         finally
         {

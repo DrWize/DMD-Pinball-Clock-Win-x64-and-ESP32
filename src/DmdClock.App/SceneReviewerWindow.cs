@@ -484,8 +484,7 @@ public sealed class SceneReviewerWindow : Window
             _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds,
             _settings.HotCoreEnabled ?? false,
             _settings.HotCoreStyle ?? HotCoreStyle.Classic,
-            _settings.HotCoreColor,
-            _settings.DotDepth ?? DotDepthStyle.Flat);
+            _settings.HotCoreColor);
 
     private void OnClosed(object? sender, EventArgs e)
     {

@@ -66,13 +66,6 @@ public enum HotCoreStyle
     DualColor
 }
 
-public enum DotDepthStyle
-{
-    Flat,
-    Subtle,
-    Deep
-}
-
 public static class HotCoreDefinition
 {
     public static double GetOpacity(int intensity) =>
@@ -111,8 +104,7 @@ public sealed record DmdClockSettings(
     DmdBackgroundMode? BackgroundMode = null,
     bool? HotCoreEnabled = null,
     HotCoreStyle? HotCoreStyle = null,
-    string? HotCoreColor = null,
-    DotDepthStyle? DotDepth = null)
+    string? HotCoreColor = null)
 {
     public const int CurrentSchemaVersion = 1;
 
@@ -153,10 +145,7 @@ public sealed record DmdClockSettings(
         HotCoreStyle = HotCoreStyle is { } hotCoreStyle && Enum.IsDefined(hotCoreStyle)
             ? hotCoreStyle
             : global::DmdClock.Core.Settings.HotCoreStyle.Classic,
-        HotCoreColor = NormalizeColor(HotCoreColor) ?? "#FFF2B0",
-        DotDepth = DotDepth is { } dotDepth && Enum.IsDefined(dotDepth)
-            ? dotDepth
-            : DotDepthStyle.Flat
+        HotCoreColor = NormalizeColor(HotCoreColor) ?? "#FFF2B0"
     };
 
     private static string? NormalizeFontFile(string? value)

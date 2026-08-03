@@ -50,7 +50,7 @@ first-boot flow, SD-card layout, recovery steps, and security notes.
 - 128x32 four-bit DotClk `.scn` playback with clock, date, masks, and original timing
 - automatic, sequential, or random playback and a shared Scene Reviewer selection
 - classic, gradient, plasma, raster, and C64-inspired colour themes
-- optional Classic, theme-derived, or dual-colour Hot-core dots with selectable depth
+- optional Classic, theme-derived, or dual-colour Hot-core dots
 - normal application, fullscreen mode, and optional Windows screensaver
 - persistent settings, structured logs, and SCN compatibility reports
 

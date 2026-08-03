@@ -1088,11 +1088,6 @@ public partial class MainWindow : Window
         HotCoreDualMenuItem.Header = Check(hotCoreEnabled && hotCoreStyle == HotCoreStyle.DualColor, L("hotCoreDual"));
         HotCoreColorMenuItem.Header = $"{L("hotCoreColor")}: {_settings.HotCoreColor ?? "#FFF2B0"}";
         HotCoreColorMenuItem.IsEnabled = hotCoreEnabled && hotCoreStyle == HotCoreStyle.DualColor;
-        var dotDepth = _settings.DotDepth ?? DotDepthStyle.Flat;
-        DotDepthMenuItem.Header = $"{L("dotDepth")}: {DotDepthName(dotDepth)}";
-        DotDepthFlatMenuItem.Header = Check(dotDepth == DotDepthStyle.Flat, L("flat"));
-        DotDepthSubtleMenuItem.Header = Check(dotDepth == DotDepthStyle.Subtle, L("subtle"));
-        DotDepthDeepMenuItem.Header = Check(dotDepth == DotDepthStyle.Deep, L("deep"));
         AnimationInfoMenuItem.Header = Check(_settings.ShowAnimationInfo ?? true, L("animationInfo"));
         EnglishLanguageMenuItem.Header = Check((_settings.Language ?? "en") == "en", L("english"));
         SwedishLanguageMenuItem.Header = Check(_settings.Language == "sv", L("swedish"));
@@ -1132,19 +1127,11 @@ public partial class MainWindow : Window
             _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds,
             hotCoreEnabled,
             hotCoreStyle,
-            _settings.HotCoreColor,
-            dotDepth);
+            _settings.HotCoreColor);
     }
 
     private static string Check(bool selected, string label) => selected ? $"✓ {label}" : label;
     private static string L(string key) => LocalizationManager.Get(key);
-
-    private static string DotDepthName(DotDepthStyle depth) => depth switch
-    {
-        DotDepthStyle.Subtle => L("subtle"),
-        DotDepthStyle.Deep => L("deep"),
-        _ => L("flat")
-    };
 
     private void PopulateFontMenus()
     {
@@ -1449,14 +1436,6 @@ public partial class MainWindow : Window
         ApplySettingsToMenu();
         SaveSettings();
         SetStatus($"{L("hotCoreColor")}: {value}");
-    }
-
-    private void SetDotDepth(DotDepthStyle depth)
-    {
-        _settings = (_settings with { DotDepth = depth }).Normalize();
-        ApplySettingsToMenu();
-        SaveSettings();
-        SetStatus($"{L("dotDepth")}: {DotDepthName(depth)}");
     }
 
     private static string HotCoreStyleName(HotCoreStyle style) => style switch
@@ -1843,9 +1822,6 @@ public partial class MainWindow : Window
     private void HotCoreTheme_Click(object? sender, RoutedEventArgs e) => SetHotCore(true, HotCoreStyle.Theme);
     private async void HotCoreDual_Click(object? sender, RoutedEventArgs e) => await PickHotCoreColorAsync(enableDualMode: true);
     private async void HotCoreColor_Click(object? sender, RoutedEventArgs e) => await PickHotCoreColorAsync(enableDualMode: false);
-    private void DotDepthFlat_Click(object? sender, RoutedEventArgs e) => SetDotDepth(DotDepthStyle.Flat);
-    private void DotDepthSubtle_Click(object? sender, RoutedEventArgs e) => SetDotDepth(DotDepthStyle.Subtle);
-    private void DotDepthDeep_Click(object? sender, RoutedEventArgs e) => SetDotDepth(DotDepthStyle.Deep);
     private async void ForegroundColor_Click(object? sender, RoutedEventArgs e) => await PickColorAsync(foreground: true);
     private async void BackgroundColor_Click(object? sender, RoutedEventArgs e) => await PickColorAsync(foreground: false);
     private void BackgroundTheme_Click(object? sender, RoutedEventArgs e) => SetBackgroundMode(DmdBackgroundMode.Theme);

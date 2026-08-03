@@ -115,7 +115,7 @@ change the stored four-bit frame values.
 Adds or removes the soft light around each illuminated dot. Individual dots remain
 separated in either mode.
 
-### Hot-core glow and dot depth
+### Hot-core glow
 
 **Hot-core glow** adds a small bright centre without changing the source frame or
 joining neighbouring dots. It has three colour modes:
@@ -127,12 +127,6 @@ joining neighbouring dots. It has three colour modes:
 - **Dual colour** keeps the selected theme for the dot body and lets you choose an
   independent core colour. **Core colour…** remains available while this mode is
   active.
-
-**Dot depth** controls the small lower-right shadow and upper-left highlight:
-
-- **Flat** preserves the original rendering and is the upgrade-safe default.
-- **Subtle** adds restrained physical depth and is the recommended Hot-core pairing.
-- **Deep** strengthens the recessed appearance for larger displays.
 
 Brightness and the original 0–15 frame intensity still control the complete dot.
 Dim dots receive a smaller, dimmer core than fully lit dots.
@@ -235,7 +229,6 @@ warning in `%LOCALAPPDATA%\DmdClock\logs\dmdclock.log` and continues in English.
 | Brightness | 100% |
 | Glow | On |
 | Hot-core glow | Off |
-| Dot depth | Flat |
 | Animation information | On |
 | Language | English |
 | Time format | 24-hour |
