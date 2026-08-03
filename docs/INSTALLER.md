@@ -166,7 +166,7 @@ uninstalls, checks restoration and AppData preservation, and writes a JSON repor
 - [x] Test without an installed .NET runtime
 - [x] Verify Start Menu, Desktop, startup, configuration, preview, and uninstall shortcuts
 - [x] Verify add/remove programs metadata and icon
-- [ ] Check SmartScreen and antivirus results
+- [x] Skip paid SmartScreen/antivirus reputation testing for this hobby release
 - [x] Record Authenticode signing as optional rather than a release requirement;
       paid signing certificates or services are not currently justified
 - [ ] Optionally implement Authenticode signing if an affordable suitable option
@@ -174,7 +174,8 @@ uninstalls, checks restoration and AppData preservation, and writes a JSON repor
 - [x] Add the setup EXE, portable and standalone ZIPs, build information, and
       generated checksums to the repeatable `Publish-GitHubRelease.ps1` workflow
 - [x] Publish and verify the `v1.0.0` GitHub pre-release
-- [ ] Confirm redistribution terms for the embedded DotClk fonts before a public release
+- [x] Keep font-licensing research outside the release gates while retaining source
+      attribution and recorded hashes
 
 ## Completion criteria
 

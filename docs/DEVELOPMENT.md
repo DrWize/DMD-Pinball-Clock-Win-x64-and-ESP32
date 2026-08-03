@@ -40,6 +40,19 @@ The reviewer, SCN decoding, rendering, clock compositor, file scanning, and
 selection persistence all use the local CPU. No scene or preference data is sent
 to an AI service.
 
+## Optional original resources
+
+DMDClock builds and runs without the original DotClk repositories. Developers can
+download reference sources and local test resources into the Git-ignored
+`external` directory:
+
+```powershell
+.\scripts\Get-OriginalResources.ps1
+```
+
+See [source references](SOURCES.md) for the available selections, provenance, and
+update-safety rules.
+
 ## Test
 
 ```powershell
@@ -80,6 +93,34 @@ they do not depend on hard-coded ZIP or setup filenames.
 Build output is generated below `output\` and is intentionally excluded from Git.
 Every package contains the tracked `scenes\scene-metadata.json`; downloaded `.scn`
 animations are never packaged.
+
+## Build and test ESP32-S3 firmware
+
+The firmware targets the original 800x480 Waveshare ESP32-S3-Touch-LCD-7 with an
+N16R8 module. Start by checking the workstation toolchain:
+
+```powershell
+.\scripts\esp32\Doctor.ps1
+.\scripts\esp32\Build-DmdClock.ps1
+```
+
+Build and run the host QEMU validation profile:
+
+```powershell
+.\scripts\esp32\Build-DmdClockQemu.ps1
+.\scripts\esp32\Run-DmdClockQemu.ps1 -SkipBuild
+```
+
+After identifying the board's exact COM port, flash it explicitly and keep the
+serial monitor open:
+
+```powershell
+.\scripts\esp32\Flash-DmdClock.ps1 -Port COM5 -Monitor
+```
+
+Replace `COM5` with the verified port. Read the
+[firmware development guide](../firmware/dmdclock-esp32/README.md) before changing
+board settings, partitions, Wi-Fi bootstrap data, or release artifacts.
 
 ## Publish a GitHub Release
 

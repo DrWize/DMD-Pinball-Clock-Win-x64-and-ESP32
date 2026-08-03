@@ -353,22 +353,34 @@ Actions:
 
 Pass condition: the release definition of done at the end of this document is met.
 
-## Immediate next session
+## Immediate next visual feature — Hot-core glow
 
-The workstation portion of Gate 2 is complete. When the board arrives, stop after
-the remaining Gates 0–3 work:
+After the owner completes the v1.3.0 manual Windows release checklist, Hot-core
+glow is the next visual feature for both Windows and ESP32-S3.
 
-1. Finish and commit the current Windows branch.
-2. Confirm that the physical board is the 800×480 `7` with an `N16R8` module.
-3. Connect the port labeled `UART`, run `Doctor.ps1`, and record its COM port.
-4. If Windows does not create a COM port, install the USB drivers from an
-   Administrator terminal and rerun the doctor.
-5. Test the archived factory recovery image at the documented `0x00` address.
-6. Flash and run the untouched Waveshare LVGL and TF examples.
+Visual construction:
 
-Only then should shared source generation and custom firmware begin. This order
-separates board/toolchain problems from DMDClock problems and preserves a known
-recovery path.
+1. Use a warm yellow-white core about 22–28% of the dot diameter. Avoid pure
+   white so the selected theme colour remains visible.
+2. Surround it with the saturated selected colour, then a soft colour-matched
+   halo that fades out before the midpoint between neighbouring dot centres.
+3. Scale the core and halo with the source's 0–15 intensity. Dim pixels must stay
+   dim instead of gaining the same bright centre as a fully lit pixel.
+4. Let glow strength control the core and halo together, with zero returning the
+   existing clean dot rendering.
+
+Implementation plan:
+
+- Windows caches radial-gradient brushes by theme, intensity, scale, and strength.
+- ESP32-S3 uses a precomputed three-ring kernel or small lookup table and avoids
+  per-pixel square roots. The existing lightweight glow remains the fallback.
+- Shared setting names and reference frames define visual intent without requiring
+  pixel-identical rasterization on the two different renderers.
+- The worst-case all-dots frame must retain a black saddle between every pair of
+  dots. Plasma and SCN playback must keep the 30 FPS budget while touch and web
+  controls remain responsive.
+- Record frame time, CPU load, PSRAM bandwidth, and dropped frames before enabling
+  the effect by default or raising its maximum strength.
 
 ## Fixed target identity
 
@@ -1082,6 +1094,20 @@ device remains a standalone clock.
 Exit: advanced effects match Windows and remain responsive without compromising
 the proven fixed-color path.
 
+### Phase 7d — Hot-core glow
+
+- [ ] Add the shared optional Hot-core settings after v1.3.0 manual Windows
+      validation is complete.
+- [ ] Implement the precomputed ESP32 three-ring/LUT renderer and retain the
+      current lightweight glow as its measured fallback.
+- [ ] Verify monotonic output for all 16 intensities and black separation in a
+      worst-case all-dots-on frame.
+- [ ] Measure Basic, Plasma, and SCN playback at the strongest supported glow;
+      preserve the 30 FPS budget and touch/web responsiveness.
+
+Exit: the effect looks hot and luminous without joining adjacent dots, obscuring
+the theme colour, or destabilizing the fixed-colour fallback.
+
 ### Later project — TTF/OTF fonts
 
 - [ ] Evaluate direct on-device TTF/OTF rasterization against build-time or
@@ -1222,8 +1248,8 @@ Migrations are forward-only functions with test fixtures for every released sche
 - A wrong board or LCD timing package can produce a black screen.
 - OTA partition mistakes can make recovery unnecessarily difficult.
 - Hand-copied theme constants will diverge; generated shared data is mandatory.
-- Embedded DotClk fonts and original scenes require redistribution review before
-  public firmware or TF-card packages include them.
+- Original scenes remain outside public firmware and TF-card packages; users
+  obtain them separately from their original source.
 
 ## Definition of done for the first ESP32-S3 release
 
