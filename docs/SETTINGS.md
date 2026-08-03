@@ -115,6 +115,26 @@ change the stored four-bit frame values.
 Adds or removes the soft light around each illuminated dot. Individual dots remain
 separated in either mode.
 
+### Hot-core glow
+
+**Hot-core glow** adds a small bright centre without changing the source frame or
+joining neighbouring dots. It has three colour modes:
+
+- **Classic amber** uses the traditional orange body, warm yellow-white core, and
+  amber halo regardless of the selected colour theme.
+- **Follow theme** keeps the selected Basic, Gradient, Raster, or Plasma colours
+  and derives a brighter tinted core from each rendered dot.
+- **Dual colour** keeps the selected theme for the dot body and lets you choose an
+  independent core colour. **Core colour…** remains available while this mode is
+  active.
+
+Brightness and the original 0–15 frame intensity still control the complete dot.
+Dim dots receive a smaller, dimmer core than fully lit dots.
+
+| Classic amber | Follow theme | Dual colour |
+| --- | --- | --- |
+| ![Classic amber Hot-core](screenshots/colors/hot-core-classic.png) | ![Cyber ocean with theme-derived Hot-core](screenshots/colors/hot-core-theme.png) | ![Cyber ocean with a separate pale-yellow core](screenshots/colors/hot-core-dual.png) |
+
 ### Custom basic color
 
 Choose **Colors > Basic colors > Custom** to open the RGB/hex picker. The custom
@@ -208,6 +228,7 @@ warning in `%LOCALAPPDATA%\DmdClock\logs\dmdclock.log` and continues in English.
 | Color theme | Classic orange |
 | Brightness | 100% |
 | Glow | On |
+| Hot-core glow | Off |
 | Animation information | On |
 | Language | English |
 | Time format | 24-hour |

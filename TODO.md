@@ -512,18 +512,23 @@ Acceptance criteria:
 - missing optional scenes/fonts and missing or invalid translations do not crash startup;
 - all writable data stays under `%LOCALAPPDATA%\DmdClock`.
 
-### Next visual feature after v1.3.0 validation — Hot-core glow
+### Hot-core glow — Windows implemented; ESP32-S3 follows after v1.3.0 validation
 
-- [ ] Add an optional Hot-core dot style to Windows and ESP32-S3 after the owner
-      completes the v1.3.0 manual Windows checklist.
-- [ ] Render three controlled layers: a small warm yellow-white core, the selected
-      saturated dot colour, and a soft colour-matched halo that ends before the
+- [x] Add the optional Windows Hot-core style with persistent Classic amber,
+      Follow theme, and Dual colour modes.
+- [x] Capture real Windows clock comparisons for all three Hot-core colour modes
+      and document the controls in the settings guide.
+- [ ] Port the accepted Hot-core style to ESP32-S3 after the owner completes the
+      v1.3.0 manual Windows checklist.
+- [x] Render three controlled Windows layers: a small warm or selected core, the
+      saturated dot body, and a soft colour-matched halo that ends before the
       midpoint between neighbouring dots.
-- [ ] Keep all 16 intensity levels monotonic. Dim dots must not receive the same
-      white core as fully lit dots, and an all-dots-on frame must retain black
+- [x] Keep Windows core opacity and radius monotonic across all 16 intensity levels;
+      dim dots do not receive the same core as fully lit dots.
+- [ ] Verify the future ESP32-S3 port with an all-dots-on frame that retains black
       separation between every dot.
-- [ ] Cache radial-gradient brushes by theme, intensity, scale, and glow strength
-      on Windows instead of rebuilding them per dot or frame.
+- [x] Cache Windows radial-gradient dot, halo, and core brushes by palette and
+      intensity instead of rebuilding them per dot or frame.
 - [ ] Use a precomputed three-ring kernel or small lookup table on ESP32-S3; avoid
       per-pixel square roots and retain the existing lightweight glow as fallback.
 - [ ] Measure the worst-case all-dots frame, Plasma, and SCN playback. Keep the

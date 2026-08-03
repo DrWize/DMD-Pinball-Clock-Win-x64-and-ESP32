@@ -481,7 +481,10 @@ public sealed class SceneReviewerWindow : Window
             DmdThemeBackgroundDefinition.Resolve(_settings),
             _settings.PlasmaPalette ?? PlasmaPalettePreset.Neon,
             _settings.PlasmaCustomColors,
-            _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds);
+            _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds,
+            _settings.HotCoreEnabled ?? false,
+            _settings.HotCoreStyle ?? HotCoreStyle.Classic,
+            _settings.HotCoreColor);
 
     private void OnClosed(object? sender, EventArgs e)
     {

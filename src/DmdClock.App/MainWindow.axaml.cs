@@ -1079,6 +1079,15 @@ public partial class MainWindow : Window
         Brightness75MenuItem.Header = Check(brightness == 75, "75 %");
         Brightness100MenuItem.Header = Check(brightness == 100, "100 %");
         GlowMenuItem.Header = Check(_settings.GlowEnabled ?? true, L("glow"));
+        var hotCoreEnabled = _settings.HotCoreEnabled ?? false;
+        var hotCoreStyle = _settings.HotCoreStyle ?? HotCoreStyle.Classic;
+        HotCoreMenuItem.Header = Check(hotCoreEnabled, L("hotCoreGlow"));
+        HotCoreOffMenuItem.Header = Check(!hotCoreEnabled, L("off"));
+        HotCoreClassicMenuItem.Header = Check(hotCoreEnabled && hotCoreStyle == HotCoreStyle.Classic, L("hotCoreClassic"));
+        HotCoreThemeMenuItem.Header = Check(hotCoreEnabled && hotCoreStyle == HotCoreStyle.Theme, L("hotCoreTheme"));
+        HotCoreDualMenuItem.Header = Check(hotCoreEnabled && hotCoreStyle == HotCoreStyle.DualColor, L("hotCoreDual"));
+        HotCoreColorMenuItem.Header = $"{L("hotCoreColor")}: {_settings.HotCoreColor ?? "#FFF2B0"}";
+        HotCoreColorMenuItem.IsEnabled = hotCoreEnabled && hotCoreStyle == HotCoreStyle.DualColor;
         AnimationInfoMenuItem.Header = Check(_settings.ShowAnimationInfo ?? true, L("animationInfo"));
         EnglishLanguageMenuItem.Header = Check((_settings.Language ?? "en") == "en", L("english"));
         SwedishLanguageMenuItem.Header = Check(_settings.Language == "sv", L("swedish"));
@@ -1115,7 +1124,10 @@ public partial class MainWindow : Window
             _settings.ForegroundColor, ResolveBackgroundColor(preset),
             _settings.PlasmaPalette ?? PlasmaPalettePreset.Neon,
             _settings.PlasmaCustomColors,
-            _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds);
+            _settings.PlasmaCycleMilliseconds ?? PlasmaSpeedDefinition.DefaultCycleMilliseconds,
+            hotCoreEnabled,
+            hotCoreStyle,
+            _settings.HotCoreColor);
     }
 
     private static string Check(bool selected, string label) => selected ? $"✓ {label}" : label;
@@ -1394,6 +1406,44 @@ public partial class MainWindow : Window
         SaveSettings();
         SetStatus($"{(foreground ? L("foregroundColor") : L("backgroundColor"))}: {value}");
     }
+
+    private void SetHotCore(bool enabled, HotCoreStyle style)
+    {
+        _settings = (_settings with
+        {
+            HotCoreEnabled = enabled,
+            HotCoreStyle = style
+        }).Normalize();
+        ApplySettingsToMenu();
+        SaveSettings();
+        SetStatus(enabled ? $"{L("hotCoreGlow")}: {HotCoreStyleName(style)}" : $"{L("hotCoreGlow")}: {L("off")}");
+    }
+
+    private async Task PickHotCoreColorAsync(bool enableDualMode)
+    {
+        var initial = ParseDisplayColor(_settings.HotCoreColor, Color.FromRgb(255, 242, 176));
+        var dialog = new ColorPickerWindow(L("hotCoreColor"), initial, L("ok"), L("cancel"));
+        var selected = await dialog.ShowDialog<Color?>(this);
+        if (selected is not { } color) return;
+
+        var value = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        _settings = (_settings with
+        {
+            HotCoreEnabled = enableDualMode || (_settings.HotCoreEnabled ?? false),
+            HotCoreStyle = enableDualMode ? HotCoreStyle.DualColor : _settings.HotCoreStyle,
+            HotCoreColor = value
+        }).Normalize();
+        ApplySettingsToMenu();
+        SaveSettings();
+        SetStatus($"{L("hotCoreColor")}: {value}");
+    }
+
+    private static string HotCoreStyleName(HotCoreStyle style) => style switch
+    {
+        HotCoreStyle.Theme => L("hotCoreTheme"),
+        HotCoreStyle.DualColor => L("hotCoreDual"),
+        _ => L("hotCoreClassic")
+    };
 
     private static Color ParseDisplayColor(string? value, Color fallback)
     {
@@ -1767,6 +1817,11 @@ public partial class MainWindow : Window
         SaveSettings();
         SetStatus((_settings.GlowEnabled ?? true) ? "Glöd: på" : "Glöd: av");
     }
+    private void HotCoreOff_Click(object? sender, RoutedEventArgs e) => SetHotCore(false, _settings.HotCoreStyle ?? HotCoreStyle.Classic);
+    private void HotCoreClassic_Click(object? sender, RoutedEventArgs e) => SetHotCore(true, HotCoreStyle.Classic);
+    private void HotCoreTheme_Click(object? sender, RoutedEventArgs e) => SetHotCore(true, HotCoreStyle.Theme);
+    private async void HotCoreDual_Click(object? sender, RoutedEventArgs e) => await PickHotCoreColorAsync(enableDualMode: true);
+    private async void HotCoreColor_Click(object? sender, RoutedEventArgs e) => await PickHotCoreColorAsync(enableDualMode: false);
     private async void ForegroundColor_Click(object? sender, RoutedEventArgs e) => await PickColorAsync(foreground: true);
     private async void BackgroundColor_Click(object? sender, RoutedEventArgs e) => await PickColorAsync(foreground: false);
     private void BackgroundTheme_Click(object? sender, RoutedEventArgs e) => SetBackgroundMode(DmdBackgroundMode.Theme);

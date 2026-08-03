@@ -12,8 +12,10 @@ public sealed class DmdDisplay : Control
     private const int PaletteColumns = 128;
     private IBrush[][] _dotBrushes = [];
     private IBrush[][] _glowBrushes = [];
+    private IBrush[][] _hotCoreBrushes = [];
     private DmdFrame? _frame;
     private bool _glowEnabled = true;
+    private bool _hotCoreEnabled;
     private IBrush _backgroundBrush = Brushes.Black;
     private bool _paletteByRow;
     private bool _plasmaEnabled;
@@ -46,7 +48,10 @@ public sealed class DmdDisplay : Control
         string? backgroundColor,
         PlasmaPalettePreset plasmaPalette = PlasmaPalettePreset.Neon,
         IReadOnlyList<string>? plasmaCustomColors = null,
-        int plasmaCycleMilliseconds = PlasmaSpeedDefinition.DefaultCycleMilliseconds)
+        int plasmaCycleMilliseconds = PlasmaSpeedDefinition.DefaultCycleMilliseconds,
+        bool hotCoreEnabled = false,
+        HotCoreStyle hotCoreStyle = HotCoreStyle.Classic,
+        string? hotCoreColor = null)
     {
         brightnessPercent = Math.Clamp(brightnessPercent, 25, 100);
         var palette = preset switch
@@ -85,25 +90,37 @@ public sealed class DmdDisplay : Control
             DmdColorPreset.RasterCandyStripe => Raster(C64Red, C64LightRed, C64White, C64Cyan, C64White, C64LightRed, C64Purple),
             _ => Solid(Color.FromRgb(255, 112, 14))
         };
+        var renderPalette = hotCoreEnabled && hotCoreStyle == HotCoreStyle.Classic
+            ? Solid(Color.FromRgb(255, 112, 14))
+            : palette;
         _plasmaEnabled = preset == DmdColorPreset.Plasma &&
+            !(hotCoreEnabled && hotCoreStyle == HotCoreStyle.Classic) &&
             string.IsNullOrWhiteSpace(foregroundColor);
         _plasmaCycleMilliseconds = PlasmaSpeedDefinition.Normalize(plasmaCycleMilliseconds);
         _paletteByRow = IsC64RasterPreset(preset);
-        if (!string.IsNullOrWhiteSpace(foregroundColor))
+        if (!string.IsNullOrWhiteSpace(foregroundColor) &&
+            !(hotCoreEnabled && hotCoreStyle == HotCoreStyle.Classic))
         {
-            palette = Solid(ParseColor(foregroundColor, palette[^1]));
+            renderPalette = Solid(ParseColor(foregroundColor, renderPalette[^1]));
             _paletteByRow = false;
         }
         _backgroundBrush = new SolidColorBrush(ParseColor(backgroundColor, Colors.Black));
         _dotBrushes = Enumerable.Range(0, PaletteColumns)
             .Select(column => CreateDotBrushes(
-                palette[column], brightnessPercent / 100d))
+                renderPalette[column], brightnessPercent / 100d))
             .ToArray();
         _glowBrushes = Enumerable.Range(0, PaletteColumns)
             .Select(column => CreateGlowBrushes(
-                palette[column], brightnessPercent / 100d))
+                renderPalette[column], brightnessPercent / 100d))
+            .ToArray();
+        var customCore = ParseColor(hotCoreColor, Color.FromRgb(255, 242, 176));
+        _hotCoreBrushes = Enumerable.Range(0, PaletteColumns)
+            .Select(column => CreateHotCoreBrushes(
+                ResolveCoreColor(renderPalette[column], hotCoreStyle, customCore),
+                brightnessPercent / 100d))
             .ToArray();
         _glowEnabled = glowEnabled;
+        _hotCoreEnabled = hotCoreEnabled;
         InvalidateVisual();
     }
 
@@ -176,6 +193,16 @@ public sealed class DmdDisplay : Control
             if (_glowEnabled)
                 context.DrawEllipse(_glowBrushes[paletteColumn][intensity], null, center, glowRadius, glowRadius);
             context.DrawEllipse(_dotBrushes[paletteColumn][intensity], null, center, radius, radius);
+            if (_hotCoreEnabled)
+            {
+                var coreRadius = radius * HotCoreDefinition.GetRadiusFactor(intensity);
+                context.DrawEllipse(
+                    _hotCoreBrushes[paletteColumn][intensity],
+                    null,
+                    center,
+                    coreRadius,
+                    coreRadius);
+            }
         }
     }
 
@@ -192,9 +219,51 @@ public sealed class DmdDisplay : Control
         .ToArray();
 
     private static IBrush[] CreateGlowBrushes(Color color, double brightness) => Enumerable.Range(0, 16)
-        .Select(level => (IBrush)new SolidColorBrush(Color.FromArgb(
-            Scale(72, level / 15d * brightness), color.R, color.G, color.B)))
+        .Select(level =>
+        {
+            var alpha = Scale(82, level / 15d * brightness);
+            return (IBrush)new RadialGradientBrush
+            {
+                Center = RelativePoint.Center,
+                GradientOrigin = RelativePoint.Center,
+                RadiusX = new RelativeScalar(0.5, RelativeUnit.Relative),
+                RadiusY = new RelativeScalar(0.5, RelativeUnit.Relative),
+                GradientStops = new GradientStops
+                {
+                    new(Color.FromArgb(alpha, color.R, color.G, color.B), 0),
+                    new(Color.FromArgb(Scale(alpha, 0.45), color.R, color.G, color.B), 0.62),
+                    new(Color.FromArgb(0, color.R, color.G, color.B), 1)
+                }
+            };
+        })
         .ToArray();
+
+    private static IBrush[] CreateHotCoreBrushes(Color color, double brightness) => Enumerable.Range(0, 16)
+        .Select(level =>
+        {
+            var alpha = Scale(255, HotCoreDefinition.GetOpacity(level) * brightness);
+            return (IBrush)new RadialGradientBrush
+            {
+                Center = RelativePoint.Center,
+                GradientOrigin = RelativePoint.Center,
+                RadiusX = new RelativeScalar(0.5, RelativeUnit.Relative),
+                RadiusY = new RelativeScalar(0.5, RelativeUnit.Relative),
+                GradientStops = new GradientStops
+                {
+                    new(Color.FromArgb(alpha, color.R, color.G, color.B), 0),
+                    new(Color.FromArgb(Scale(alpha, 0.96), color.R, color.G, color.B), 0.68),
+                    new(Color.FromArgb(0, color.R, color.G, color.B), 1)
+                }
+            };
+        })
+        .ToArray();
+
+    private static Color ResolveCoreColor(Color body, HotCoreStyle style, Color custom) => style switch
+    {
+        HotCoreStyle.Classic => Color.FromRgb(255, 242, 176),
+        HotCoreStyle.DualColor => custom,
+        _ => Interpolate(body, Colors.White, 0.62)
+    };
 
     private static byte Scale(byte value, double factor) => (byte)Math.Clamp(Math.Round(value * factor), 0, 255);
 
