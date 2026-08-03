@@ -34,12 +34,17 @@ This firmware targets the original Waveshare
   theme events;
 - web/API diagnostics for approximate chip temperature, Wi-Fi RSSI, heap/PSRAM,
   SD capacity, settings backup, flash/CPU, reset/boot, rendering, NTP, and touch;
+- optional local MQTT discovery for Home Assistant with display/brightness
+  controls, scene/time buttons, diagnostics, birth/LWT availability, and
+  independent broker reconnect;
+- an on-screen setup QR code containing only the current local web address;
 - a one-hour temporary wake override whenever the physical screen is pressed,
   even during a scheduled screen-off period;
 - an eight-second transient touch-button row with a short fade and safe
   reveal-only first touch after it has hidden.
 
-It does not yet include OTA, Home Assistant, web authentication, or HTTPS.
+It does not yet include OTA, web authentication, HTTPS, MQTT TLS, temporary-text
+notifications, or the complete planned Home Assistant entity set.
 Proprietary scene files are not embedded in production firmware or tracked by Git.
 
 ## Fixed hardware target
@@ -197,6 +202,10 @@ Remote controls:
 - a glow-strength slider with a matching transient touchscreen toggle;
 - timezone;
 - home Wi-Fi name and password;
+- optional local MQTT broker host, port, username, password, and Home Assistant
+  discovery prefix;
+- a **Show setup QR on screen** button. The QR opens the current local web
+  address and never contains Wi-Fi or MQTT credentials;
 - live device time, browser drift, NTP source/status, exact last sync and age;
 - effective screen On/Off state, including manual, weekly-schedule, and
   temporary touch-wake reasons;
@@ -207,6 +216,30 @@ documents the live state and scene-catalog reads, partial persistent settings
 updates, named control actions, browser-time fallback, accepted values, and
 example requests. The current API has no authentication or HTTPS and is intended
 only for a trusted local network; the default-on LAN source filter applies to it.
+
+MQTT uses a separate outbound local-broker connection, is disabled by default,
+and is not affected by the web source-address filter.
+
+## Home Assistant through MQTT
+
+Home Assistant's MQTT integration and a reachable local broker are required.
+MQTT discovery itself does not use QR pairing. In the device web remote, open
+**Home Assistant and MQTT**, enter the broker details, keep the default
+`homeassistant` discovery prefix unless Home Assistant uses another one, enable
+MQTT, and save. The device publishes retained discovery and state plus an
+online/offline availability topic. It also republishes discovery when it sees
+Home Assistant's `homeassistant/status` birth message.
+
+The first delivery exposes display power, brightness, next pinball, next scene,
+manual NTP synchronization, current scene, firmware, uptime, approximate chip
+temperature, Wi-Fi signal, free heap, SD free space, SD presence, and time-sync
+state. MQTT work runs in separate low-priority tasks. Invalid commands are
+rejected, and losing Wi-Fi, the broker, or Home Assistant does not stop the
+clock, touch controls, scenes, SD logging, or web remote.
+
+The current broker transport is unencrypted MQTT/TCP, intended only for a
+trusted local network. Do not expose the broker port to the internet. The setup
+QR is separate from MQTT discovery and contains only the DMDClock local URL.
 
 ## Secondary-storage layout
 
@@ -250,8 +283,8 @@ the card.
 The firmware creates `/dmd/config/settings.json` after boot. It is normal,
 formatted JSON that can be backed up or edited on a PC while the card is removed
 from the clock, and it takes priority over NVS at the next boot. A complete
-network restore requires the file to contain the Wi-Fi password in plain text,
-so protect the card and any copied settings file.
+network restore requires the file to contain Wi-Fi and MQTT passwords in plain
+text, so protect the card and any copied settings file.
 
 The layout reserves subdirectories for scenes, fonts, Plasma assets, extended
 web assets, exported configuration, backups, bounded logs, rebuildable caches,

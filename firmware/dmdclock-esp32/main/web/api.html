@@ -48,7 +48,7 @@
 
   <section class="panel">
     <div class="endpoint"><span class="method">GET</span><h2><code>/api/state</code> — live device state</h2></div>
-    <p>Returns the current clock, display, settings, network, storage, rendering, touch, NTP and diagnostic state. This lightweight endpoint is suitable for polling and Home Assistant REST sensors.</p>
+    <p>Returns the current clock, display, settings, network, storage, rendering, touch, NTP, MQTT and diagnostic state. This lightweight endpoint is suitable for polling and Home Assistant REST sensors.</p>
     <div class="columns">
       <div>
         <h3>Display and playback</h3>
@@ -61,6 +61,8 @@
         <p>Approximate internal chip temperature, RSSI, heap/PSRAM, SD capacity, flash/CPU, boot/reset, frame counters, touch events/errors and settings-backup status.</p>
         <h3>Playback log</h3>
         <p><code>playbackLogEnabled</code>, <code>playbackLogPath</code>, <code>playbackLogPresent</code> and <code>playbackLogBytes</code>.</p>
+        <h3>MQTT</h3>
+        <p>Enabled/configured/connected state plus broker host/port, discovery prefix, connection, disconnection, command and error counters. Passwords are never returned.</p>
       </div>
     </div>
     <pre>curl http://DMDClock-59D9/api/state</pre>
@@ -111,6 +113,12 @@
         <tr><td>wifiSsid</td><td>Home Wi-Fi network name.</td></tr>
         <tr><td>wifiPassword</td><td>Home Wi-Fi password; omit it to preserve the current password.</td></tr>
         <tr><td>lanOnlyWeb</td><td>Boolean source-address filter. True permits the current station/AP subnets, loopback and link-local clients only; false permits any client that can route to port 80.</td></tr>
+        <tr><td>mqttEnabled</td><td>Boolean optional Home Assistant MQTT discovery service.</td></tr>
+        <tr><td>mqttHost</td><td>Local broker hostname or IP address.</td></tr>
+        <tr><td>mqttPort</td><td>Broker TCP port, normally 1883.</td></tr>
+        <tr><td>mqttUsername</td><td>Optional broker username.</td></tr>
+        <tr><td>mqttPassword</td><td>Optional broker password; omit it to preserve the saved password. It is never returned by <code>/api/state</code>.</td></tr>
+        <tr><td>mqttDiscoveryPrefix</td><td>Home Assistant discovery topic prefix, normally <code>homeassistant</code>; wildcards are rejected.</td></tr>
       </tbody>
     </table>
     <pre>curl -X POST http://DMDClock-59D9/api/settings ^
@@ -126,6 +134,7 @@
       <tbody>
         <tr><td>pinballNext</td><td>Select the first scene belonging to the next metadata game.</td></tr>
         <tr><td>sceneNext</td><td>Select the next scene within the current metadata game.</td></tr>
+        <tr><td>toggleRandom</td><td>Toggle random automatic scene selection. Off uses sequential scene order.</td></tr>
         <tr><td>colorFamilyNext</td><td>Cycle Basic → Gradient → Raster → Plasma.</td></tr>
         <tr><td>colorThemeNext</td><td>Advance the subtheme within the current family; advances Plasma palettes in Plasma mode.</td></tr>
         <tr><td>toggleInformation</td><td>Toggle the scene-information row.</td></tr>
@@ -133,6 +142,7 @@
         <tr><td>syncNtp</td><td>Restart an immediate NTP synchronization check.</td></tr>
         <tr><td>showClock</td><td>Stop the current scene and show the clock.</td></tr>
         <tr><td>touchTest</td><td>Start/restart the guided five-target touchscreen test.</td></tr>
+        <tr><td>setupQr</td><td>Show a local device-setup URL as a QR code on the LCD for 60 seconds. No password is encoded.</td></tr>
         <tr><td>reboot</td><td>Return a successful response, then restart the device after a short delay.</td></tr>
       </tbody>
     </table>
@@ -151,7 +161,7 @@
 
   <section class="panel">
     <div class="endpoint"><span class="method">GET</span><h2><code>/</code> and <code>/api-docs</code></h2></div>
-    <p><code>/</code> serves the interactive device remote. <code>/api-docs</code> serves this reference. <code>/favicon.ico</code> returns an empty response to avoid browser errors.</p>
+    <p><code>/</code> serves the interactive device remote. <code>/api-docs</code> serves this reference. <code>/favicon.ico</code> serves the same DMDClock icon used by the Windows application and installer.</p>
   </section>
 </main>
 </body>

@@ -5,6 +5,7 @@ idf_component_register(
         "dmd_board.c"
         "dmd_display.c"
         "dmd_diagnostics.c"
+        "dmd_mqtt.c"
         "dmd_color.c"
         "dmd_settings.c"
         "dmd_settings_json.c"
@@ -24,6 +25,7 @@ idf_component_register(
         esp_app_format
         esp_http_server
         esp_lcd
+        mqtt
         esp_netif
         esp_timer
         fatfs
@@ -34,8 +36,14 @@ idf_component_register(
         json
         lwip
         nvs_flash
+        qrcode
         spi_flash
 )
+
+target_add_binary_data(
+    ${COMPONENT_LIB}
+    "${CMAKE_CURRENT_LIST_DIR}/../../../assets/icons/dmdclock.ico"
+    BINARY)
 
 if(DMD_BOOTSTRAP_WIFI_HEADER AND NOT CONFIG_DMD_QEMU)
     set(DMD_BOOTSTRAP_WIFI_PATH

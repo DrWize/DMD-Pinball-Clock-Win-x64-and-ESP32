@@ -173,7 +173,7 @@ static cJSON *settings_to_json(const dmd_settings_t *settings)
     cJSON_AddStringToObject(
         json,
         "_notice",
-        "Editable DMDClock backup. Contains the Wi-Fi password in plain text.");
+        "Editable DMDClock backup. Contains Wi-Fi and MQTT passwords in plain text.");
     cJSON_AddNumberToObject(json, "brightness", settings->brightness);
     cJSON_AddNumberToObject(json, "glowStrength", settings->glow_strength);
     cJSON_AddNumberToObject(json, "colorPreset", settings->color_preset);
@@ -272,6 +272,15 @@ static cJSON *settings_to_json(const dmd_settings_t *settings)
     cJSON_AddStringToObject(json, "wifiSsid", settings->wifi_ssid);
     cJSON_AddStringToObject(json, "wifiPassword", settings->wifi_password);
     cJSON_AddBoolToObject(json, "lanOnlyWeb", settings->lan_only_web);
+    cJSON_AddBoolToObject(json, "mqttEnabled", settings->mqtt_enabled);
+    cJSON_AddStringToObject(json, "mqttHost", settings->mqtt_host);
+    cJSON_AddNumberToObject(json, "mqttPort", settings->mqtt_port);
+    cJSON_AddStringToObject(json, "mqttUsername", settings->mqtt_username);
+    cJSON_AddStringToObject(json, "mqttPassword", settings->mqtt_password);
+    cJSON_AddStringToObject(
+        json,
+        "mqttDiscoveryPrefix",
+        settings->mqtt_discovery_prefix);
     return json;
 }
 
@@ -413,6 +422,28 @@ esp_err_t dmd_settings_json_load(dmd_settings_t *settings)
         settings->wifi_password,
         sizeof(settings->wifi_password));
     load_bool(json, "lanOnlyWeb", &settings->lan_only_web);
+    load_bool(json, "mqttEnabled", &settings->mqtt_enabled);
+    load_string(
+        json,
+        "mqttHost",
+        settings->mqtt_host,
+        sizeof(settings->mqtt_host));
+    load_u16(json, "mqttPort", &settings->mqtt_port);
+    load_string(
+        json,
+        "mqttUsername",
+        settings->mqtt_username,
+        sizeof(settings->mqtt_username));
+    load_string(
+        json,
+        "mqttPassword",
+        settings->mqtt_password,
+        sizeof(settings->mqtt_password));
+    load_string(
+        json,
+        "mqttDiscoveryPrefix",
+        settings->mqtt_discovery_prefix,
+        sizeof(settings->mqtt_discovery_prefix));
     cJSON_Delete(json);
     return ESP_OK;
 }

@@ -24,4 +24,5 @@ void dmd_display_task(void *context);
 void dmd_display_play_scene(uint16_t scene_index);
 void dmd_display_show_clock(void);
 void dmd_display_start_touch_test(void);
+void dmd_display_show_setup_qr(void);
 void dmd_display_get_state(dmd_display_state_t *state);

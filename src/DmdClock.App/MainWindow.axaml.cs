@@ -895,7 +895,7 @@ public partial class MainWindow : Window
     {
         _settings = await _settingsStore.LoadAsync(_settingsPath);
         _selectionDocument = await _selectionStore.LoadAsync(_selectionPath);
-        LocalizationManager.Load(_settings.Language ?? "en");
+        LoadLocalization(_settings.Language ?? "en");
         StartupAnimationCountText.Text = L("startupLoading");
         ApplyMenuTranslations(MainContextMenu.Items);
         PopulateFontMenus();
@@ -1210,11 +1210,23 @@ public partial class MainWindow : Window
     private void SetLanguage(string language)
     {
         _settings = (_settings with { Language = language }).Normalize();
-        LocalizationManager.Load(_settings.Language ?? "en");
+        LoadLocalization(_settings.Language ?? "en");
         ApplyMenuTranslations(MainContextMenu.Items);
         PopulateFontMenus();
         ApplySettingsToMenu();
         SaveSettings();
+    }
+
+    private void LoadLocalization(string language)
+    {
+        foreach (var warning in LocalizationManager.Load(language))
+        {
+            _ = _log.WriteAsync(
+                DateTimeOffset.UtcNow,
+                $"localization.warning language=\"{SanitizeLogValue(warning.Language)}\" " +
+                $"path=\"{SanitizeLogValue(warning.Path)}\" " +
+                $"reason=\"{SanitizeLogValue(warning.Reason)}\" fallback=embedded-en");
+        }
     }
 
     private void SetClockFormat(string format)

@@ -216,8 +216,8 @@ This means upgrading the application normally does not remove your preferences.
 
 - **The EXE asks for DLL files:** use the standalone ZIP, or re-extract every file
   from the regular portable ZIP.
-- **The menu shows names such as `showClock`:** restore the complete `i18n` folder
-  beside the EXE.
+- **A translation warning appears in `dmdclock.log`:** restore the complete `i18n`
+  folder beside the EXE. DMDClock continues with its embedded English translation.
 - **No animations appear:** select the correct folder with `Ctrl+Shift+O`, press
   `F5`, then use `Ctrl+Shift+R` to enable a game and allow scenes. Check
   `dmdclock.log` if the files still do not appear.

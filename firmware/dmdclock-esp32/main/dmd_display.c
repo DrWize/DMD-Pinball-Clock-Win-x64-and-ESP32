@@ -23,6 +23,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "qrcode.h"
 #include "sdkconfig.h"
 
 #if CONFIG_DMD_QEMU
@@ -51,6 +52,7 @@
 #define TOUCH_TEST_TARGET_US (5LL * 1000 * 1000)
 #define TOUCH_TEST_TARGET_COUNT 5
 #define TOUCH_TEST_RESULT_US (5LL * 1000 * 1000)
+#define SETUP_QR_VISIBLE_US (60LL * 1000 * 1000)
 
 static const char *TAG = "dmd_display";
 static esp_lcd_panel_handle_t s_panel;
@@ -69,6 +71,7 @@ static SemaphoreHandle_t s_state_lock;
 static dmd_display_state_t s_state;
 static uint32_t s_command_revision;
 static uint32_t s_touch_test_request_revision;
+static uint32_t s_setup_qr_request_revision;
 static bool s_command_play_scene;
 static uint16_t s_command_scene_index;
 static int64_t s_controls_last_interaction_at;
@@ -417,6 +420,60 @@ static void paint_startup_network_status(
     }
 }
 
+static void draw_setup_qr(esp_qrcode_handle_t qrcode)
+{
+    int size = esp_qrcode_get_size(qrcode);
+    const int quiet = 4;
+    int scale = 330 / (size + quiet * 2);
+    if (scale < 1) {
+        scale = 1;
+    }
+    int extent = (size + quiet * 2) * scale;
+    int origin_x = (LCD_WIDTH - extent) / 2;
+    int origin_y = 68;
+    uint16_t white = rgb565(255, 255, 255);
+    uint16_t black = rgb565(0, 0, 0);
+    draw_rect(origin_x, origin_y, extent, extent, white);
+    for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+            if (esp_qrcode_get_module(qrcode, x, y)) {
+                draw_rect(
+                    origin_x + (x + quiet) * scale,
+                    origin_y + (y + quiet) * scale,
+                    scale,
+                    scale,
+                    black);
+            }
+        }
+    }
+}
+
+static void paint_setup_qr(
+    const dmd_settings_t *settings,
+    const dmd_network_info_t *network)
+{
+    memset(s_framebuffer, 0, LCD_WIDTH * LCD_HEIGHT * sizeof(uint16_t));
+    const char *address =
+        network->station_connected && network->station_ip[0] != '\0'
+            ? network->station_ip
+            : network->access_point_ip;
+    char url[64];
+    snprintf(url, sizeof(url), "http://%s/", address);
+    dmd_rgb_t rgb = settings_color_at(settings, 64, 16);
+    uint16_t accent = rgb565(rgb.red, rgb.green, rgb.blue);
+    uint16_t text = rgb565(245, 238, 230);
+    draw_centered_lcd_text("SCAN TO SET UP DMDCLOCK", 18, 2, accent);
+    esp_qrcode_config_t config = ESP_QRCODE_CONFIG_DEFAULT();
+    config.display_func = draw_setup_qr;
+    config.max_qrcode_version = 5;
+    config.qrcode_ecc_level = ESP_QRCODE_ECC_MED;
+    if (esp_qrcode_generate(&config, url) != ESP_OK) {
+        draw_centered_lcd_text("QR CODE COULD NOT BE GENERATED", 200, 2, text);
+    }
+    draw_centered_lcd_text(url, 424, 2, text);
+    draw_centered_lcd_text("Returns automatically after 60 seconds", 454, 1, accent);
+}
+
 static void paint_touch_test(
     const dmd_settings_t *settings,
     uint8_t target_index,
@@ -564,11 +621,19 @@ static void draw_screen_chrome(
 
     if (controls_opacity_value > 0) {
         draw_button_at(
-            10, 10, 385, 46, "NEXT PINBALL", accent, controls_opacity_value);
+            10, 10, 253, 46, "NEXT PINBALL", accent, controls_opacity_value);
         draw_button_at(
-            405, 10, 385, 46, "NEXT SCENE", accent, controls_opacity_value);
-        draw_button(10, 148, "COLOUR", accent, controls_opacity_value);
-        draw_button(168, 148, "NEXT", accent, controls_opacity_value);
+            273, 10, 253, 46, "NEXT SCENE", accent, controls_opacity_value);
+        draw_button_at(
+            536,
+            10,
+            254,
+            46,
+            settings->random_playback ? "RANDOM ON" : "RANDOM OFF",
+            accent,
+            controls_opacity_value);
+        draw_button(10, 148, "THEME", accent, controls_opacity_value);
+        draw_button(168, 148, "COLOUR", accent, controls_opacity_value);
         draw_button(
             326,
             148,
@@ -971,6 +1036,16 @@ void dmd_display_start_touch_test(void)
     xSemaphoreGive(s_state_lock);
 }
 
+void dmd_display_show_setup_qr(void)
+{
+    if (s_state_lock == NULL) {
+        return;
+    }
+    xSemaphoreTake(s_state_lock, portMAX_DELAY);
+    s_setup_qr_request_revision++;
+    xSemaphoreGive(s_state_lock);
+}
+
 void dmd_display_get_state(dmd_display_state_t *state)
 {
     if (state == NULL || s_state_lock == NULL) {
@@ -1081,7 +1156,11 @@ static bool handle_touch(
 
     if (y < 70) {
         dmd_action_execute(
-            x < 400 ? DMD_ACTION_PINBALL_NEXT : DMD_ACTION_SCENE_NEXT);
+            x < 267
+                ? DMD_ACTION_PINBALL_NEXT
+                : (x < 533
+                    ? DMD_ACTION_SCENE_NEXT
+                    : DMD_ACTION_TOGGLE_RANDOM));
     } else if (y < 390) {
         return true;
     } else if (x < 160) {
@@ -1130,6 +1209,7 @@ void dmd_display_task(void *context)
     int64_t touch_test_started_at = 0;
     int64_t touch_test_until = 0;
     int64_t touch_test_result_until = 0;
+    int64_t setup_qr_until = 0;
     bool startup_network_status_painted = false;
     bool previous_startup_network_status_visible = true;
     bool previous_touch_test_visible = false;
@@ -1139,6 +1219,8 @@ void dmd_display_task(void *context)
     uint32_t touch_test_start_events = 0;
     bool touch_test_start_events_captured = false;
     uint32_t handled_touch_test_request_revision = 0;
+    uint32_t handled_setup_qr_request_revision = 0;
+    bool previous_setup_qr_visible = false;
     bool previous_station_connected = false;
     char previous_station_ip[16] = "";
     int64_t next_scene_frame_at = 0;
@@ -1218,6 +1300,17 @@ void dmd_display_task(void *context)
             touch_test_start_events_captured = false;
             force_render = true;
         }
+        if (s_setup_qr_request_revision !=
+            handled_setup_qr_request_revision) {
+            handled_setup_qr_request_revision =
+                s_setup_qr_request_revision;
+            setup_qr_until =
+                (monotonic_now < startup_network_status_until
+                    ? startup_network_status_until
+                    : monotonic_now) +
+                SETUP_QR_VISIBLE_US;
+            force_render = true;
+        }
         xSemaphoreGive(s_state_lock);
         dmd_network_info_t network = {0};
         dmd_network_get_info(&network);
@@ -1229,6 +1322,9 @@ void dmd_display_task(void *context)
         bool touch_test_result_visible =
             monotonic_now >= touch_test_until &&
             monotonic_now < touch_test_result_until;
+        bool setup_qr_visible =
+            monotonic_now >= startup_network_status_until &&
+            monotonic_now < setup_qr_until;
         uint8_t touch_test_target = 0;
         uint8_t touch_test_countdown = 0;
         if (touch_test_visible) {
@@ -1254,7 +1350,9 @@ void dmd_display_task(void *context)
                 previous_touch_test_result_visible ||
             touch_test_target != previous_touch_test_target ||
             touch_test_countdown != previous_touch_test_countdown;
-        if (startup_network_status_changed || touch_test_changed) {
+        if (startup_network_status_changed ||
+            touch_test_changed ||
+            setup_qr_visible != previous_setup_qr_visible) {
             force_render = true;
         }
         dmd_touch_diagnostics_t touch_diagnostics = {0};
@@ -1267,6 +1365,7 @@ void dmd_display_task(void *context)
             monotonic_now < schedule_awake_until;
         bool normal_touch_controls =
             !startup_network_status_visible &&
+            !setup_qr_visible &&
             !touch_test_visible &&
             !touch_test_result_visible;
         uint16_t touch_x = 0;
@@ -1467,6 +1566,13 @@ void dmd_display_task(void *context)
                 startup_network_status_painted = true;
             }
             force_render = false;
+        } else if (setup_qr_visible) {
+            if (force_render) {
+                paint_setup_qr(&settings, &network);
+                refresh_display();
+                display_frames_rendered++;
+            }
+            force_render = false;
         } else if (touch_test_visible) {
             if (force_render) {
                 paint_touch_test(
@@ -1513,6 +1619,7 @@ void dmd_display_task(void *context)
             startup_network_status_visible;
         previous_touch_test_visible = touch_test_visible;
         previous_touch_test_result_visible = touch_test_result_visible;
+        previous_setup_qr_visible = setup_qr_visible;
         previous_touch_test_target = touch_test_target;
         previous_touch_test_countdown = touch_test_countdown;
         previous_station_connected = network.station_connected;

@@ -1,175 +1,102 @@
 # DMDClock for Windows and ESP32-S3
 
-DMDClock is a Windows x64 clock and animation player for classic DotClk `.scn`
-scenes. It recreates a scalable 128×32, four-bit dot-matrix display with clocks,
-dates, original scene timing, masks, metadata, configurable colors, and an optional
-Windows screensaver. This repository also contains native ESP-IDF firmware for
-the original 800×480 Waveshare ESP32-S3-Touch-LCD-7.
+DMDClock recreates the classic DotClk clock and animation display on Windows and
+the original 800x480 Waveshare ESP32-S3-Touch-LCD-7. Choose your platform below;
+no developer tools are needed for either user installation.
 
-> ☕ Enjoying DMDClock? If it brings a little color or nostalgia to your day, you
-> can [buy me a coffee](https://buymeacoffee.com/drwize). Your support helps me
-> keep improving DMDClock and creating more projects like it—thank you!
->
-> **Looking for the latest version?**
-> [Download the latest DMDClock release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest).
+> **Download:** [latest DMDClock release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest)
 
-![DMDClock using the Neon sunset theme](docs/screenshots/colors/neon-sunset.png)
+## Choose your installation
 
-## Start here
+| Windows | ESP32-S3 |
+| --- | --- |
+| ![DMDClock running on Windows](docs/screenshots/install/windows-clock.png) | ![ESP32 web remote shown in the QEMU validation profile](docs/screenshots/install/esp32-web-remote.png) |
+| Install the app and optional Windows screensaver. | Flash the supported Waveshare board and prepare its TF card. |
+| **[Windows installation guide](docs/INSTALL-WINDOWS.md)** | **[ESP32-S3 installation guide](docs/INSTALL-ESP32.md)** |
 
-- **Installing on Windows?** Follow the
-  [Windows installation workflow](docs/INSTALL-WINDOWS.md).
-- **Installing the ESP32 and SD card?** Follow the
-  [ESP32-S3 installation workflow](docs/INSTALL-ESP32.md).
-- **Want the full Windows walkthrough?** Follow the
-  [complete user setup guide](docs/USER-SETUP.md).
-- **Want to understand every option?** Open the
-  [settings reference](docs/SETTINGS.md).
-- **Want to build or contribute?** Use the setup, scripts, and active roadmap in
-  [TODO.md](TODO.md).
+### Windows installation
 
-## Current status
-Main features:
-
-- classic 128×32, four-bit DotClk `.scn` playback;
-- storyboard timing, blanking, transparency masks, and clock layers;
-- automatic clock/animation cycles with sequential or random playback;
-- 12/24-hour time, optional seconds, and four date formats;
-- embedded ALTERN8, FISHY, TREK, and TWILIGHT clock/date fonts;
-- user-installed `.ttf` and `.otf` support;
-- classic, gradient, and C64-inspired DMD color themes;
-- recursive scene libraries, incremental rescanning, and optional metadata;
-- a Windows in-app downloader and an idempotent PowerShell SD-card preparation
-  script for the separately stored original DotClk scene pack;
-- a Windows Scene Reviewer with configurable rows and columns, game controls, and
-  per-scene Allowed, Disallowed, and Unreviewed decisions;
-- allow-all first-run playback, with whole games or individual bad scenes removable
-  from the shared selection;
-- one shared playback selection for the normal application and screensaver;
-- keyboard controls, persistent settings, fullscreen, and screensaver modes;
-- structured logs and SCN compatibility reports.
-
-Animations are not embedded in the Windows package or production ESP32
-firmware. Windows can download the original DotClk scene pack in-app; ESP32
-users can prepare an SD card with `scripts/esp32/Prepare-DmdClockSdCard.ps1`.
-You can also supply your own `.scn` files.
-
-## Quick user start
-
-1. Download the latest `DMDClock-*-win-x64-setup.exe` from the
+1. Download `DMDClock-*-win-x64-setup.exe` from the
    [latest release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest).
-2. Run the installer and keep the default per-user directory.
+2. Run the installer and keep the default per-user installation folder.
 3. Start DMDClock from the Start Menu.
-4. Right-click and choose **Download DotClk scenes…**, or press `Ctrl+Shift+O`
-   to select an existing `.scn` folder.
-5. Choose **Review and choose scenes…** or press `Ctrl+Shift+R`. Everything starts
-   Allowed; disable a game or right-click only scenes you do not want.
-6. Right-click the display to configure the clock, scenes, and appearance.
+4. Right-click the display to download or select a scene library, review scenes,
+   and change clock and appearance settings.
 
-See [DMDClock user setup](docs/USER-SETUP.md) for screenshots, screensaver
-installation, upgrades, and troubleshooting.
+The installer includes the required .NET runtime. See the
+[Windows installation guide](docs/INSTALL-WINDOWS.md) for upgrades, portable
+packages, screensaver setup, and troubleshooting.
 
-![DMDClock Scene Reviewer with live allowed scenes and bulk controls](docs/screenshots/setup/scene-reviewer.png)
+![Current Windows settings menu](docs/screenshots/setup/settings-menu.png)
 
-## Build from source
+### ESP32-S3 installation
 
-Requirements:
+The firmware currently targets only the original **Waveshare ESP32-S3-Touch-LCD-7,
+800x480, N16R8**. It is not a firmware image for the later 7B board.
 
-- Windows 10 or Windows 11 x64
-- .NET 10 SDK
-- PowerShell 7 recommended
+1. Download or clone this repository on a Windows PC.
+2. Connect the board through its `UART` USB-C port.
+3. Run the documented PowerShell doctor and flash scripts.
+4. Connect it to a 2.4 GHz Wi-Fi network and open the local web remote.
+5. Prepare a FAT32 TF card if you want to use the original DotClk scene library.
 
-For a complete local workflow—including Debug runs, the reviewer, tests, release
-packages, the installer, and Git—see the
-[local development guide](docs/DEVELOPMENT.md).
+The [ESP32-S3 installation guide](docs/INSTALL-ESP32.md) gives the exact commands,
+first-boot flow, SD-card layout, recovery steps, and security notes.
 
-```powershell
-dotnet restore DMDClock.sln
-dotnet test DMDClock.sln -c Release
-.\scripts\Build.ps1 -NoStart
-```
+## What is included
 
-The build script creates regular self-contained and standalone single-file Windows
-packages:
+### Windows
 
-```text
-output\current\win-x64\
-output\current\win-x64\DMDClock-<version>-build<build-number>-win-x64-portable.zip
-output\current\win-x64-standalone\
-output\current\win-x64-standalone\DMDClock-<version>-build<build-number>-win-x64-standalone.zip
-output\current\win-x64-installer\DMDClock-<version>-build<build-number>-win-x64-setup.exe
-```
+- 128x32 four-bit DotClk `.scn` playback with clock, date, masks, and original timing
+- automatic, sequential, or random playback and a shared Scene Reviewer selection
+- classic, gradient, plasma, raster, and C64-inspired colour themes
+- normal application, fullscreen mode, and optional Windows screensaver
+- persistent settings, structured logs, and SCN compatibility reports
 
-It also archives the previous builds, runs the SCN compatibility scan, creates
-checksums, and retains the configured number of archives. Read the
-[development TODO](TODO.md) before running release scripts because their inputs,
-outputs, and side effects are documented there.
+### ESP32-S3
 
-## Optional original resources
+- native ESP-IDF firmware for the supported 800x480 Waveshare board
+- clock, date, SCN playback from TF card, touch controls, and web remote
+- Basic, Gradient, Raster, and Plasma themes
+- Wi-Fi/NTP, MQTT and Home Assistant discovery, diagnostics, and recovery access point
+- local settings backup on the TF card with NVS fallback
 
-The application builds and runs without the original DotClk repositories.
-Developers can download reference sources and local test resources into the
-Git-ignored `external` directory:
+Original `.scn` animations are not included in Windows packages or production
+firmware. Windows can download the original DotClk scene pack in the app; ESP32
+users can prepare a card with the supplied script. You may also use your own
+compatible `.scn` files.
 
-```powershell
-.\scripts\Get-OriginalResources.ps1
-```
+## User data and privacy
 
-See [source references](docs/SOURCES.md) for available resource selections,
-provenance, and update safety.
+Windows settings, the library index, scene decisions, and logs are stored under
+`%LOCALAPPDATA%\DmdClock\`. Scene files remain outside the executable. Normal
+playback and the Scene Reviewer run locally and do not send scene or preference
+data to an AI service.
 
-## Runtime data
+ESP32 Wi-Fi credentials are stored locally on the device. Its web remote is HTTP
+on the local network and has no login, so use it only on a trusted LAN. The setup
+guides explain storage, backup, and recovery in more detail.
 
-Preferences, the library index, and logs are stored under:
+## Guides
 
-```text
-%LOCALAPPDATA%\DmdClock\
-```
-
-Translations remain external under `i18n`; optional OpenType fonts remain under
-`fonts`; downloaded scenes remain outside the executable. The verified baseline
-`scenes\scene-metadata.json` is included in every package, while review decisions
-are stored in `%LOCALAPPDATA%\DmdClock\library-selections.json`. The normal app and
-screensaver use the same selection file. The four DotClk clock fonts are embedded.
-
-## Documentation
-
-- [Simple user setup](docs/USER-SETUP.md)
-- [Install on Windows](docs/INSTALL-WINDOWS.md)
-- [Install the ESP32-S3 and SD card](docs/INSTALL-ESP32.md)
+- [Windows installation](docs/INSTALL-WINDOWS.md)
+- [Complete Windows user setup](docs/USER-SETUP.md)
+- [ESP32-S3 installation and TF-card setup](docs/INSTALL-ESP32.md)
 - [Settings reference](docs/SETTINGS.md)
-- [Local development without ChatGPT](docs/DEVELOPMENT.md)
-- [Standalone installer and roadmap](docs/INSTALLER.md)
-- [Development setup and roadmap](TODO.md)
-- [SCN format](docs/SCN-FORMAT.md)
-- [DotClk font format](docs/DOTCLK-FNT-FORMAT.md)
-- [Scene metadata](docs/SCENE-METADATA.md)
-- [Source references](docs/SOURCES.md)
-- [C64 raster themes](docs/C64-RASTER-THEMES.md)
 - [ESP32-S3 roadmap](docs/ESP32-S3-ROADMAP.md)
-- [ESP32-S3 firmware setup](firmware/dmdclock-esp32/README.md)
-- [Future DMD Extensions work](docs/FUTURE-DMD-EXTENSIONS.md)
 
-## Project scope
+## Development
 
-Active development covers the Windows application and the original 800×480
-Waveshare ESP32-S3-Touch-LCD-7. Both target the classic monochrome DotClk
-128×32 content model. Serum, cRom, full-colour scene formats, larger displays,
-Raspberry Pi, external physical DMD output, and DMD Extensions integration are
-deferred. Audio is outside the project scope.
+Build commands, tests, release packaging, firmware workflows, and Git guidance
+have moved to the [developer guide](docs/DEVELOPMENT.md). The active backlog is in
+[TODO.md](TODO.md). After v1.3.0 manual release validation, the next visual feature
+is the optional **Hot-core glow** dot style.
 
-## Font and resource notes
+## Acknowledgements
 
-Inter is distributed under the SIL Open Font License 1.1; see
-[`assets/fonts/Inter/OFL-1.1.txt`](assets/fonts/Inter/OFL-1.1.txt).
+DMDClock is inspired by sigmafx's original DotClk work. Source provenance and
+reference links are recorded in [docs/SOURCES.md](docs/SOURCES.md), with resource
+hashes in [assets/fonts/README.md](assets/fonts/README.md).
 
-The embedded `ALTERN8.fnt`, `FISHY.fnt`, `TREK.fnt`, and `TWILIGHT.fnt` files come
-from sigmafx's original
-[DotClk-Resources repository](https://github.com/sigmafx/DotClk-Resources), source
-commit `11211af85a2ade66d05d961839773a05a01bddcc`. They are intentionally kept
-inside DMDClock for now so the original clock faces work without another download.
-The upstream repository has no explicit license file, so this temporary inclusion
-is not a claim of open-source or redistribution rights. Exact hashes are recorded
-in [`assets/fonts/README.md`](assets/fonts/README.md).
-requests contact for commercial use. Users can install their own compatible
-`.ttf`/`.otf` files locally.
+If DMDClock brings a little colour or nostalgia to your day, you can
+[buy me a coffee](https://buymeacoffee.com/drwize).

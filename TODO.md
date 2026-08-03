@@ -34,6 +34,8 @@ Final user-facing release pass:
       lack of web login/HTTPS, release links, and compatible enclosure links.
 - [x] Recover a stale TF-card SPI state with three bounded enable/settle mount
       attempts; verify the live card remounts and all 2,324 scenes return.
+- [x] Keep font-licensing research outside the release gates; retain source
+      attribution and recorded hashes without making it part of this release work.
 
 The application, Windows screensaver, portable ZIP, standalone single-file ZIP,
 per-user installer, shared scene selection, and live Scene Reviewer are functional.
@@ -43,9 +45,10 @@ and compatibility reporting.
 
 The interactive installer and an in-place upgrade from an older installer build
 are verified, including clean Windows 10 and 11 systems without an installed .NET
-runtime. Remaining release work is read-only-directory testing, translation
-fallback behavior, SmartScreen/antivirus review, and confirmation that the
-original DotClk fonts can be redistributed publicly.
+runtime. Remaining release work is read-only-directory testing, manual validation
+of translation fallback behavior, a fresh v1.3.0 build plus the manual Windows
+checklist. SmartScreen/antivirus reputation testing is intentionally skipped because
+this hobby release will not use a paid code-signing service.
 
 ## End-user setup — no source code or SDK required
 
@@ -464,8 +467,9 @@ Before calling a build release-ready:
 - [ ] Verify settings and the library index are written only to AppData
 - [ ] Run from a read-only installation directory
 - [ ] Confirm `SHA256SUMS.txt` matches both standalone binaries
-- [ ] Check startup time, temporary native extraction, package size, SmartScreen,
-      and antivirus results
+- [ ] Check startup time, temporary native extraction, and package size
+- [x] Skip SmartScreen and antivirus release testing; paid signing, reputation,
+      and third-party scanning services are not justified for this hobby project
 
 Screensaver checks:
 
@@ -496,14 +500,9 @@ A completed item must include:
 
 ### Priority 1 — release validation and robustness
 
-- [ ] Provide an English built-in translation fallback and a clear warning when
-      external translations are missing or invalid
 - [ ] Ensure startup and normal operation never require write access beside the executable
-- [ ] Complete every item in the manual Windows test checklist above
-- [ ] Confirm redistribution terms for ALTERN8, FISHY, TREK, and TWILIGHT before
-      publishing a public binary release; until then, keep the files embedded with
-      their sigmafx source, source commit, hashes, and unresolved license status documented
-- [ ] Verify SmartScreen and antivirus behavior for both EXE and SCR
+- [ ] Rebuild v1.3.0 from the current source, then complete every item in the
+      manual Windows test checklist above
 - [ ] Consider trimming only after the untrimmed standalone build passes all release tests
 
 Acceptance criteria:
@@ -512,6 +511,31 @@ Acceptance criteria:
 - the screensaver works in `/s`, `/c`, installed, and Control Panel preview modes;
 - missing optional scenes/fonts and missing or invalid translations do not crash startup;
 - all writable data stays under `%LOCALAPPDATA%\DmdClock`.
+
+### Next visual feature after v1.3.0 validation — Hot-core glow
+
+- [ ] Add an optional Hot-core dot style to Windows and ESP32-S3 after the owner
+      completes the v1.3.0 manual Windows checklist.
+- [ ] Render three controlled layers: a small warm yellow-white core, the selected
+      saturated dot colour, and a soft colour-matched halo that ends before the
+      midpoint between neighbouring dots.
+- [ ] Keep all 16 intensity levels monotonic. Dim dots must not receive the same
+      white core as fully lit dots, and an all-dots-on frame must retain black
+      separation between every dot.
+- [ ] Cache radial-gradient brushes by theme, intensity, scale, and glow strength
+      on Windows instead of rebuilding them per dot or frame.
+- [ ] Use a precomputed three-ring kernel or small lookup table on ESP32-S3; avoid
+      per-pixel square roots and retain the existing lightweight glow as fallback.
+- [ ] Measure the worst-case all-dots frame, Plasma, and SCN playback. Keep the
+      30 FPS frame budget, touch/web responsiveness, and useful CPU, PSRAM, and
+      dropped-frame diagnostics.
+
+Acceptance criteria:
+
+- the bright core adds a convincing hot LED centre without making dots look white;
+- the halo never bridges adjacent dots or hides the black DMD grid;
+- glow strength can be reduced to zero without changing the selected base colour;
+- Windows and ESP32-S3 use the same named settings and comparable visual intent.
 
 ### Priority 2 — VS Code development setup
 
@@ -708,9 +732,6 @@ Detailed status, commands, and acceptance criteria:
 
 - [ ] Scrolling C64-inspired palettes/raster bars with direction, speed, and disable controls
 - [ ] Selectable dot shape, spacing, and glow strength
-- [ ] Add an optional **Hot-core glow** dot style: a bright yellow-white centre
-      with a soft colour-matched radial halo, while keeping adjacent dots sharply
-      separated
 - [ ] Per-manufacturer or per-game color palettes
 - [ ] Pixel-perfect integer scaling when the available display size permits it
 
@@ -908,14 +929,20 @@ Detailed status, commands, and acceptance criteria:
       warning thresholds only after a safe baseline is measured on the real board
 - [ ] State clearly that ambient temperature, supply voltage, current, and power
       consumption require external sensor hardware and are unavailable by default
-- [ ] Add optional Home Assistant support through local MQTT device discovery,
-      birth/LWT availability, and broker credentials stored in NVS
+- [x] Add the first optional Home Assistant track through local MQTT discovery,
+      birth/LWT availability, and broker credentials mirrored in NVS and the SD
+      settings backup; keep it disabled by default
+- [x] Add a credential-free on-screen QR shortcut to the current local device
+      web address; MQTT discovery itself does not use QR pairing
 - [ ] Expose Home Assistant controls for display power, brightness, fixed color,
       mode, playlist, next/previous scene, NTP sync, and temporary DMD text
       notifications
 - [ ] Expose Home Assistant diagnostic sensors for CPU, memory, frame rate,
       dropped frames, Wi-Fi, time sync, current scene, firmware, uptime, and
       TF-card capacity
+- [x] Expose the initial display power, brightness, next pinball, next scene,
+      NTP sync, current scene, firmware, uptime, RSSI, approximate chip
+      temperature, heap, SD free/present, and time-sync entities
 - [ ] Ensure broker or Home Assistant failure never stops standalone clock,
       touchscreen, SCN playback, web settings, or local logging
 - [ ] Later project: evaluate TTF/OTF font support on ESP32-S3 only after the
@@ -955,6 +982,12 @@ release criteria are complete:
 
 Completed items are retained here as the project history.
 
+- [x] Embed the complete English translation as the guaranteed fallback, overlay
+      valid external English and selected-language files, and log a clear warning
+      when an external translation is missing, unreadable, or invalid
+- [x] Decide that SmartScreen and antivirus release testing is not a release gate;
+      do not purchase signing, reputation, or third-party scanning services for
+      this hobby project
 - [x] Add a safe in-app DotClk scene-pack downloader with progress, cancellation,
       atomic installation, AppData storage, automatic selection, and rescanning
 ### Next prioritized work — Priority 1 — play a selected SCN file

@@ -77,6 +77,10 @@ esp_err_t dmd_action_execute(dmd_action_t action)
         dmd_display_start_touch_test();
         return ESP_OK;
     }
+    if (action == DMD_ACTION_SETUP_QR) {
+        dmd_display_show_setup_qr();
+        return ESP_OK;
+    }
     if (action == DMD_ACTION_REBOOT) {
         return xTaskCreate(
                    delayed_reboot_task,
@@ -130,6 +134,9 @@ esp_err_t dmd_action_execute(dmd_action_t action)
         }
         settings.scene_index = dmd_scene_next_in_game(current_scene);
         settings.play_scene = true;
+        break;
+    case DMD_ACTION_TOGGLE_RANDOM:
+        settings.random_playback = !settings.random_playback;
         break;
     default:
         return ESP_ERR_INVALID_ARG;

@@ -184,10 +184,12 @@ fullscreen. The DMD remains centered and keeps its 4:1 aspect ratio.
 
 ## Language
 
-Select English or Swedish. Translation files are loaded from `i18n` beside the
-executable. English is the default.
+Select English or Swedish. A complete English translation is embedded in the
+application as the default and guaranteed fallback. Translation files in `i18n`
+beside the executable override the embedded English strings.
 
-If menu labels appear as internal keys, restore the `i18n` folder from the ZIP.
+If an external translation is missing, unreadable, or invalid, DMDClock records a
+warning in `%LOCALAPPDATA%\DmdClock\logs\dmdclock.log` and continues in English.
 
 ## Help and exit
 

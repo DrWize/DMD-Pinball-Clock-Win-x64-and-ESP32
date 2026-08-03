@@ -72,6 +72,12 @@ static void set_defaults(void)
         DMD_BOOTSTRAP_WIFI_PASSWORD,
         sizeof(s_settings.wifi_password));
     s_settings.lan_only_web = true;
+    s_settings.mqtt_enabled = false;
+    s_settings.mqtt_port = 1883;
+    strlcpy(
+        s_settings.mqtt_discovery_prefix,
+        "homeassistant",
+        sizeof(s_settings.mqtt_discovery_prefix));
     s_settings.revision = 1;
 }
 
@@ -176,6 +182,9 @@ esp_err_t dmd_settings_init(void)
     if (nvs_get_u8(handle, "lan_web", &value) == ESP_OK) {
         s_settings.lan_only_web = value != 0;
     }
+    if (nvs_get_u8(handle, "mqtt_en", &value) == ESP_OK) {
+        s_settings.mqtt_enabled = value != 0;
+    }
     if (nvs_get_u8(handle, "sched_on", &value) == ESP_OK) {
         s_settings.screen_schedule_enabled = value != 0;
     }
@@ -255,6 +264,9 @@ esp_err_t dmd_settings_init(void)
     if (nvs_get_u16(handle, "anim_gap", &word) == ESP_OK) {
         s_settings.animation_gap_seconds = word <= 3600 ? word : 0;
     }
+    if (nvs_get_u16(handle, "mqtt_port", &word) == ESP_OK) {
+        s_settings.mqtt_port = word;
+    }
     if (nvs_get_u16(handle, "plasma_ms", &word) == ESP_OK) {
         s_settings.plasma_cycle_ms =
             word >= DMD_PLASMA_CYCLE_MIN_MS &&
@@ -289,6 +301,14 @@ esp_err_t dmd_settings_init(void)
     load_string(handle, "timezone", s_settings.timezone, sizeof(s_settings.timezone));
     load_string(handle, "wifi_ssid", s_settings.wifi_ssid, sizeof(s_settings.wifi_ssid));
     load_string(handle, "wifi_pass", s_settings.wifi_password, sizeof(s_settings.wifi_password));
+    load_string(handle, "mqtt_host", s_settings.mqtt_host, sizeof(s_settings.mqtt_host));
+    load_string(handle, "mqtt_user", s_settings.mqtt_username, sizeof(s_settings.mqtt_username));
+    load_string(handle, "mqtt_pass", s_settings.mqtt_password, sizeof(s_settings.mqtt_password));
+    load_string(
+        handle,
+        "mqtt_disc",
+        s_settings.mqtt_discovery_prefix,
+        sizeof(s_settings.mqtt_discovery_prefix));
     nvs_close(handle);
 
     return finalize_settings_init();
@@ -365,6 +385,19 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
     normalized.timezone[DMD_TIMEZONE_MAX - 1] = '\0';
     normalized.wifi_ssid[DMD_WIFI_SSID_MAX] = '\0';
     normalized.wifi_password[DMD_WIFI_PASSWORD_MAX] = '\0';
+    normalized.mqtt_host[DMD_MQTT_HOST_MAX] = '\0';
+    normalized.mqtt_username[DMD_MQTT_USERNAME_MAX] = '\0';
+    normalized.mqtt_password[DMD_MQTT_PASSWORD_MAX] = '\0';
+    normalized.mqtt_discovery_prefix[DMD_MQTT_DISCOVERY_PREFIX_MAX] = '\0';
+    if (normalized.mqtt_port == 0) {
+        normalized.mqtt_port = 1883;
+    }
+    if (normalized.mqtt_discovery_prefix[0] == '\0') {
+        strlcpy(
+            normalized.mqtt_discovery_prefix,
+            "homeassistant",
+            sizeof(normalized.mqtt_discovery_prefix));
+    }
 
     xSemaphoreTake(s_lock, portMAX_DELAY);
     normalized.revision = s_settings.revision + 1;
@@ -407,6 +440,8 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
         (error = nvs_set_u8(handle, "seconds", normalized.show_seconds)) == ESP_OK &&
         (error = nvs_set_u8(handle, "display", normalized.display_on)) == ESP_OK &&
         (error = nvs_set_u8(handle, "lan_web", normalized.lan_only_web)) == ESP_OK &&
+        (error = nvs_set_u8(handle, "mqtt_en", normalized.mqtt_enabled)) == ESP_OK &&
+        (error = nvs_set_u16(handle, "mqtt_port", normalized.mqtt_port)) == ESP_OK &&
         (error = nvs_set_u8(
             handle,
             "sched_on",
@@ -456,7 +491,14 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
         (error = nvs_set_u8(handle, "color", normalized.color_preset)) == ESP_OK &&
         (error = nvs_set_str(handle, "timezone", normalized.timezone)) == ESP_OK &&
         (error = nvs_set_str(handle, "wifi_ssid", normalized.wifi_ssid)) == ESP_OK &&
-        (error = nvs_set_str(handle, "wifi_pass", normalized.wifi_password)) == ESP_OK) {
+        (error = nvs_set_str(handle, "wifi_pass", normalized.wifi_password)) == ESP_OK &&
+        (error = nvs_set_str(handle, "mqtt_host", normalized.mqtt_host)) == ESP_OK &&
+        (error = nvs_set_str(handle, "mqtt_user", normalized.mqtt_username)) == ESP_OK &&
+        (error = nvs_set_str(handle, "mqtt_pass", normalized.mqtt_password)) == ESP_OK &&
+        (error = nvs_set_str(
+            handle,
+            "mqtt_disc",
+            normalized.mqtt_discovery_prefix)) == ESP_OK) {
         error = nvs_commit(handle);
     }
     nvs_close(handle);

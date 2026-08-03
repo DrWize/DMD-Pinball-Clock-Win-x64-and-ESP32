@@ -4,13 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#110700">
+  <link rel="icon" href="/favicon.ico" sizes="any">
   <title>DMDClock Remote</title>
   <style>
     :root{color-scheme:dark;--orange:#ff700e;--amber:#ffad42;--ink:#fff4e8;--muted:#bca998;--panel:#1b1009;--line:#3d2414}
     *{box-sizing:border-box}
     body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% -20%,#4b2009 0,#160b05 42%,#080503 100%);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
     main{width:min(720px,100%);margin:auto;padding:28px 18px 56px}
-    header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}
+    header{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:18px}
+    .brand{display:flex;align-items:center;gap:13px;min-width:0}
+    .brand-icon{width:72px;height:72px;flex:none;object-fit:contain;filter:drop-shadow(0 8px 16px #0008)}
+    .brand-copy{min-width:0}
     h1{font-size:clamp(1.55rem,5vw,2.3rem);line-height:1;margin:0;letter-spacing:-.04em}
     .eyebrow{color:var(--orange);font-size:.72rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;margin-bottom:10px}
     .status{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:.78rem;white-space:nowrap}
@@ -111,13 +115,16 @@
     code{color:#ffd0a9}
     .color-stops{display:flex;gap:8px;flex-wrap:wrap}
     @keyframes plasmaShift{to{background-position:300% 50%}}
-    @media(max-width:560px){header{display:block}.status{margin-top:14px}.fields{grid-template-columns:1fr}.row{gap:10px}.display{padding:25px 6px}.quick-actions{grid-template-columns:1fr 1fr}.theme-family{grid-template-columns:1fr 1fr}.theme-grid{grid-template-columns:1fr}.scene-picker{width:min(100%,58vw)}.scene-details{grid-template-columns:1fr 1fr}.device-health{grid-template-columns:1fr 1fr}}
+    @media(max-width:560px){header{display:block}.brand-icon{width:58px;height:58px}.status{margin:10px 0 0 71px}.fields{grid-template-columns:1fr}.row{gap:10px}.display{padding:25px 6px}.quick-actions{grid-template-columns:1fr 1fr}.theme-family{grid-template-columns:1fr 1fr}.theme-grid{grid-template-columns:1fr}.scene-picker{width:min(100%,58vw)}.scene-details{grid-template-columns:1fr 1fr}.device-health{grid-template-columns:1fr 1fr}}
   </style>
 </head>
 <body>
   <main>
     <header>
-      <div><div class="eyebrow">ESP32-S3 · Basic · Gradient · Raster</div><h1 id="deviceName">DMDClock Remote</h1></div>
+      <div class="brand">
+        <img class="brand-icon" src="/favicon.ico" alt="">
+        <div class="brand-copy"><div class="eyebrow">ESP32-S3 · Basic · Gradient · Raster</div><h1 id="deviceName">DMDClock Remote</h1></div>
+      </div>
       <div class="status"><span id="statusDot" class="status-dot"></span><span id="statusText">Connecting…</span></div>
     </header>
 
@@ -415,6 +422,44 @@
       <div id="network" class="network"></div>
     </section>
 
+    <section class="panel">
+      <h2>Home Assistant and MQTT</h2>
+      <p class="hint">Optional local integration using Home Assistant MQTT discovery. DMDClock keeps running normally if Home Assistant or the broker is unavailable.</p>
+      <div class="row">
+        <label for="mqttEnabled">Enable MQTT discovery
+          <small>Requires a broker reachable on the home Wi-Fi network.</small>
+        </label>
+        <label class="switch"><input id="mqttEnabled" type="checkbox"><span></span></label>
+      </div>
+      <div class="fields" style="margin-top:14px">
+        <div class="field">
+          <label for="mqttHost">Broker host or IP</label>
+          <input id="mqttHost" type="text" maxlength="253" autocomplete="off" placeholder="homeassistant.local">
+        </div>
+        <div class="field">
+          <label for="mqttPort">Broker port</label>
+          <input id="mqttPort" type="number" min="1" max="65535" value="1883">
+        </div>
+        <div class="field">
+          <label for="mqttUsername">MQTT username</label>
+          <input id="mqttUsername" type="text" maxlength="64" autocomplete="off" placeholder="Optional">
+        </div>
+        <div class="field">
+          <label for="mqttPassword">MQTT password</label>
+          <input id="mqttPassword" type="password" maxlength="64" autocomplete="new-password" placeholder="Leave blank to keep saved password">
+        </div>
+        <div class="field">
+          <label for="mqttDiscoveryPrefix">Discovery prefix</label>
+          <input id="mqttDiscoveryPrefix" type="text" maxlength="64" value="homeassistant">
+        </div>
+      </div>
+      <div class="inline-actions">
+        <span id="mqttStatus" class="hint">MQTT is disabled.</span>
+        <button class="secondary" type="button" data-action="setupQr">Show setup QR on screen</button>
+      </div>
+      <p class="security-note">The SD settings backup contains MQTT credentials in plain text. The web API never returns the saved MQTT password.</p>
+    </section>
+
     <footer>
       <div class="runtime">
         <span id="buildNumber">Build …</span>
@@ -432,6 +477,7 @@
         <div class="health-item"><strong>Rendering</strong><span id="healthRendering">…</span></div>
         <div class="health-item"><strong>Touch</strong><span id="healthTouch">…</span></div>
         <div class="health-item"><strong>Settings backup</strong><span id="healthSettings">…</span></div>
+        <div class="health-item"><strong>MQTT</strong><span id="healthMqtt">…</span></div>
       </div>
       Source code, documentation and releases:
       <a href="/api-docs">Device API reference</a>
@@ -991,6 +1037,11 @@
         $("timezone").value=state.timezone;
         $("wifiSsid").value=state.wifiSsid;
         $("lanOnlyWeb").checked=state.lanOnlyWeb!==false;
+        $("mqttEnabled").checked=state.mqttEnabled===true;
+        $("mqttHost").value=state.mqttHost||"";
+        $("mqttPort").value=String(state.mqttPort||1883);
+        $("mqttUsername").value=state.mqttUsername||"";
+        $("mqttDiscoveryPrefix").value=state.mqttDiscoveryPrefix||"homeassistant";
         loaded=true;
       }
       $("webSecurityStatus").textContent=state.lanOnlyWeb!==false
@@ -1019,6 +1070,15 @@
         ?`ready · events ${state.touchEventCount} · last ${state.touchEventCount?`${state.touchLastX},${state.touchLastY}`:"none"} · status 0x${Number(state.touchLastStatus||0).toString(16).padStart(2,"0")} · INT ${state.touchInterruptLevel} · I²C errors ${state.touchReadErrorCount}`
         :"not detected / QEMU";
       $("network").innerHTML=`Device name: <strong>${deviceName}</strong><br>Device network: <strong>${state.accessPointSsid}</strong> · <code>http://${state.accessPointIp}/</code><br>${home}<br>${ntp}<br>Touch controller: ${touch}.`;
+      const mqttText=!state.mqttEnabled
+        ?"disabled"
+        :(!state.mqttConfigured
+          ?"enabled, broker host required"
+          :(state.mqttConnected
+            ?`connected to ${state.mqttHost}:${state.mqttPort}`
+            :`waiting for ${state.mqttHost}:${state.mqttPort}`));
+      $("mqttStatus").textContent=`MQTT ${mqttText}. Commands ${state.mqttCommandCount||0} · errors ${state.mqttErrorCount||0}.`;
+      $("healthMqtt").textContent=mqttText;
       if(!state.timeValid)syncTime(true);
     }
     async function refresh(){
@@ -1211,15 +1271,22 @@
         animationGapSeconds:Number($("animationGapSeconds").value),
         timezone:$("timezone").value,
         wifiSsid:$("wifiSsid").value.trim(),
-        lanOnlyWeb:$("lanOnlyWeb").checked
+        lanOnlyWeb:$("lanOnlyWeb").checked,
+        mqttEnabled:$("mqttEnabled").checked,
+        mqttHost:$("mqttHost").value.trim(),
+        mqttPort:Number($("mqttPort").value),
+        mqttUsername:$("mqttUsername").value.trim(),
+        mqttDiscoveryPrefix:$("mqttDiscoveryPrefix").value.trim()
       };
       if(!body.lanOnlyWeb&&!confirm(
         "Turn off LAN-only protection? The remote has no login or HTTPS and could be exposed by your router or firewall."
       ))return;
       if($("wifiPassword").value)body.wifiPassword=$("wifiPassword").value;
+      if($("mqttPassword").value)body.mqttPassword=$("mqttPassword").value;
       try{
         const result=await request("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
         $("wifiPassword").value="";
+        $("mqttPassword").value="";
         message(result.wifiReconnecting?"Saved. Home Wi-Fi is reconnecting…":"Changes saved.");
         setTimeout(refresh,500);
       }catch(error){message(error.message,true)}

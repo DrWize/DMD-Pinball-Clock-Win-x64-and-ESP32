@@ -37,6 +37,3 @@ origin and unchanged file hashes are recorded below.
 | `TREK.fnt` | `1EBDE4F395170AAC2F73A2C4E3CE64D03392B0C5C4BE8569C8CEEA390F260360` |
 | `TWILIGHT.fnt` | `3BEFF77C0283B38FED4506AEC0225CA7CA53259E12AB1672A79A5C3CC1BE52BC` |
 
-## Pinball by Fontalicious
-
-The Pinball OpenType family (Pinball, Galaxy, Scrambler, Scrambler II and Wizard) was downloaded separately for evaluation from https://www.fontalicious.com/fonts/pinball. The source page describes it as a free download but asks users to contact Fontalicious for commercial use. These `.otf` files are not bundled or redistributed until their applicable rights have been confirmed.

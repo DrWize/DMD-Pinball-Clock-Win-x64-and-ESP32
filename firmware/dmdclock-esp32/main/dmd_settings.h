@@ -10,6 +10,10 @@
 
 #define DMD_WIFI_SSID_MAX 32
 #define DMD_WIFI_PASSWORD_MAX 64
+#define DMD_MQTT_HOST_MAX 253
+#define DMD_MQTT_USERNAME_MAX 64
+#define DMD_MQTT_PASSWORD_MAX 64
+#define DMD_MQTT_DISCOVERY_PREFIX_MAX 64
 #define DMD_TIMEZONE_MAX 64
 #define DMD_SCHEDULE_DAY_COUNT 7
 #define DMD_SCHEDULE_HOUR_COUNT 24
@@ -59,6 +63,12 @@ typedef struct {
     char wifi_ssid[DMD_WIFI_SSID_MAX + 1];
     char wifi_password[DMD_WIFI_PASSWORD_MAX + 1];
     bool lan_only_web;
+    bool mqtt_enabled;
+    char mqtt_host[DMD_MQTT_HOST_MAX + 1];
+    uint16_t mqtt_port;
+    char mqtt_username[DMD_MQTT_USERNAME_MAX + 1];
+    char mqtt_password[DMD_MQTT_PASSWORD_MAX + 1];
+    char mqtt_discovery_prefix[DMD_MQTT_DISCOVERY_PREFIX_MAX + 1];
     uint32_t revision;
 } dmd_settings_t;
 

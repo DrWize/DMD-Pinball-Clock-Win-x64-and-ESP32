@@ -11,6 +11,7 @@
 #include "dmd_board.h"
 #include "dmd_display.h"
 #include "dmd_diagnostics.h"
+#include "dmd_mqtt.h"
 #include "dmd_network.h"
 #include "dmd_playback_log.h"
 #include "dmd_scene.h"
@@ -112,6 +113,8 @@ extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 extern const uint8_t api_html_start[] asm("_binary_api_html_start");
 extern const uint8_t api_html_end[] asm("_binary_api_html_end");
+extern const uint8_t dmdclock_ico_start[] asm("_binary_dmdclock_ico_start");
+extern const uint8_t dmdclock_ico_end[] asm("_binary_dmdclock_ico_end");
 
 static esp_err_t send_json(httpd_req_t *request, cJSON *json)
 {
@@ -217,6 +220,8 @@ static esp_err_t state_get(httpd_req_t *request)
     dmd_board_get_touch_diagnostics(&touch);
     dmd_diagnostics_t diagnostics;
     dmd_diagnostics_get(&diagnostics);
+    dmd_mqtt_info_t mqtt;
+    dmd_mqtt_get_info(&mqtt);
     const esp_app_desc_t *app = esp_app_get_description();
     uint64_t uptime_seconds =
         (uint64_t)(esp_timer_get_time() / 1000000);
@@ -394,6 +399,23 @@ static esp_err_t state_get(httpd_req_t *request)
     cJSON_AddStringToObject(json, "timezone", settings.timezone);
     cJSON_AddStringToObject(json, "wifiSsid", settings.wifi_ssid);
     cJSON_AddBoolToObject(json, "lanOnlyWeb", settings.lan_only_web);
+    cJSON_AddBoolToObject(json, "mqttEnabled", settings.mqtt_enabled);
+    cJSON_AddStringToObject(json, "mqttHost", settings.mqtt_host);
+    cJSON_AddNumberToObject(json, "mqttPort", settings.mqtt_port);
+    cJSON_AddStringToObject(json, "mqttUsername", settings.mqtt_username);
+    cJSON_AddStringToObject(
+        json,
+        "mqttDiscoveryPrefix",
+        settings.mqtt_discovery_prefix);
+    cJSON_AddBoolToObject(json, "mqttConfigured", mqtt.configured);
+    cJSON_AddBoolToObject(json, "mqttConnected", mqtt.connected);
+    cJSON_AddNumberToObject(json, "mqttConnectCount", mqtt.connect_count);
+    cJSON_AddNumberToObject(
+        json,
+        "mqttDisconnectCount",
+        mqtt.disconnect_count);
+    cJSON_AddNumberToObject(json, "mqttCommandCount", mqtt.command_count);
+    cJSON_AddNumberToObject(json, "mqttErrorCount", mqtt.error_count);
     cJSON_AddBoolToObject(json, "wifiConnected", network.station_connected);
     cJSON_AddStringToObject(json, "stationIp", network.station_ip);
     cJSON_AddStringToObject(json, "deviceName", network.device_name);
@@ -922,6 +944,61 @@ static esp_err_t settings_post(httpd_req_t *request)
             password->valuestring,
             sizeof(updated.wifi_password));
     }
+    update_bool(json, "mqttEnabled", &updated.mqtt_enabled);
+    cJSON *mqtt_host = cJSON_GetObjectItemCaseSensitive(json, "mqttHost");
+    if (cJSON_IsString(mqtt_host)) {
+        strlcpy(
+            updated.mqtt_host,
+            mqtt_host->valuestring,
+            sizeof(updated.mqtt_host));
+    }
+    cJSON *mqtt_port = cJSON_GetObjectItemCaseSensitive(json, "mqttPort");
+    if (mqtt_port != NULL) {
+        if (!cJSON_IsNumber(mqtt_port) ||
+            mqtt_port->valueint < 1 ||
+            mqtt_port->valueint > UINT16_MAX) {
+            cJSON_Delete(json);
+            return httpd_resp_send_err(
+                request,
+                HTTPD_400_BAD_REQUEST,
+                "MQTT port must be between 1 and 65535");
+        }
+        updated.mqtt_port = (uint16_t)mqtt_port->valueint;
+    }
+    cJSON *mqtt_username =
+        cJSON_GetObjectItemCaseSensitive(json, "mqttUsername");
+    if (cJSON_IsString(mqtt_username)) {
+        strlcpy(
+            updated.mqtt_username,
+            mqtt_username->valuestring,
+            sizeof(updated.mqtt_username));
+    }
+    cJSON *mqtt_password =
+        cJSON_GetObjectItemCaseSensitive(json, "mqttPassword");
+    if (cJSON_IsString(mqtt_password)) {
+        strlcpy(
+            updated.mqtt_password,
+            mqtt_password->valuestring,
+            sizeof(updated.mqtt_password));
+    }
+    cJSON *mqtt_discovery =
+        cJSON_GetObjectItemCaseSensitive(json, "mqttDiscoveryPrefix");
+    if (cJSON_IsString(mqtt_discovery)) {
+        const char *value = mqtt_discovery->valuestring;
+        if (value[0] == '\0' ||
+            strchr(value, '#') != NULL ||
+            strchr(value, '+') != NULL) {
+            cJSON_Delete(json);
+            return httpd_resp_send_err(
+                request,
+                HTTPD_400_BAD_REQUEST,
+                "MQTT discovery prefix must be a non-empty topic without wildcards");
+        }
+        strlcpy(
+            updated.mqtt_discovery_prefix,
+            value,
+            sizeof(updated.mqtt_discovery_prefix));
+    }
     cJSON_Delete(json);
 
     bool wifi_changed =
@@ -1024,10 +1101,14 @@ static esp_err_t action_post(httpd_req_t *request)
         action = DMD_ACTION_PINBALL_NEXT;
     } else if (strcmp(name->valuestring, "sceneNext") == 0) {
         action = DMD_ACTION_SCENE_NEXT;
+    } else if (strcmp(name->valuestring, "toggleRandom") == 0) {
+        action = DMD_ACTION_TOGGLE_RANDOM;
     } else if (strcmp(name->valuestring, "showClock") == 0) {
         action = DMD_ACTION_SHOW_CLOCK;
     } else if (strcmp(name->valuestring, "touchTest") == 0) {
         action = DMD_ACTION_TOUCH_TEST;
+    } else if (strcmp(name->valuestring, "setupQr") == 0) {
+        action = DMD_ACTION_SETUP_QR;
     } else if (strcmp(name->valuestring, "reboot") == 0) {
         action = DMD_ACTION_REBOOT;
     } else {
@@ -1059,7 +1140,12 @@ static esp_err_t action_post(httpd_req_t *request)
 
 static esp_err_t favicon_get(httpd_req_t *request)
 {
-    return httpd_resp_send(request, NULL, 0);
+    httpd_resp_set_type(request, "image/x-icon");
+    httpd_resp_set_hdr(request, "Cache-Control", "public, max-age=86400");
+    return httpd_resp_send(
+        request,
+        (const char *)dmdclock_ico_start,
+        dmdclock_ico_end - dmdclock_ico_start);
 }
 
 esp_err_t dmd_web_start(void)
