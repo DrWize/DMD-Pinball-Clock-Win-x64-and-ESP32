@@ -2,6 +2,7 @@
 #include "dmd_display.h"
 #include "dmd_diagnostics.h"
 #include "dmd_network.h"
+#include "dmd_mqtt.h"
 #include "dmd_scene.h"
 #include "dmd_settings.h"
 #include "dmd_storage.h"
@@ -41,12 +42,13 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(dmd_display_init());
     ESP_ERROR_CHECK(dmd_network_init());
+    ESP_ERROR_CHECK(dmd_mqtt_init());
     ESP_ERROR_CHECK(dmd_web_start());
 
     BaseType_t created = xTaskCreatePinnedToCore(
         dmd_display_task,
         "dmd_display",
-        4096,
+        8192,
         NULL,
         5,
         NULL,

@@ -844,7 +844,7 @@ Current phase status:
 | 5 — Clock, date, and settings | **Operational** — clock, timezone, Wi-Fi, NTP, schedules, diagnostics, NVS, and SD settings backup work | Configurable NTP servers/interval, versioned NVS, factory reset, and longer offline tests |
 | 6 — SCN and TF-card playback | **Operational for flat libraries** — all 2,324 prepared scenes and shared metadata are indexed from SD; bounded enable/settle retries recover stale cards after reset | Streaming reads, recursive cache, malformed-input parity, and card-removal/corruption handling |
 | 7 — Touch and local web | **Daily controls complete** — touch overlay, web settings, diagnostics, API reference, default-on LAN boundary, logging, and reboot work | Optional future authentication/HTTPS, gestures, device-side downloads/uploads, live log viewer, full statistics page, and mDNS |
-| 7b — Home Assistant | **Not started** | MQTT configuration, discovery, entities, and broker-failure testing |
+| 7b — Home Assistant | **Foundation implemented** — optional broker settings, retained discovery/state, birth/LWT, initial controls/diagnostics, status counters, and local setup QR work | Live Home Assistant/broker validation, TLS, remaining entities, notifications, and broker-failure soak testing |
 | 7c — Gradient, Raster, Plasma | **Core complete** — all families, presets, Custom themes, Plasma, glow, and metadata colours run | Exhaustive intensity/hash/performance testing and automatic fallback |
 | 8 — OTA and recovery | **Not started** | Partition design, signed validation, rollback, and tested USB recovery |
 | 9 — Packaging and release | **Not started** | Install/OTA/card artifacts, manifests, checksums, and clean-board validation |
@@ -1039,13 +1039,19 @@ Exit: all daily settings can be changed without reflashing or connecting a PC.
 
 ### Phase 7b — Home Assistant
 
-- [ ] Add optional MQTT broker configuration and encrypted credential handling.
-- [ ] Publish Home Assistant MQTT device discovery and birth/LWT availability.
+- [x] Add optional local MQTT broker configuration, disabled by default, with
+      credentials mirrored in NVS and the explicitly plaintext SD backup.
+- [x] Publish Home Assistant MQTT discovery and birth/LWT availability.
 - [ ] Add the fixed-color, brightness, mode, scene, NTP, notification, and
       diagnostic entities defined above.
-- [ ] Rate-limit and validate commands and keep MQTT work off the display task.
+- [x] Add the first display, brightness, scene-navigation, NTP, playback, system,
+      storage, Wi-Fi, time, and firmware entities.
+- [x] Validate bounded commands, publish state at a low rate/on change, and keep
+      MQTT work off the display task.
 - [ ] Test discovery, broker loss/reconnect, retained state, and operation with
       Home Assistant disabled.
+- [x] Add a credential-free on-screen QR for the current local setup URL; state
+      clearly that Home Assistant MQTT discovery does not use QR pairing.
 
 Exit: Home Assistant can monitor and control useful DMDClock functions, while the
 device remains a standalone clock.

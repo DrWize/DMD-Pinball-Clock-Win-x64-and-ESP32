@@ -68,7 +68,7 @@ Create and validate the installer:
 ```
 
 `Directory.Build.props` is the single source of truth for the semantic
-`VersionPrefix`. Use `-Version 1.2.0` only for an intentional one-off override.
+`VersionPrefix`. Use `-Version 1.3.0` only for an intentional one-off override.
 Every invocation adds a new UTC millisecond build number and source commit to the
 build ID and uses that build number in the ZIP and setup filenames.
 

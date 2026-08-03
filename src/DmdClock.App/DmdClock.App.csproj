@@ -40,6 +40,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\..\assets\i18n\en.json">
+      <LogicalName>DmdClock.App.Assets.I18n.en.json</LogicalName>
+    </EmbeddedResource>
     <Content Include="..\..\assets\i18n\*.json">
       <Link>i18n\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

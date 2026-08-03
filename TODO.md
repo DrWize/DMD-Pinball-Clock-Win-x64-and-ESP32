@@ -43,9 +43,9 @@ and compatibility reporting.
 
 The interactive installer and an in-place upgrade from an older installer build
 are verified, including clean Windows 10 and 11 systems without an installed .NET
-runtime. Remaining release work is read-only-directory testing, translation
-fallback behavior, SmartScreen/antivirus review, and confirmation that the
-original DotClk fonts can be redistributed publicly.
+runtime. Remaining release work is read-only-directory testing, manual validation
+of translation fallback behavior, a fresh v1.3.0 build plus the manual Windows
+checklist, and confirmation that the original DotClk fonts can be redistributed publicly.
 
 ## End-user setup — no source code or SDK required
 
@@ -464,8 +464,9 @@ Before calling a build release-ready:
 - [ ] Verify settings and the library index are written only to AppData
 - [ ] Run from a read-only installation directory
 - [ ] Confirm `SHA256SUMS.txt` matches both standalone binaries
-- [ ] Check startup time, temporary native extraction, package size, SmartScreen,
-      and antivirus results
+- [ ] Check startup time, temporary native extraction, and package size
+- [x] Skip SmartScreen and antivirus release testing; paid signing, reputation,
+      and third-party scanning services are not justified for this hobby project
 
 Screensaver checks:
 
@@ -496,14 +497,12 @@ A completed item must include:
 
 ### Priority 1 — release validation and robustness
 
-- [ ] Provide an English built-in translation fallback and a clear warning when
-      external translations are missing or invalid
 - [ ] Ensure startup and normal operation never require write access beside the executable
-- [ ] Complete every item in the manual Windows test checklist above
+- [ ] Rebuild v1.3.0 from the current source, then complete every item in the
+      manual Windows test checklist above
 - [ ] Confirm redistribution terms for ALTERN8, FISHY, TREK, and TWILIGHT before
       publishing a public binary release; until then, keep the files embedded with
       their sigmafx source, source commit, hashes, and unresolved license status documented
-- [ ] Verify SmartScreen and antivirus behavior for both EXE and SCR
 - [ ] Consider trimming only after the untrimmed standalone build passes all release tests
 
 Acceptance criteria:
@@ -908,14 +907,20 @@ Detailed status, commands, and acceptance criteria:
       warning thresholds only after a safe baseline is measured on the real board
 - [ ] State clearly that ambient temperature, supply voltage, current, and power
       consumption require external sensor hardware and are unavailable by default
-- [ ] Add optional Home Assistant support through local MQTT device discovery,
-      birth/LWT availability, and broker credentials stored in NVS
+- [x] Add the first optional Home Assistant track through local MQTT discovery,
+      birth/LWT availability, and broker credentials mirrored in NVS and the SD
+      settings backup; keep it disabled by default
+- [x] Add a credential-free on-screen QR shortcut to the current local device
+      web address; MQTT discovery itself does not use QR pairing
 - [ ] Expose Home Assistant controls for display power, brightness, fixed color,
       mode, playlist, next/previous scene, NTP sync, and temporary DMD text
       notifications
 - [ ] Expose Home Assistant diagnostic sensors for CPU, memory, frame rate,
       dropped frames, Wi-Fi, time sync, current scene, firmware, uptime, and
       TF-card capacity
+- [x] Expose the initial display power, brightness, next pinball, next scene,
+      NTP sync, current scene, firmware, uptime, RSSI, approximate chip
+      temperature, heap, SD free/present, and time-sync entities
 - [ ] Ensure broker or Home Assistant failure never stops standalone clock,
       touchscreen, SCN playback, web settings, or local logging
 - [ ] Later project: evaluate TTF/OTF font support on ESP32-S3 only after the
@@ -955,6 +960,12 @@ release criteria are complete:
 
 Completed items are retained here as the project history.
 
+- [x] Embed the complete English translation as the guaranteed fallback, overlay
+      valid external English and selected-language files, and log a clear warning
+      when an external translation is missing, unreadable, or invalid
+- [x] Decide that SmartScreen and antivirus release testing is not a release gate;
+      do not purchase signing, reputation, or third-party scanning services for
+      this hobby project
 - [x] Add a safe in-app DotClk scene-pack downloader with progress, cancellation,
       atomic installation, AppData storage, automatic selection, and rescanning
 ### Next prioritized work — Priority 1 — play a selected SCN file
