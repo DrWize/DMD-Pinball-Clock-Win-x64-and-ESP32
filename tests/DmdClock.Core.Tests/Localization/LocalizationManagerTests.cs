@@ -16,6 +16,8 @@ public sealed class LocalizationManagerTests : IDisposable
         Assert.Equal("en", warning.Language);
         Assert.Contains("missing", warning.Reason, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("Show clock (T)", LocalizationManager.Get("showClock"));
+        Assert.Equal("Hot-core glow", LocalizationManager.Get("hotCoreGlow"));
+        Assert.Equal("Dot depth", LocalizationManager.Get("dotDepth"));
     }
 
     [Fact]

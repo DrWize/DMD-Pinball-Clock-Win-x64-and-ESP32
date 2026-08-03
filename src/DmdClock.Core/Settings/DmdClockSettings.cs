@@ -59,6 +59,29 @@ public enum DmdBackgroundMode
     Custom
 }
 
+public enum HotCoreStyle
+{
+    Classic,
+    Theme,
+    DualColor
+}
+
+public enum DotDepthStyle
+{
+    Flat,
+    Subtle,
+    Deep
+}
+
+public static class HotCoreDefinition
+{
+    public static double GetOpacity(int intensity) =>
+        Math.Pow(Math.Clamp(intensity, 0, 15) / 15d, 1.35);
+
+    public static double GetRadiusFactor(int intensity) =>
+        0.22 + (0.10 * Math.Clamp(intensity, 0, 15) / 15d);
+}
+
 public sealed record DmdClockSettings(
     int SchemaVersion,
     bool AutomaticCycle,
@@ -85,7 +108,11 @@ public sealed record DmdClockSettings(
     PlasmaPalettePreset? PlasmaPalette = null,
     string[]? PlasmaCustomColors = null,
     int? PlasmaCycleMilliseconds = null,
-    DmdBackgroundMode? BackgroundMode = null)
+    DmdBackgroundMode? BackgroundMode = null,
+    bool? HotCoreEnabled = null,
+    HotCoreStyle? HotCoreStyle = null,
+    string? HotCoreColor = null,
+    DotDepthStyle? DotDepth = null)
 {
     public const int CurrentSchemaVersion = 1;
 
@@ -121,7 +148,15 @@ public sealed record DmdClockSettings(
         PlasmaCycleMilliseconds = PlasmaSpeedDefinition.Normalize(PlasmaCycleMilliseconds),
         BackgroundMode = BackgroundMode is { } backgroundMode && Enum.IsDefined(backgroundMode)
             ? backgroundMode
-            : InferBackgroundMode()
+            : InferBackgroundMode(),
+        HotCoreEnabled = HotCoreEnabled ?? false,
+        HotCoreStyle = HotCoreStyle is { } hotCoreStyle && Enum.IsDefined(hotCoreStyle)
+            ? hotCoreStyle
+            : global::DmdClock.Core.Settings.HotCoreStyle.Classic,
+        HotCoreColor = NormalizeColor(HotCoreColor) ?? "#FFF2B0",
+        DotDepth = DotDepth is { } dotDepth && Enum.IsDefined(dotDepth)
+            ? dotDepth
+            : DotDepthStyle.Flat
     };
 
     private static string? NormalizeFontFile(string? value)

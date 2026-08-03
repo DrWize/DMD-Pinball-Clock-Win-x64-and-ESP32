@@ -12,8 +12,12 @@ public sealed class DmdDisplay : Control
     private const int PaletteColumns = 128;
     private IBrush[][] _dotBrushes = [];
     private IBrush[][] _glowBrushes = [];
+    private IBrush[][] _hotCoreBrushes = [];
+    private IBrush[] _shadowBrushes = [];
     private DmdFrame? _frame;
     private bool _glowEnabled = true;
+    private bool _hotCoreEnabled;
+    private DotDepthStyle _dotDepth;
     private IBrush _backgroundBrush = Brushes.Black;
     private bool _paletteByRow;
     private bool _plasmaEnabled;
@@ -46,7 +50,11 @@ public sealed class DmdDisplay : Control
         string? backgroundColor,
         PlasmaPalettePreset plasmaPalette = PlasmaPalettePreset.Neon,
         IReadOnlyList<string>? plasmaCustomColors = null,
-        int plasmaCycleMilliseconds = PlasmaSpeedDefinition.DefaultCycleMilliseconds)
+        int plasmaCycleMilliseconds = PlasmaSpeedDefinition.DefaultCycleMilliseconds,
+        bool hotCoreEnabled = false,
+        HotCoreStyle hotCoreStyle = HotCoreStyle.Classic,
+        string? hotCoreColor = null,
+        DotDepthStyle dotDepth = DotDepthStyle.Flat)
     {
         brightnessPercent = Math.Clamp(brightnessPercent, 25, 100);
         var palette = preset switch
@@ -85,25 +93,39 @@ public sealed class DmdDisplay : Control
             DmdColorPreset.RasterCandyStripe => Raster(C64Red, C64LightRed, C64White, C64Cyan, C64White, C64LightRed, C64Purple),
             _ => Solid(Color.FromRgb(255, 112, 14))
         };
+        var renderPalette = hotCoreEnabled && hotCoreStyle == HotCoreStyle.Classic
+            ? Solid(Color.FromRgb(255, 112, 14))
+            : palette;
         _plasmaEnabled = preset == DmdColorPreset.Plasma &&
+            !(hotCoreEnabled && hotCoreStyle == HotCoreStyle.Classic) &&
             string.IsNullOrWhiteSpace(foregroundColor);
         _plasmaCycleMilliseconds = PlasmaSpeedDefinition.Normalize(plasmaCycleMilliseconds);
         _paletteByRow = IsC64RasterPreset(preset);
-        if (!string.IsNullOrWhiteSpace(foregroundColor))
+        if (!string.IsNullOrWhiteSpace(foregroundColor) &&
+            !(hotCoreEnabled && hotCoreStyle == HotCoreStyle.Classic))
         {
-            palette = Solid(ParseColor(foregroundColor, palette[^1]));
+            renderPalette = Solid(ParseColor(foregroundColor, renderPalette[^1]));
             _paletteByRow = false;
         }
         _backgroundBrush = new SolidColorBrush(ParseColor(backgroundColor, Colors.Black));
         _dotBrushes = Enumerable.Range(0, PaletteColumns)
             .Select(column => CreateDotBrushes(
-                palette[column], brightnessPercent / 100d))
+                renderPalette[column], brightnessPercent / 100d, dotDepth))
             .ToArray();
         _glowBrushes = Enumerable.Range(0, PaletteColumns)
             .Select(column => CreateGlowBrushes(
-                palette[column], brightnessPercent / 100d))
+                renderPalette[column], brightnessPercent / 100d))
             .ToArray();
+        var customCore = ParseColor(hotCoreColor, Color.FromRgb(255, 242, 176));
+        _hotCoreBrushes = Enumerable.Range(0, PaletteColumns)
+            .Select(column => CreateHotCoreBrushes(
+                ResolveCoreColor(renderPalette[column], hotCoreStyle, customCore),
+                brightnessPercent / 100d))
+            .ToArray();
+        _shadowBrushes = CreateShadowBrushes(dotDepth);
         _glowEnabled = glowEnabled;
+        _hotCoreEnabled = hotCoreEnabled;
+        _dotDepth = dotDepth;
         InvalidateVisual();
     }
 
@@ -148,6 +170,7 @@ public sealed class DmdDisplay : Control
         var originY = (Bounds.Height - displayHeight) / 2;
         var radius = cellSize * 0.34;
         var glowRadius = cellSize * 0.47;
+        var shadowOffset = cellSize * (_dotDepth == DotDepthStyle.Deep ? 0.075 : 0.045);
         var pixels = frame.Intensities.Span;
 
         for (var y = 0; y < frame.Height; y++)
@@ -175,26 +198,115 @@ public sealed class DmdDisplay : Control
             }
             if (_glowEnabled)
                 context.DrawEllipse(_glowBrushes[paletteColumn][intensity], null, center, glowRadius, glowRadius);
+            if (_dotDepth != DotDepthStyle.Flat)
+            {
+                var shadowCenter = new Point(center.X + shadowOffset, center.Y + shadowOffset);
+                context.DrawEllipse(_shadowBrushes[intensity], null, shadowCenter, radius, radius);
+            }
             context.DrawEllipse(_dotBrushes[paletteColumn][intensity], null, center, radius, radius);
+            if (_hotCoreEnabled)
+            {
+                var coreRadius = radius * HotCoreDefinition.GetRadiusFactor(intensity);
+                context.DrawEllipse(
+                    _hotCoreBrushes[paletteColumn][intensity],
+                    null,
+                    center,
+                    coreRadius,
+                    coreRadius);
+            }
         }
     }
 
-    private static IBrush[] CreateDotBrushes(Color color, double brightness) => Enumerable.Range(0, 16)
+    private static IBrush[] CreateDotBrushes(
+        Color color,
+        double brightness,
+        DotDepthStyle depth) => Enumerable.Range(0, 16)
         .Select(level =>
         {
             var amount = level / 15d;
             var factor = (0.12 + (0.88 * amount)) * brightness;
-            return (IBrush)new SolidColorBrush(Color.FromRgb(
+            var body = Color.FromRgb(
                 Scale(color.R, factor),
                 Scale(color.G, factor),
-                Scale(color.B, factor)));
+                Scale(color.B, factor));
+            if (depth == DotDepthStyle.Flat)
+                return (IBrush)new SolidColorBrush(body);
+
+            var highlight = Interpolate(body, Colors.White, depth == DotDepthStyle.Deep ? 0.26 : 0.15);
+            var edge = Color.FromRgb(
+                Scale(body.R, depth == DotDepthStyle.Deep ? 0.52 : 0.68),
+                Scale(body.G, depth == DotDepthStyle.Deep ? 0.52 : 0.68),
+                Scale(body.B, depth == DotDepthStyle.Deep ? 0.52 : 0.68));
+            return new RadialGradientBrush
+            {
+                Center = new RelativePoint(0.5, 0.5, RelativeUnit.Relative),
+                GradientOrigin = new RelativePoint(0.36, 0.32, RelativeUnit.Relative),
+                RadiusX = new RelativeScalar(0.7, RelativeUnit.Relative),
+                RadiusY = new RelativeScalar(0.7, RelativeUnit.Relative),
+                GradientStops = new GradientStops
+                {
+                    new(highlight, 0),
+                    new(body, 0.48),
+                    new(edge, 1)
+                }
+            };
         })
         .ToArray();
 
     private static IBrush[] CreateGlowBrushes(Color color, double brightness) => Enumerable.Range(0, 16)
-        .Select(level => (IBrush)new SolidColorBrush(Color.FromArgb(
-            Scale(72, level / 15d * brightness), color.R, color.G, color.B)))
+        .Select(level =>
+        {
+            var alpha = Scale(82, level / 15d * brightness);
+            return (IBrush)new RadialGradientBrush
+            {
+                Center = RelativePoint.Center,
+                GradientOrigin = RelativePoint.Center,
+                RadiusX = new RelativeScalar(0.5, RelativeUnit.Relative),
+                RadiusY = new RelativeScalar(0.5, RelativeUnit.Relative),
+                GradientStops = new GradientStops
+                {
+                    new(Color.FromArgb(alpha, color.R, color.G, color.B), 0),
+                    new(Color.FromArgb(Scale(alpha, 0.45), color.R, color.G, color.B), 0.62),
+                    new(Color.FromArgb(0, color.R, color.G, color.B), 1)
+                }
+            };
+        })
         .ToArray();
+
+    private static IBrush[] CreateHotCoreBrushes(Color color, double brightness) => Enumerable.Range(0, 16)
+        .Select(level =>
+        {
+            var alpha = Scale(255, HotCoreDefinition.GetOpacity(level) * brightness);
+            return (IBrush)new RadialGradientBrush
+            {
+                Center = RelativePoint.Center,
+                GradientOrigin = RelativePoint.Center,
+                RadiusX = new RelativeScalar(0.5, RelativeUnit.Relative),
+                RadiusY = new RelativeScalar(0.5, RelativeUnit.Relative),
+                GradientStops = new GradientStops
+                {
+                    new(Color.FromArgb(alpha, color.R, color.G, color.B), 0),
+                    new(Color.FromArgb(Scale(alpha, 0.96), color.R, color.G, color.B), 0.68),
+                    new(Color.FromArgb(0, color.R, color.G, color.B), 1)
+                }
+            };
+        })
+        .ToArray();
+
+    private static IBrush[] CreateShadowBrushes(DotDepthStyle depth) => Enumerable.Range(0, 16)
+        .Select(level => (IBrush)new SolidColorBrush(Color.FromArgb(
+            Scale(depth == DotDepthStyle.Deep ? (byte)150 : (byte)92, 0.35 + (0.65 * level / 15d)),
+            0,
+            0,
+            0)))
+        .ToArray();
+
+    private static Color ResolveCoreColor(Color body, HotCoreStyle style, Color custom) => style switch
+    {
+        HotCoreStyle.Classic => Color.FromRgb(255, 242, 176),
+        HotCoreStyle.DualColor => custom,
+        _ => Interpolate(body, Colors.White, 0.62)
+    };
 
     private static byte Scale(byte value, double factor) => (byte)Math.Clamp(Math.Round(value * factor), 0, 255);
 

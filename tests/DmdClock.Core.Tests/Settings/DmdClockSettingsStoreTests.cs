@@ -10,6 +10,8 @@ public sealed class DmdClockSettingsStoreTests
         Assert.Equal(4, (int)DmdColorPreset.NeonSunset);
         Assert.Equal(15, (int)DmdColorPreset.C64Rainbow);
         Assert.Equal(4, (int)PlasmaPalettePreset.Custom);
+        Assert.Equal(2, (int)HotCoreStyle.DualColor);
+        Assert.Equal(2, (int)DotDepthStyle.Deep);
     }
 
     [Theory]
@@ -59,7 +61,11 @@ public sealed class DmdClockSettingsStoreTests
                 AnimationDirectory = animationDirectory,
                 PlasmaPalette = PlasmaPalettePreset.Custom,
                 PlasmaCustomColors = ["#102030", "#a0b0c0", "#445566", "#abcdef"],
-                PlasmaCycleMilliseconds = 4_321
+                PlasmaCycleMilliseconds = 4_321,
+                HotCoreEnabled = true,
+                HotCoreStyle = HotCoreStyle.DualColor,
+                HotCoreColor = "#ffeedd",
+                DotDepth = DotDepthStyle.Deep
             };
             await store.SaveAtomicAsync(settings, path);
             var loaded = await store.LoadAsync(path);
@@ -90,11 +96,47 @@ public sealed class DmdClockSettingsStoreTests
                 ["#102030", "#A0B0C0", "#445566", "#ABCDEF"],
                 customColors);
             Assert.Equal(4_250, loaded.PlasmaCycleMilliseconds);
+            Assert.True(loaded.HotCoreEnabled);
+            Assert.Equal(HotCoreStyle.DualColor, loaded.HotCoreStyle);
+            Assert.Equal("#FFEEDD", loaded.HotCoreColor);
+            Assert.Equal(DotDepthStyle.Deep, loaded.DotDepth);
         }
         finally
         {
             if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
         }
+    }
+
+    [Fact]
+    public void Normalize_InvalidHotCoreValues_UsesSafeClassicFlatDefaults()
+    {
+        var normalized = (DmdClockSettings.Default with
+        {
+            HotCoreEnabled = null,
+            HotCoreStyle = (HotCoreStyle)999,
+            HotCoreColor = "not-a-color",
+            DotDepth = (DotDepthStyle)999
+        }).Normalize();
+
+        Assert.False(normalized.HotCoreEnabled);
+        Assert.Equal(HotCoreStyle.Classic, normalized.HotCoreStyle);
+        Assert.Equal("#FFF2B0", normalized.HotCoreColor);
+        Assert.Equal(DotDepthStyle.Flat, normalized.DotDepth);
+    }
+
+    [Fact]
+    public void HotCoreDefinition_AllSixteenLevelsStayMonotonic()
+    {
+        var opacities = Enumerable.Range(0, 16).Select(HotCoreDefinition.GetOpacity).ToArray();
+        var radii = Enumerable.Range(0, 16).Select(HotCoreDefinition.GetRadiusFactor).ToArray();
+
+        Assert.Equal(0, opacities[0]);
+        Assert.Equal(1, opacities[^1], precision: 8);
+        Assert.All(Enumerable.Range(1, 15), level =>
+        {
+            Assert.True(opacities[level] > opacities[level - 1]);
+            Assert.True(radii[level] > radii[level - 1]);
+        });
     }
 
     [Fact]
@@ -217,6 +259,10 @@ public sealed class DmdClockSettingsStoreTests
             Assert.Equal(100, loaded.WindowScalePercent);
             Assert.Equal(100, loaded.FullscreenZoomPercent);
             Assert.Null(loaded.AnimationDirectory);
+            Assert.False(loaded.HotCoreEnabled);
+            Assert.Equal(HotCoreStyle.Classic, loaded.HotCoreStyle);
+            Assert.Equal("#FFF2B0", loaded.HotCoreColor);
+            Assert.Equal(DotDepthStyle.Flat, loaded.DotDepth);
         }
         finally
         {

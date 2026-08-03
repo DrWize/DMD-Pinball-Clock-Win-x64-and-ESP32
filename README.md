@@ -50,6 +50,7 @@ first-boot flow, SD-card layout, recovery steps, and security notes.
 - 128x32 four-bit DotClk `.scn` playback with clock, date, masks, and original timing
 - automatic, sequential, or random playback and a shared Scene Reviewer selection
 - classic, gradient, plasma, raster, and C64-inspired colour themes
+- optional Classic, theme-derived, or dual-colour Hot-core dots with selectable depth
 - normal application, fullscreen mode, and optional Windows screensaver
 - persistent settings, structured logs, and SCN compatibility reports
 
@@ -89,8 +90,8 @@ guides explain storage, backup, and recovery in more detail.
 
 Build commands, tests, release packaging, firmware workflows, and Git guidance
 have moved to the [developer guide](docs/DEVELOPMENT.md). The active backlog is in
-[TODO.md](TODO.md). After v1.3.0 manual release validation, the next visual feature
-is the optional **Hot-core glow** dot style.
+[TODO.md](TODO.md). Windows now includes the optional **Hot-core glow** dot style;
+the ESP32-S3 port remains scheduled after v1.3.0 manual release validation.
 
 ## Acknowledgements
 
