@@ -1097,9 +1097,9 @@ the proven fixed-color path.
 
 ### Phase 7d — Hot-core glow
 
-- [ ] Add the shared optional Hot-core settings after v1.3.0 manual Windows
-      validation is complete.
-- [ ] Implement the precomputed ESP32 three-ring/LUT renderer and retain the
+- [x] Add shared optional Hot-core settings with Classic warm centre, Follow theme,
+      and Dual colour modes.
+- [x] Implement the precomputed ESP32 three-ring/LUT renderer and retain the
       current lightweight glow as its measured fallback.
 - [ ] Verify monotonic output for all 16 intensities and black separation in a
       worst-case all-dots-on frame.

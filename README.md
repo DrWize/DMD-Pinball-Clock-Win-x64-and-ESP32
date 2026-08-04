@@ -90,8 +90,8 @@ guides explain storage, backup, and recovery in more detail.
 
 Build commands, tests, release packaging, firmware workflows, and Git guidance
 have moved to the [developer guide](docs/DEVELOPMENT.md). The active backlog is in
-[TODO.md](TODO.md). Windows now includes the optional **Hot-core glow** dot style;
-the ESP32-S3 port remains scheduled after v1.3.0 manual release validation.
+[TODO.md](TODO.md). Windows and ESP32-S3 now include the optional **Hot-core
+glow** dot style with Classic warm-centre, theme-derived, and dual-colour modes.
 
 ## Acknowledgements
 

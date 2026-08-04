@@ -512,14 +512,14 @@ Acceptance criteria:
 - missing optional scenes/fonts and missing or invalid translations do not crash startup;
 - all writable data stays under `%LOCALAPPDATA%\DmdClock`.
 
-### Hot-core glow — Windows implemented; ESP32-S3 follows after v1.3.0 validation
+### Hot-core glow — Windows and ESP32-S3 implemented
 
 - [x] Add the optional Windows Hot-core style with persistent Classic amber,
       Follow theme, and Dual colour modes.
 - [x] Capture real Windows clock comparisons for all three Hot-core colour modes
       and document the controls in the settings guide.
-- [ ] Port the accepted Hot-core style to ESP32-S3 after the owner completes the
-      v1.3.0 manual Windows checklist.
+- [x] Port the accepted Hot-core style to ESP32-S3 with persistent web/API, NVS,
+      and SD-card settings while retaining the selected theme for body and halo.
 - [x] Render three controlled Windows layers: a small warm or selected core, the
       saturated dot body, and a soft colour-matched halo that ends before the
       midpoint between neighbouring dots.
@@ -529,7 +529,7 @@ Acceptance criteria:
       separation between every dot.
 - [x] Cache Windows radial-gradient dot, halo, and core brushes by palette and
       intensity instead of rebuilding them per dot or frame.
-- [ ] Use a precomputed three-ring kernel or small lookup table on ESP32-S3; avoid
+- [x] Use a precomputed three-ring kernel or small lookup table on ESP32-S3; avoid
       per-pixel square roots and retain the existing lightweight glow as fallback.
 - [ ] Measure the worst-case all-dots frame, Plasma, and SCN playback. Keep the
       30 FPS frame budget, touch/web responsiveness, and useful CPU, PSRAM, and
@@ -815,9 +815,10 @@ Detailed status, commands, and acceptance criteria:
       custom stops, 4-bit intensity, glow, clock, and representative SCN frames
 - [x] Add a lightweight per-dot glow halo with persistent 0–100% strength,
       matching transient touchscreen/web toggles, and a web strength slider
-- [ ] Add the optional **Hot-core glow** dot style on ESP32-S3 using a bright
-      centre and a soft colour-matched halo; preserve dot separation and verify
-      frame time, CPU load, and control responsiveness at 100% glow strength
+- [x] Add the optional **Hot-core glow** dot style on ESP32-S3 using a bright
+      centre, a colour-matched halo, and a black one-pixel cell boundary
+- [ ] Verify frame time, CPU load, and touch responsiveness at 100% Hot-core glow;
+      live web/API responsiveness and heap stability are already confirmed
 - [x] Show the full device-local timestamp, browser clock difference, time source,
       NTP progress, configured servers, and successful synchronization state in
       the web remote

@@ -197,6 +197,19 @@
         <label for="glowStrength">Dot glow <small><span id="glowStrengthValue">35</span>% halo strength</small></label>
         <input id="glowStrength" type="range" min="0" max="100" step="5">
       </div>
+      <div class="row">
+        <label for="hotCoreStyle">Hot-core dots <small>Bright centre with separated dots</small></label>
+        <select id="hotCoreStyle" style="width:min(260px,48vw)">
+          <option value="-1">Off</option>
+          <option value="0">Classic warm centre</option>
+          <option value="1">Follow theme</option>
+          <option value="2">Dual colour</option>
+        </select>
+      </div>
+      <div class="row" id="hotCoreColorRow" hidden>
+        <label for="hotCoreColor">Centre colour</label>
+        <input id="hotCoreColor" type="color" value="#fff2b0">
+      </div>
     </section>
 
     <section class="panel" aria-labelledby="colourHeading">
@@ -857,19 +870,43 @@
       if(family==="Raster")settings.rasterCustomColors=customColorsForFamily(family);
       return settings;
     }
-    async function applyThemeSettings(settings){
+    async function applyThemeSettings(
+      settings,
+      applyingMessage="Applying theme…",
+      appliedMessage="Theme applied and saved."
+    ){
       const requestNumber=++themeRequest;
-      message("Applying theme…");
+      message(applyingMessage);
       try{
         await request("/api/settings",{
           method:"POST",
           headers:{"Content-Type":"application/json"},
           body:JSON.stringify(settings)
         });
-        if(requestNumber===themeRequest)message("Theme applied and saved.");
+        if(requestNumber===themeRequest)message(appliedMessage);
       }catch(error){
         if(requestNumber===themeRequest)message(error.message,true);
       }
+    }
+    let hotCoreTimer;
+    function hotCoreSettings(){
+      const style=Number($("hotCoreStyle").value);
+      return {
+        hotCoreEnabled:style>=0,
+        hotCoreStyle:Math.max(0,style),
+        hotCoreColor:$("hotCoreColor").value
+      };
+    }
+    function applyHotCoreSettings(delay=0){
+      clearTimeout(hotCoreTimer);
+      const settings=hotCoreSettings();
+      const apply=()=>applyThemeSettings(
+        settings,
+        "Applying Hot-core…",
+        "Hot-core applied and saved."
+      );
+      if(delay>0)hotCoreTimer=setTimeout(apply,delay);
+      else apply();
     }
     function selectTheme(preset){
       $("colorPreset").value=String(preset);
@@ -954,6 +991,14 @@
         $("glowStrength").value=state.glowStrength;
         $("glowStrengthValue").textContent=state.glowStrength;
       }
+      if(document.activeElement!==$("hotCoreStyle")&&
+         document.activeElement!==$("hotCoreColor")){
+        $("hotCoreStyle").value=state.hotCoreEnabled?String(state.hotCoreStyle):"-1";
+        $("hotCoreColorRow").hidden=!state.hotCoreEnabled||state.hotCoreStyle!==2;
+      }
+      if(document.activeElement!==$("hotCoreColor")){
+        $("hotCoreColor").value=state.hotCoreColor;
+      }
       const sceneFields={
         Game:state.sceneGame||"",
         Year:state.sceneYear?String(state.sceneYear):"",
@@ -1002,6 +1047,9 @@
         $("sceneIndex").value=String(state.sceneIndex);
         $("brightness").value=state.brightness;
         $("glowStrength").value=state.glowStrength;
+        $("hotCoreStyle").value=state.hotCoreEnabled?String(state.hotCoreStyle):"-1";
+        $("hotCoreColor").value=state.hotCoreColor;
+        $("hotCoreColorRow").hidden=!state.hotCoreEnabled||state.hotCoreStyle!==2;
         $("colorPreset").value=String(state.colorPreset);
         $("plasmaPalette").value=String(state.plasmaPalette);
         $("plasmaCycle").value=String(state.plasmaCycleMilliseconds);
@@ -1154,6 +1202,16 @@
     }
     $("brightness").addEventListener("input",()=>{$("brightnessValue").textContent=$("brightness").value});
     $("glowStrength").addEventListener("input",()=>{$("glowStrengthValue").textContent=$("glowStrength").value});
+    $("hotCoreStyle").addEventListener("change",()=>{
+      $("hotCoreColorRow").hidden=Number($("hotCoreStyle").value)!==2;
+      applyHotCoreSettings();
+    });
+    $("hotCoreColor").addEventListener("input",()=>{
+      $("hotCoreStyle").value="2";
+      $("hotCoreColorRow").hidden=false;
+      applyHotCoreSettings(100);
+    });
+    $("hotCoreColor").addEventListener("change",()=>applyHotCoreSettings());
     document.querySelectorAll("[data-theme-family]").forEach(button=>{
       button.addEventListener("click",()=>{
         viewedThemeFamily=button.dataset.themeFamily;
@@ -1246,6 +1304,9 @@
         sceneIndex:Number($("sceneIndex").value),
         brightness:Number($("brightness").value),
         glowStrength:Number($("glowStrength").value),
+        hotCoreEnabled:Number($("hotCoreStyle").value)>=0,
+        hotCoreStyle:Math.max(0,Number($("hotCoreStyle").value)),
+        hotCoreColor:$("hotCoreColor").value,
         colorPreset:Number($("colorPreset").value),
         plasmaPalette:Number($("plasmaPalette").value),
         plasmaCycleMilliseconds:Number($("plasmaCycle").value),

@@ -15,6 +15,8 @@ This firmware targets the original Waveshare
 - integer Plasma animation with eight palettes plus Custom, persistent 1–60
   second cycle timing, and startup reference-vector validation;
 - optimized per-dot glow with persistent 0–100% halo strength;
+- optional stepped Hot-core dots with Classic warm, theme-derived, and custom
+  dual-colour centres; the selected theme still controls each dot body and halo;
 - complete SD-card scene discovery from `/dmd/scenes` with original SCN timing;
 - Windows-style one-shot scenes, clock layers, automatic cycling, random order,
   configurable scene count, and gaps;

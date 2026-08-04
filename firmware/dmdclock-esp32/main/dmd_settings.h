@@ -29,9 +29,18 @@ typedef enum {
     DMD_INFORMATION_COLOR_CUSTOM = 2,
 } dmd_information_color_mode_t;
 
+typedef enum {
+    DMD_HOT_CORE_CLASSIC = 0,
+    DMD_HOT_CORE_THEME = 1,
+    DMD_HOT_CORE_DUAL_COLOR = 2,
+} dmd_hot_core_style_t;
+
 typedef struct {
     uint8_t brightness;
     uint8_t glow_strength;
+    bool hot_core_enabled;
+    dmd_hot_core_style_t hot_core_style;
+    dmd_rgb_t hot_core_color;
     dmd_plasma_palette_t plasma_palette;
     uint16_t plasma_cycle_ms;
     dmd_rgb_t plasma_custom[DMD_PLASMA_STOP_COUNT];

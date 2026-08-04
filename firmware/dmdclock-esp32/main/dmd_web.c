@@ -250,6 +250,9 @@ static esp_err_t state_get(httpd_req_t *request)
     cJSON *json = cJSON_CreateObject();
     cJSON_AddNumberToObject(json, "brightness", settings.brightness);
     cJSON_AddNumberToObject(json, "glowStrength", settings.glow_strength);
+    cJSON_AddBoolToObject(json, "hotCoreEnabled", settings.hot_core_enabled);
+    cJSON_AddNumberToObject(json, "hotCoreStyle", settings.hot_core_style);
+    add_rgb_value(json, "hotCoreColor", settings.hot_core_color);
     cJSON_AddNumberToObject(json, "plasmaPalette", settings.plasma_palette);
     cJSON_AddStringToObject(
         json,
@@ -695,6 +698,33 @@ static esp_err_t settings_post(httpd_req_t *request)
     if (cJSON_IsNumber(glow)) {
         int value = glow->valueint;
         updated.glow_strength = value < 0 ? 0 : (value > 100 ? 100 : value);
+    }
+    update_bool(json, "hotCoreEnabled", &updated.hot_core_enabled);
+    cJSON *hot_core_style =
+        cJSON_GetObjectItemCaseSensitive(json, "hotCoreStyle");
+    if (hot_core_style != NULL) {
+        if (!cJSON_IsNumber(hot_core_style) ||
+            hot_core_style->valueint < DMD_HOT_CORE_CLASSIC ||
+            hot_core_style->valueint > DMD_HOT_CORE_DUAL_COLOR) {
+            cJSON_Delete(json);
+            return httpd_resp_send_err(
+                request,
+                HTTPD_400_BAD_REQUEST,
+                "Unknown Hot-core style");
+        }
+        updated.hot_core_style =
+            (dmd_hot_core_style_t)hot_core_style->valueint;
+    }
+    cJSON *hot_core_color =
+        cJSON_GetObjectItemCaseSensitive(json, "hotCoreColor");
+    if (hot_core_color != NULL &&
+        (!cJSON_IsString(hot_core_color) ||
+         !parse_rgb(hot_core_color->valuestring, &updated.hot_core_color))) {
+        cJSON_Delete(json);
+        return httpd_resp_send_err(
+            request,
+            HTTPD_400_BAD_REQUEST,
+            "Hot-core color must be #RRGGBB");
     }
     cJSON *plasma_palette =
         cJSON_GetObjectItemCaseSensitive(json, "plasmaPalette");

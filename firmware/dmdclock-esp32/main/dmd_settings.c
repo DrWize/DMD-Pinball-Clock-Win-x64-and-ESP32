@@ -31,6 +31,9 @@ static void set_defaults(void)
     memset(&s_settings, 0, sizeof(s_settings));
     s_settings.brightness = 100;
     s_settings.glow_strength = 35;
+    s_settings.hot_core_enabled = false;
+    s_settings.hot_core_style = DMD_HOT_CORE_CLASSIC;
+    s_settings.hot_core_color = (dmd_rgb_t){255, 242, 176};
     s_settings.plasma_palette = DMD_PLASMA_NEON;
     s_settings.plasma_cycle_ms = DMD_PLASMA_CYCLE_DEFAULT_MS;
     dmd_plasma_default_stops(DMD_PLASMA_NEON, s_settings.plasma_custom);
@@ -166,6 +169,19 @@ esp_err_t dmd_settings_init(void)
     if (nvs_get_u8(handle, "glow", &value) == ESP_OK) {
         s_settings.glow_strength = value <= 100 ? value : 35;
     }
+    if (nvs_get_u8(handle, "hot_core", &value) == ESP_OK) {
+        s_settings.hot_core_enabled = value != 0;
+    }
+    if (nvs_get_u8(handle, "hot_style", &value) == ESP_OK &&
+        value <= DMD_HOT_CORE_DUAL_COLOR) {
+        s_settings.hot_core_style = (dmd_hot_core_style_t)value;
+    }
+    size_t hot_core_color_size = sizeof(s_settings.hot_core_color);
+    nvs_get_blob(
+        handle,
+        "hot_rgb",
+        &s_settings.hot_core_color,
+        &hot_core_color_size);
     if (nvs_get_u8(handle, "plasma_pal", &value) == ESP_OK &&
         dmd_plasma_palette_is_valid(value)) {
         s_settings.plasma_palette = (dmd_plasma_palette_t)value;
@@ -337,6 +353,9 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
     if (normalized.glow_strength > 100) {
         normalized.glow_strength = 100;
     }
+    if (normalized.hot_core_style > DMD_HOT_CORE_DUAL_COLOR) {
+        normalized.hot_core_style = DMD_HOT_CORE_CLASSIC;
+    }
     if (!dmd_plasma_palette_is_valid((uint8_t)normalized.plasma_palette)) {
         normalized.plasma_palette = DMD_PLASMA_NEON;
     }
@@ -414,6 +433,13 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
     }
     if ((error = nvs_set_u8(handle, "brightness", normalized.brightness)) == ESP_OK &&
         (error = nvs_set_u8(handle, "glow", normalized.glow_strength)) == ESP_OK &&
+        (error = nvs_set_u8(handle, "hot_core", normalized.hot_core_enabled)) == ESP_OK &&
+        (error = nvs_set_u8(handle, "hot_style", normalized.hot_core_style)) == ESP_OK &&
+        (error = nvs_set_blob(
+            handle,
+            "hot_rgb",
+            &normalized.hot_core_color,
+            sizeof(normalized.hot_core_color))) == ESP_OK &&
         (error = nvs_set_u8(handle, "plasma_pal", normalized.plasma_palette)) == ESP_OK &&
         (error = nvs_set_u16(handle, "plasma_ms", normalized.plasma_cycle_ms)) == ESP_OK &&
         (error = nvs_set_blob(

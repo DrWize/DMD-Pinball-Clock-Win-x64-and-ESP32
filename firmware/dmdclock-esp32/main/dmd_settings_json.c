@@ -176,6 +176,9 @@ static cJSON *settings_to_json(const dmd_settings_t *settings)
         "Editable DMDClock backup. Contains Wi-Fi and MQTT passwords in plain text.");
     cJSON_AddNumberToObject(json, "brightness", settings->brightness);
     cJSON_AddNumberToObject(json, "glowStrength", settings->glow_strength);
+    cJSON_AddBoolToObject(json, "hotCoreEnabled", settings->hot_core_enabled);
+    cJSON_AddNumberToObject(json, "hotCoreStyle", settings->hot_core_style);
+    add_rgb(json, "hotCoreColor", settings->hot_core_color);
     cJSON_AddNumberToObject(json, "colorPreset", settings->color_preset);
     cJSON_AddNumberToObject(json, "plasmaPalette", settings->plasma_palette);
     cJSON_AddNumberToObject(
@@ -332,6 +335,11 @@ esp_err_t dmd_settings_json_load(dmd_settings_t *settings)
 
     load_u8(json, "brightness", &settings->brightness);
     load_u8(json, "glowStrength", &settings->glow_strength);
+    load_bool(json, "hotCoreEnabled", &settings->hot_core_enabled);
+    uint8_t hot_core_style = (uint8_t)settings->hot_core_style;
+    load_u8(json, "hotCoreStyle", &hot_core_style);
+    settings->hot_core_style = (dmd_hot_core_style_t)hot_core_style;
+    load_rgb(json, "hotCoreColor", &settings->hot_core_color);
     uint8_t color_preset = (uint8_t)settings->color_preset;
     load_u8(json, "colorPreset", &color_preset);
     settings->color_preset = (dmd_color_preset_t)color_preset;

@@ -186,6 +186,40 @@ static uint16_t themed_color(
     return rgb565(red, green, blue);
 }
 
+static dmd_rgb_t mix_rgb(dmd_rgb_t from, dmd_rgb_t to, uint8_t amount)
+{
+    uint16_t inverse = (uint16_t)(255U - amount);
+    return (dmd_rgb_t){
+        .red = (uint8_t)(((uint16_t)from.red * inverse +
+                          (uint16_t)to.red * amount) / 255U),
+        .green = (uint8_t)(((uint16_t)from.green * inverse +
+                            (uint16_t)to.green * amount) / 255U),
+        .blue = (uint8_t)(((uint16_t)from.blue * inverse +
+                           (uint16_t)to.blue * amount) / 255U),
+    };
+}
+
+typedef enum {
+    HOT_CORE_OFF = 0,
+    HOT_CORE_HALO = 1,
+    HOT_CORE_BODY = 2,
+    HOT_CORE_CENTER = 3,
+} hot_core_layer_t;
+
+static const uint8_t HOT_CORE_KERNEL[DMD_SCALE][DMD_SCALE] = {
+    {0, 0, 0, 0, 0, 0},
+    {0, 1, 2, 2, 1, 0},
+    {0, 2, 3, 3, 2, 0},
+    {0, 2, 3, 3, 2, 0},
+    {0, 1, 2, 2, 1, 0},
+    {0, 0, 0, 0, 0, 0},
+};
+
+static const uint8_t HOT_CORE_INTENSITY[16] = {
+    0, 7, 17, 29, 42, 57, 73, 90,
+    108, 127, 147, 167, 188, 210, 232, 255,
+};
+
 static void ensure_plasma_palette(const dmd_settings_t *settings)
 {
     if (s_cached_plasma_palette == settings->plasma_palette &&
@@ -814,6 +848,10 @@ static void paint_dmd(
                     (uint8_t)dmd_x,
                     (uint8_t)dmd_y);
             }
+            bool hot_core_active =
+                settings->hot_core_enabled &&
+                settings->glow_strength > 0 &&
+                intensity > 0;
             uint16_t color = themed_color(
                 theme_color,
                 settings->brightness,
@@ -840,6 +878,52 @@ static void paint_dmd(
                         }
                     }
                 }
+            }
+
+            if (hot_core_active) {
+                dmd_rgb_t core_source;
+                if (settings->hot_core_style == DMD_HOT_CORE_CLASSIC) {
+                    core_source = (dmd_rgb_t){255, 242, 176};
+                } else if (settings->hot_core_style == DMD_HOT_CORE_DUAL_COLOR) {
+                    core_source = settings->hot_core_color;
+                } else {
+                    core_source = mix_rgb(
+                        theme_color,
+                        (dmd_rgb_t){255, 255, 255},
+                        204);
+                }
+                uint8_t core_level = intensity > 15 ? 15 : intensity;
+                uint8_t core_strength = (uint8_t)(
+                    65U + ((uint16_t)settings->glow_strength * 35U) / 100U);
+                uint8_t core_amount = (uint8_t)(
+                    ((uint16_t)HOT_CORE_INTENSITY[core_level] *
+                     core_strength) / 100U);
+                uint16_t core_color = themed_color(
+                    mix_rgb(theme_color, core_source, core_amount),
+                    settings->brightness,
+                    intensity);
+                for (int row = 0; row < DMD_SCALE; row++) {
+                    for (int column = 0; column < DMD_SCALE; column++) {
+                        uint16_t layer_color = 0;
+                        switch ((hot_core_layer_t)HOT_CORE_KERNEL[row][column]) {
+                            case HOT_CORE_HALO:
+                                layer_color = glow_color;
+                                break;
+                            case HOT_CORE_BODY:
+                                layer_color = color;
+                                break;
+                            case HOT_CORE_CENTER:
+                                layer_color = core_color;
+                                break;
+                            default:
+                                break;
+                        }
+                        s_framebuffer[
+                            (cell_y + row) * LCD_WIDTH +
+                            cell_x + column] = layer_color;
+                    }
+                }
+                continue;
             }
 
             for (int row = 0; row < DMD_PIXEL_SIZE; row++) {
