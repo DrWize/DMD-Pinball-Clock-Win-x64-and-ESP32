@@ -22,7 +22,11 @@
     .method{display:inline-grid;place-items:center;padding:6px 8px;border:1px solid var(--orange);border-radius:8px;background:#4b260f;color:var(--ink);font-weight:850;font-size:.78rem}
     code,pre{font-family:ui-monospace,"SFMono-Regular",Consolas,monospace}
     code{color:#ffd0a9}
-    pre{overflow:auto;margin:10px 0;padding:13px;border:1px solid #382116;border-radius:10px;background:#090604;color:#ffe5cc;font-size:.78rem;line-height:1.5}
+    pre{overflow:auto;margin:0;padding:42px 13px 13px;border:1px solid #382116;border-radius:10px;background:#090604;color:#ffe5cc;font-size:.78rem;line-height:1.5}
+    .example{position:relative;margin:10px 0}
+    .copy-example{position:absolute;z-index:1;top:8px;right:8px;padding:5px 10px;border:1px solid #5a351d;border-radius:7px;background:#2a160b;color:var(--amber);font:700 .72rem Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer}
+    .copy-example:hover{border-color:var(--orange);background:#3a1e0d;color:var(--ink)}
+    .copy-example:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
     table{width:100%;border-collapse:collapse}
     th,td{padding:8px 9px;border-bottom:1px solid #382116;text-align:left;vertical-align:top}
     th{color:var(--amber)}
@@ -162,7 +166,48 @@
   <section class="panel">
     <div class="endpoint"><span class="method">GET</span><h2><code>/</code> and <code>/api-docs</code></h2></div>
     <p><code>/</code> serves the interactive device remote. <code>/api-docs</code> serves this reference. <code>/favicon.ico</code> serves the same DMDClock icon used by the Windows application and installer.</p>
+    <pre>curl http://DMDClock-59D9/</pre>
+    <pre>curl http://DMDClock-59D9/api-docs</pre>
   </section>
 </main>
+<script>
+  async function copyExample(text){
+    if(navigator.clipboard&&window.isSecureContext){
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const input=document.createElement("textarea");
+    input.value=text;
+    input.setAttribute("readonly","");
+    input.style.cssText="position:fixed;left:-9999px;top:0";
+    document.body.appendChild(input);
+    input.select();
+    const copied=document.execCommand("copy");
+    input.remove();
+    if(!copied)throw new Error("Copy failed");
+  }
+
+  document.querySelectorAll("pre").forEach(pre=>{
+    const example=document.createElement("div");
+    example.className="example";
+    pre.before(example);
+    example.appendChild(pre);
+    const button=document.createElement("button");
+    button.type="button";
+    button.className="copy-example";
+    button.textContent="Copy";
+    button.setAttribute("aria-label","Copy example to clipboard");
+    example.prepend(button);
+    button.addEventListener("click",async()=>{
+      try{
+        await copyExample(pre.textContent);
+        button.textContent="Copied";
+      }catch(_error){
+        button.textContent="Copy failed";
+      }
+      window.setTimeout(()=>{button.textContent="Copy"},1600);
+    });
+  });
+</script>
 </body>
 </html>

@@ -593,12 +593,6 @@ static void draw_screen_chrome(
             }
             strlcat(source, scene_title, sizeof(source));
         }
-        if (metadata.manufacturer[0] != '\0') {
-            if (source[0] != '\0') {
-                strlcat(source, " - ", sizeof(source));
-            }
-            strlcat(source, metadata.manufacturer, sizeof(source));
-        }
         if (metadata.year > 0) {
             char year[8];
             snprintf(year, sizeof(year), "%u", metadata.year);
@@ -606,6 +600,12 @@ static void draw_screen_chrome(
                 strlcat(source, " - ", sizeof(source));
             }
             strlcat(source, year, sizeof(source));
+        }
+        if (metadata.manufacturer[0] != '\0') {
+            if (source[0] != '\0') {
+                strlcat(source, " - ", sizeof(source));
+            }
+            strlcat(source, metadata.manufacturer, sizeof(source));
         }
         if (source[0] != '\0') {
             uppercase_copy(info, sizeof(info), source);

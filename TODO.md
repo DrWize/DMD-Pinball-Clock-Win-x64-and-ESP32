@@ -775,9 +775,9 @@ Detailed status, commands, and acceptance criteria:
       followed by a five-second result; start it explicitly from the webpage
       instead of delaying every boot.
 - [x] Remove redundant `PINBALL` and `SCENE` prefixes from display metadata;
-      show the game, scene title, manufacturer, and year directly.
+      show the game, scene title, year, and manufacturer directly.
 - [x] Compact scene metadata to one fitted
-      `game - scene - manufacturer - year` row and add persistent information
+      `game - scene - year - manufacturer` row and add persistent information
       colours for discreet grey, follow-theme, or a standalone custom colour.
 - [x] Mirror all web-editable settings to the human-readable SD file
       `/dmd/config/settings.json`, load it over NVS at boot, migrate existing
@@ -788,7 +788,7 @@ Detailed status, commands, and acceptance criteria:
       remote, without requiring the separate Save changes button.
 - [x] Serve an embedded `/api-docs` subpage linked from the web remote with every
       local HTTP endpoint, accepted setting, control action, example, and
-      local-network security limitation.
+      local-network security limitation, plus a copy control for each example.
 - [x] Add a confirmed Reboot device button to the web remote and a delayed
       `reboot` action to `POST /api/action`, allowing the HTTP response to
       complete before the ESP32 restarts.

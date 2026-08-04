@@ -954,7 +954,7 @@ interface remains stable before advanced effects are introduced.
 - [x] Follow network startup with five guided touch targets, five seconds each,
       live event/coordinate feedback, and a five-second result screen.
 - [x] Show scene metadata without redundant `PINBALL` and `SCENE` prefixes:
-      game, scene title, manufacturer, then year.
+      game, scene title, year, then manufacturer.
 - [x] Keep `CONFIG_LCD_RGB_RESTART_IN_VSYNC` disabled because ESP-IDF 5.5.2
       restarts RGB DMA on every VSYNC when it is enabled; use double-buffered
       frame-boundary handoff and diagnose actual underruns separately.
@@ -1005,7 +1005,8 @@ Windows reference within documented clock tolerance.
       and keep it synchronized with changes made through other controls.
 - [x] Add a device-hosted `/api-docs` reference linked from the remote, covering
       all current GET/POST routes, partial settings fields, named actions,
-      examples, persistence behavior, and the current trusted-LAN security model.
+      copyable examples, persistence behavior, and the current trusted-LAN
+      security model.
 - [x] Add a confirmation-protected web reboot control backed by the documented
       `reboot` API action, with a delayed restart so callers receive success
       before the connection drops.
