@@ -178,6 +178,8 @@ bootloader, partition table, NVS, and TF card. Full mode writes the bootloader,
 partition table, and application without erasing NVS. The installer requires an
 explicit COM-port selection, verifies an ESP32-S3 with 16 MB flash, requires the
 physical `7`-not-`7B` confirmation, and asks for `FLASH` before writing.
+The critical prompts are colour-coded, and `FLASH` is accepted in any mixture of
+uppercase and lowercase letters.
 
 ## First start and remote control
 

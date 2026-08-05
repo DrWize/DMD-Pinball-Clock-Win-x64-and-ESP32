@@ -32,7 +32,11 @@ Its menu lets you:
 3. select an application update or complete installation;
 4. choose an explicit connected COM port;
 5. confirm that the physical board label says `7`, not `7B`; and
-6. flash only after typing `FLASH`.
+6. flash only after typing `FLASH` (uppercase or lowercase is accepted).
+
+Important hardware, preservation, and confirmation messages are colour-coded so
+the supported `7`, unsupported `7B`, selected port/mode, and final write prompt
+are easy to distinguish.
 
 Application updates preserve the bootloader, partition table, NVS/Wi-Fi settings,
 and TF card. Complete installation writes the bootloader, partition table, and

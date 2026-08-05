@@ -43,12 +43,28 @@ $buildPath = Join-Path $projectPath 'build'
 $toolRoot = Join-Path $workspaceRoot '.tools/esp-idf/v5.5.2/tools'
 $python = Join-Path $toolRoot 'python/v5.5.2/venv/Scripts/python.exe'
 
+function Read-HighlightedConfirmation {
+    param(
+        [Parameter(Mandatory)] [string] $Prefix,
+        [Parameter(Mandatory)] [string] $Token,
+        [Parameter(Mandatory)] [string] $Suffix,
+        [ConsoleColor] $Color = [ConsoleColor]::Yellow
+    )
+
+    Write-Host $Prefix -NoNewline
+    Write-Host $Token -ForegroundColor $Color -NoNewline
+    Write-Host ($Suffix + ': ') -NoNewline
+    return (Read-Host).Trim()
+}
+
 function Show-SupportedHardwareBanner {
     Write-Host ''
-    Write-Host 'DMDClock ESP32-S3 installer/updater'
-    Write-Host '----------------------------------'
-    Write-Host 'SUPPORTED:     Waveshare ESP32-S3-Touch-LCD-7, 800x480, N16R8'
-    Write-Warning 'NOT SUPPORTED: Waveshare ESP32-S3-Touch-LCD-7B, 1024x600'
+    Write-Host 'DMDClock ESP32-S3 installer/updater' -ForegroundColor Cyan
+    Write-Host '----------------------------------' -ForegroundColor DarkCyan
+    Write-Host 'SUPPORTED:     Waveshare ESP32-S3-Touch-LCD-7, 800x480, N16R8' `
+        -ForegroundColor Green
+    Write-Host 'NOT SUPPORTED: Waveshare ESP32-S3-Touch-LCD-7B, 1024x600' `
+        -ForegroundColor Red
     Write-Host 'The 7 and 7B use different display timing and GPIO mappings.'
 }
 
@@ -570,7 +586,11 @@ function Assert-ConnectedHardware {
     if (-not $ConfirmOriginal7) {
         Write-Host ''
         Write-Warning 'Look at the board label before continuing.'
-        $confirmation = (Read-Host 'Type 7 to confirm the original 800x480 model (typing 7B cancels)').Trim()
+        $confirmation = Read-HighlightedConfirmation `
+            -Prefix 'Type ' `
+            -Token '7' `
+            -Suffix ' to confirm the original 800x480 model (typing 7B cancels)' `
+            -Color Green
         if ($confirmation -ieq '7B') {
             throw 'Cancelled: the Waveshare 7B is not supported and must not be flashed with this firmware.'
         }
@@ -588,7 +608,7 @@ function Assert-ConnectedHardware {
     if ($flashOutput -notmatch '(?i)(Detected flash size:\s*16MB|flash size.*16\s*MB)') {
         throw 'The connected device did not report the required 16 MB flash. Refusing to continue.'
     }
-    Write-Host '[OK] ESP32-S3 with 16 MB flash detected.'
+    Write-Host '[OK] ESP32-S3 with 16 MB flash detected.' -ForegroundColor Green
     Write-Warning 'Chip detection cannot distinguish the 800x480 model from the incompatible 7B; the board-label confirmation remains required.'
 }
 
@@ -629,20 +649,25 @@ function Invoke-FirmwareFlash {
     Write-Host ''
     Write-Host 'Flash summary:'
     Write-Host "  Source:   $($Package.Source)"
-    Write-Host "  Version:  $($Package.Version)"
+    Write-Host "  Version:  $($Package.Version)" -ForegroundColor Cyan
     Write-Host "  Target:   $supportedProduct ($supportedDisplay, N16R8)"
-    Write-Host "  Port:     $SelectedPort"
-    Write-Host "  Mode:     $Mode"
-    Write-Host '  NVS:      preserved (no erase command is used)'
-    Write-Host '  TF card:  untouched'
+    Write-Host "  Port:     $SelectedPort" -ForegroundColor Cyan
+    Write-Host "  Mode:     $Mode" -ForegroundColor Yellow
+    Write-Host '  NVS:      preserved (no erase command is used)' -ForegroundColor Green
+    Write-Host '  TF card:  untouched' -ForegroundColor Green
     foreach ($file in $files) {
         Write-Host "  $($file.Offset)  $($file.RelativePath)"
     }
 
     if (-not $Force) {
-        $confirmation = (Read-Host 'Type FLASH to write this firmware').Trim()
-        if ($confirmation -cne 'FLASH') {
-            Write-Host 'Flash cancelled. The verified download remains cached.'
+        $confirmation = Read-HighlightedConfirmation `
+            -Prefix 'Type ' `
+            -Token 'FLASH' `
+            -Suffix ' (uppercase or lowercase) to write this firmware' `
+            -Color Yellow
+        if ($confirmation -ine 'FLASH') {
+            Write-Host 'Flash cancelled. The verified download remains cached.' `
+                -ForegroundColor Yellow
             return
         }
     }
@@ -669,7 +694,8 @@ function Invoke-FirmwareFlash {
     }
     $null = Invoke-EsptoolChecked -Arguments $arguments
     Write-Host ''
-    Write-Host '[DONE] Firmware written and verified by esptool; the board was reset.'
+    Write-Host '[DONE] Firmware written and verified by esptool; the board was reset.' `
+        -ForegroundColor Green
 
     if ($Monitor) {
         if (-not $Package.IsLocal) {
@@ -722,7 +748,7 @@ $package = switch ($sourceMode) {
 }
 
 Write-Host ''
-Write-Host '[OK] Firmware package verified'
+Write-Host '[OK] Firmware package verified' -ForegroundColor Green
 Write-Host "  Source:  $($package.Source)"
 Write-Host "  Version: $($package.Version)"
 Write-Host "  Target:  $supportedProduct ($supportedDisplay, $supportedModule)"
@@ -738,9 +764,11 @@ if ($DownloadOnly) {
 if (-not $FlashMode) {
     Write-Host ''
     Write-Host 'Flash mode:'
-    Write-Host '  [1] Application update (Recommended; preserves bootloader, partitions and NVS)'
-    Write-Host '  [2] Complete installation (bootloader, partition table and application; preserves NVS)'
-    Write-Host '  [3] Keep download only and exit'
+    Write-Host '  [1] Application update (Recommended; preserves bootloader, partitions and NVS)' `
+        -ForegroundColor Green
+    Write-Host '  [2] Complete installation (bootloader, partition table and application; preserves NVS)' `
+        -ForegroundColor Yellow
+    Write-Host '  [3] Keep download only and exit' -ForegroundColor DarkGray
     switch (Read-MenuChoice -Prompt 'Select flash mode' -Minimum 1 -Maximum 3 -Default 1) {
         1 { $FlashMode = 'Application' }
         2 { $FlashMode = 'Full' }
