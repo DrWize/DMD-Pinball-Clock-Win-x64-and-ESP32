@@ -39,6 +39,9 @@ compiler on the global `PATH`.
 # Package a credential-free local build for a GitHub release.
 .\scripts\esp32\Package-DmdClockEsp32.ps1
 
+# Include the verified ESP32 artifacts when previewing the combined release.
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.3.2 -IncludeEsp32 -WhatIf
+
 # Generate a one-time, ignored first-flash Wi-Fi header and build with it.
 # The password is entered through a masked SecureString prompt.
 .\scripts\esp32\Set-DmdClockBootstrapWifi.ps1 -WifiSsid 'My Wi-Fi' -Build

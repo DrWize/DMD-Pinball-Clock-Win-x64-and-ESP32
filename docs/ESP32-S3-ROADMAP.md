@@ -1162,8 +1162,8 @@ the enclosure.
       release, verifies it, and optionally flashes an explicit COM port.
 - [ ] Add local release validation that flashes a clean board and performs smoke
       tests.
-- [ ] Keep Windows and ESP32 artifacts separate but allow one GitHub release to
-      contain both after the firmware reaches release quality.
+- [x] Keep Windows and ESP32 artifacts separate while allowing the GitHub release
+      publisher to validate and include both with `-IncludeEsp32`.
 
 Exit: a user can install, recover, and update the Waveshare board using documented
 local tools.

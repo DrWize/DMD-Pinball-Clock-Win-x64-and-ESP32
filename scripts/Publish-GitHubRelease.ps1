@@ -12,7 +12,9 @@ param(
 
     [switch]$Prerelease,
 
-    [switch]$Draft
+    [switch]$Draft,
+
+    [switch]$IncludeEsp32
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,6 +25,7 @@ $standaloneDirectory = Join-Path $projectRoot 'output\current\win-x64-standalone
 $installerDirectory = Join-Path $projectRoot 'output\current\win-x64-installer'
 $releaseDirectory = Join-Path $projectRoot 'output\current\release'
 $releaseManifestPath = Join-Path $releaseDirectory 'release-manifest.json'
+$esp32ReleaseDirectory = Join-Path $projectRoot 'output\current\esp32-release'
 $installerInfoPath = Join-Path $installerDirectory 'installer-build-info.json'
 $portableInfoPath = Join-Path $portableDirectory 'build-info.json'
 $standaloneInfoPath = Join-Path $standaloneDirectory 'build-info.json'
@@ -146,6 +149,69 @@ Actual:   $actualInstallerHash
         throw "HEAD must exactly match origin/$Target before publishing."
     }
 
+    $esp32AssetPaths = @()
+    if ($IncludeEsp32) {
+        if (-not (Test-Path -LiteralPath $esp32ReleaseDirectory -PathType Container)) {
+            throw "ESP32 release directory is missing: $esp32ReleaseDirectory"
+        }
+        $esp32ManifestFiles = @(Get-ChildItem -LiteralPath $esp32ReleaseDirectory `
+            -Filter 'DMDClock-*-esp32-manifest.json' -File)
+        if ($esp32ManifestFiles.Count -ne 1) {
+            throw 'The ESP32 release directory must contain exactly one ESP32 manifest.'
+        }
+        $esp32ManifestPath = $esp32ManifestFiles[0].FullName
+        $esp32Manifest = Get-Content -LiteralPath $esp32ManifestPath -Raw | ConvertFrom-Json
+        if ([int]$esp32Manifest.schemaVersion -ne 1 -or
+            [string]$esp32Manifest.releaseTag -ne $Tag -or
+            [string]$esp32Manifest.sourceRevision -notmatch '^[0-9A-Fa-f]{12}$' -or
+            [string]$esp32Manifest.target.id -ne
+                'waveshare-esp32-s3-touch-lcd-7-800x480-n16r8') {
+            throw 'The ESP32 manifest schema, release tag, source revision, or hardware target does not match this release.'
+        }
+        if (-not $localCommit.StartsWith(
+            [string]$esp32Manifest.sourceRevision,
+            [StringComparison]::OrdinalIgnoreCase)) {
+            throw @"
+ESP32 package source revision does not match the release commit:
+Package: $($esp32Manifest.sourceRevision)
+Release: $localCommit
+"@
+        }
+
+        $esp32PackagePath = Join-Path $esp32ReleaseDirectory `
+            ([string]$esp32Manifest.package.asset)
+        $expectedEsp32ManifestName = "DMDClock-$($esp32Manifest.version)-esp32-manifest.json"
+        $expectedEsp32PackageName = "DMDClock-$($esp32Manifest.version)-esp32-s3-touch-lcd-7-800x480-n16r8.zip"
+        if ((Split-Path -Leaf $esp32ManifestPath) -cne $expectedEsp32ManifestName -or
+            [string]$esp32Manifest.package.asset -cne $expectedEsp32PackageName) {
+            throw 'The ESP32 manifest or package filename is not canonical for its version.'
+        }
+        $esp32ChecksumsPath = Join-Path $esp32ReleaseDirectory `
+            "DMDClock-$($esp32Manifest.version)-esp32-SHA256SUMS.txt"
+        foreach ($path in @($esp32ManifestPath, $esp32PackagePath, $esp32ChecksumsPath)) {
+            Assert-File $path
+        }
+        if ((Get-Item -LiteralPath $esp32PackagePath).Length -ne
+            [long]$esp32Manifest.package.size) {
+            throw 'ESP32 package size does not match its manifest.'
+        }
+        $esp32PackageHash = (Get-FileHash -LiteralPath $esp32PackagePath `
+            -Algorithm SHA256).Hash
+        if ($esp32PackageHash -ne [string]$esp32Manifest.package.sha256) {
+            throw 'ESP32 package checksum does not match its manifest.'
+        }
+        $esp32ChecksumLines = @(Get-Content -LiteralPath $esp32ChecksumsPath)
+        foreach ($path in @($esp32PackagePath, $esp32ManifestPath)) {
+            $expectedLine = '{0}  {1}' -f (
+                (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()),
+                (Split-Path -Leaf $path)
+            if ($expectedLine -cnotin $esp32ChecksumLines) {
+                throw "ESP32 checksum list does not contain the expected entry for '$(Split-Path -Leaf $path)'."
+            }
+        }
+        $esp32AssetPaths = @($esp32PackagePath, $esp32ManifestPath, $esp32ChecksumsPath)
+    }
+
     & gh release view $Tag --repo $Repository *> $null
     if ($LASTEXITCODE -eq 0) {
         throw "GitHub Release already exists: $Tag"
@@ -165,7 +231,7 @@ Actual:   $actualInstallerHash
         $portableZip,
         $standaloneZip,
         $installerInfoPath
-    )
+    ) + $esp32AssetPaths
     $hashLines = foreach ($assetPath in $assetPaths) {
         $hash = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash
         "$hash  $(Split-Path -Leaf $assetPath)"
@@ -177,6 +243,7 @@ Actual:   $actualInstallerHash
     Write-Host "Build:      $($portableInfo.buildId)"
     Write-Host "Prerelease: $($Prerelease.IsPresent)"
     Write-Host "Draft:      $($Draft.IsPresent)"
+    Write-Host "ESP32:      $($IncludeEsp32.IsPresent)"
     $hashLines | ForEach-Object { Write-Host $_ }
 
     if (-not $PSCmdlet.ShouldProcess(
@@ -195,7 +262,8 @@ Actual:   $actualInstallerHash
         $portableZip,
         $standaloneZip,
         $installerInfoPath,
-        $releaseChecksums,
+        $releaseChecksums
+    ) + $esp32AssetPaths + @(
         '--repo', $Repository,
         '--target', $Target,
         '--title', $Title

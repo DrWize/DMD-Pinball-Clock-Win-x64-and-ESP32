@@ -156,6 +156,14 @@ After building and validating all packages, preview release publication:
 .\scripts\Publish-GitHubRelease.ps1 -Tag v1.1.0 -Prerelease -WhatIf
 ```
 
+When the release should appear in the ESP32 installer's download menu, build the
+credential-free firmware package and include its three release assets:
+
+```powershell
+.\scripts\esp32\Package-DmdClockEsp32.ps1
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.1.0 -IncludeEsp32 -WhatIf
+```
+
 Publish after reviewing the preflight output:
 
 ```powershell
@@ -166,9 +174,11 @@ The script requires an authenticated GitHub CLI, a clean working tree whose `HEA
 exactly matches `origin/master`, matching portable/standalone/installer build IDs,
 and a tag that does not already exist. It uploads the setup EXE, portable ZIP,
 standalone ZIP, installer build information, and a generated SHA-256 file covering
-all uploaded build artifacts. Use `-NotesPath path\to\notes.md` for curated release
-notes; otherwise GitHub generates notes from the repository history. The current
-published build is available through the
+all uploaded build artifacts. With `-IncludeEsp32`, it additionally requires an
+ESP32 manifest whose tag, source revision, and hardware target match the release,
+then rechecks and uploads its firmware ZIP, manifest, and checksum list. Use
+`-NotesPath path\to\notes.md` for curated release notes; otherwise GitHub generates
+notes from the repository history. The current published build is available through the
 [latest release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest).
 
 ## Work with Git
