@@ -111,7 +111,8 @@ function Get-GitHubHeaders {
 function Get-CompatibleReleases {
     $uri = "https://api.github.com/repos/$Repository/releases?per_page=30"
     Write-Host "Checking GitHub releases for $Repository..."
-    $releases = @(Invoke-RestMethod -Uri $uri -Headers (Get-GitHubHeaders))
+    $response = Invoke-RestMethod -Uri $uri -Headers (Get-GitHubHeaders)
+    $releases = @($response)
     $compatible = @()
     foreach ($release in $releases) {
         if ($release.draft) { continue }
