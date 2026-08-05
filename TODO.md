@@ -730,14 +730,14 @@ contract.
 - [ ] Validate launch, rendering, fullscreen, multiple displays, file pickers,
       Control-click menus, fonts, scenes, downloads, and settings under
       `~/Library/Application Support/DmdClock` on a physical Apple Silicon Mac.
-- [ ] Add a `macos-14` CI build that verifies Mach-O architectures,
+- [x] Add a `macos-14` CI build that verifies Mach-O architectures,
       bundle structure, executable permissions, and package contents.
 - [ ] Join the Apple Developer Program and provision a Developer ID Application
       certificate if public friction-free distribution is approved.
 - [ ] Sign nested native code and the app bundle with hardened runtime, submit it
       with `notarytool`, inspect the notarization log, staple the ticket, and test
       a quarantined download through Gatekeeper.
-- [ ] Publish an unsigned macOS DMG developer preview with its own build metadata
+- [x] Publish an unsigned macOS DMG developer preview with its own build metadata
       and SHA-256 checksums; keep it separate from Windows artifacts.
 - [ ] Replace the preview with a signed/notarized macOS ZIP or DMG and include it
       in the platform-specific release manifest.
