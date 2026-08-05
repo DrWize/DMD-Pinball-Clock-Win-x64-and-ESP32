@@ -1,8 +1,9 @@
 # Install DMDClock on the ESP32-S3 and SD card
 
-This guide targets only the original Waveshare
-`ESP32-S3-Touch-LCD-7`, `ESP32-S3-WROOM-1-N16R8`, with an 800×480 display.
-Do not use it with the 1024×600 `7B` board.
+This guide and every published DMDClock ESP32 image support only the original
+Waveshare `ESP32-S3-Touch-LCD-7`, `ESP32-S3-WROOM-1-N16R8`, with an 800×480
+display. The 1024×600 `ESP32-S3-Touch-LCD-7B` is not supported and must not be
+flashed with these packages.
 
 ## What you need
 
@@ -13,10 +14,38 @@ Do not use it with the 1024×600 `7B` board.
 - this repository and its workspace tools.
 
 The [latest release page][latest-release] is the canonical place for published
-versions. Until a ready-to-flash ESP32 bundle is attached there, use the tested
-scripts from the matching repository source.
+versions. `Install-DmdClockEsp32.ps1` lists only releases containing a compatible,
+hash-verified package for the supported board.
 
-## 1. Prepare Wi-Fi safely
+## 1. Download and flash a release
+
+From the repository root, start the single supported installer/updater:
+
+```powershell
+.\scripts\esp32\Install-DmdClockEsp32.ps1
+```
+
+Its menu lets you:
+
+1. select a stable or preview release containing ESP32 firmware;
+2. download and verify its manifest, target ID, ZIP, and individual images;
+3. select an application update or complete installation;
+4. choose an explicit connected COM port;
+5. confirm that the physical board label says `7`, not `7B`; and
+6. flash only after typing `FLASH`.
+
+Application updates preserve the bootloader, partition table, NVS/Wi-Fi settings,
+and TF card. Complete installation writes the bootloader, partition table, and
+application without issuing an erase command, so NVS and the TF card remain
+untouched.
+
+Download without flashing:
+
+```powershell
+.\scripts\esp32\Install-DmdClockEsp32.ps1 -ReleaseTag v1.3.1 -DownloadOnly
+```
+
+## 2. Optional developer Wi-Fi bootstrap and local build
 
 From the repository root, create the one-time local bootstrap header. The password
 prompt is masked and the generated header is ignored by Git:
@@ -29,11 +58,11 @@ prompt is masked and the generated header is ignored by Git:
 
 The ESP32-S3 supports 2.4 GHz Wi-Fi, not a 5 GHz-only network.
 
-## 2. Find and flash the board
+Flash that current local build through the same consolidated script:
 
 ```powershell
 .\scripts\esp32\Doctor.ps1
-.\scripts\esp32\Flash-DmdClock.ps1 -Port COM5 -Monitor
+.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 -Monitor
 ```
 
 Replace `COM5` with the exact connected port reported by the doctor. The flash
@@ -46,7 +75,8 @@ firmware images while preserving NVS:
 
 ```powershell
 .\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build
-.\scripts\esp32\Flash-DmdClock.ps1 -Port COM5
+.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 `
+  -FlashMode Application
 ```
 
 Do not erase the device during this cleanup flash.

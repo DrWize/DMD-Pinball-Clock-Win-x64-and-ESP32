@@ -135,12 +135,18 @@ After identifying the board's exact COM port, flash it explicitly and keep the
 serial monitor open:
 
 ```powershell
-.\scripts\esp32\Flash-DmdClock.ps1 -Port COM5 -Monitor
+.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 -Monitor
 ```
 
 Replace `COM5` with the verified port. Read the
 [firmware development guide](../firmware/dmdclock-esp32/README.md) before changing
 board settings, partitions, Wi-Fi bootstrap data, or release artifacts.
+
+`Install-DmdClockEsp32.ps1` is the only supported flashing entry point. Without
+`-LocalBuild`, it presents compatible GitHub releases in a menu, downloads and
+verifies the selected package, and then offers application-only or complete
+flashing. The supported hardware is only the original 800×480
+`ESP32-S3-Touch-LCD-7` with an N16R8 module—not the 1024×600 `7B`.
 
 ## Publish a GitHub Release
 

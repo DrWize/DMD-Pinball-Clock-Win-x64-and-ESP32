@@ -491,10 +491,9 @@ DMD-Pinball-Clock-Win-x64-and-ESP32/
 │     ├─ Doctor.ps1
 │     ├─ Generate-Shared.ps1
 │     ├─ Test-Firmware.ps1
-│     ├─ Build-Firmware.ps1
-│     ├─ Flash-Firmware.ps1
-│     ├─ Monitor-Firmware.ps1
-│     └─ Package-Firmware.ps1
+│     ├─ Build-DmdClock.ps1
+│     ├─ Install-DmdClockEsp32.ps1
+│     └─ Package-DmdClockEsp32.ps1
 └─ output/
    └─ esp32/
 ```
@@ -569,14 +568,14 @@ The intended entry points are:
 .\scripts\esp32\Test-Firmware.ps1 -Jobs 20
 
 # Compile locally for the fixed Waveshare target.
-.\scripts\esp32\Build-Firmware.ps1 -Configuration Debug -Jobs 20
+.\scripts\esp32\Build-DmdClock.ps1
 
-# Explicit hardware operations; never part of an ordinary build.
-.\scripts\esp32\Flash-Firmware.ps1 -Port COM5
-.\scripts\esp32\Monitor-Firmware.ps1 -Port COM5
+# Download a release and optionally flash, or flash the current local build.
+.\scripts\esp32\Install-DmdClockEsp32.ps1
+.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 -Monitor
 
-# Produce install, OTA, TF-card, manifest, and checksum artifacts.
-.\scripts\esp32\Package-Firmware.ps1 -Configuration Release -Jobs 20
+# Produce the USB install/update ZIP, manifest, and checksum artifacts.
+.\scripts\esp32\Package-DmdClockEsp32.ps1
 ```
 
 Build and test scripts may be run automatically by an agent because they only
@@ -859,7 +858,7 @@ Current phase status:
 | 7b — Home Assistant | **Foundation implemented** — optional broker settings, retained discovery/state, birth/LWT, initial controls/diagnostics, status counters, and local setup QR work | Live Home Assistant/broker validation, TLS, remaining entities, notifications, and broker-failure soak testing |
 | 7c — Gradient, Raster, Plasma | **Core complete** — all families, presets, Custom themes, Plasma, glow, and metadata colours run | Exhaustive intensity/hash/performance testing and automatic fallback |
 | 8 — OTA and recovery | **Not started** | Partition design, signed validation, rollback, and tested USB recovery |
-| 9 — Packaging and release | **Not started** | Install/OTA/card artifacts, manifests, checksums, and clean-board validation |
+| 9 — Packaging and release | **Partial** — USB application/full packages, target manifest, checksums, and release-menu installer are implemented | Publish packages, add clean-board validation, then add future OTA/card artifacts |
 
 ### Phase 0 — Baseline and safety
 
@@ -1155,7 +1154,12 @@ the enclosure.
 - [ ] Generate `merged-flash.bin` for first installation.
 - [ ] Generate an OTA application image for upgrades.
 - [ ] Generate a TF-card starter package without bundled original scene content.
-- [ ] Produce `manifest.json`, flash offsets, build metadata, and SHA-256 checksums.
+- [x] Produce a USB release ZIP with bootloader, partition table, and application
+      images for full or application-only flashing.
+- [x] Produce a target-specific manifest, flash offsets, build metadata, and
+      SHA-256 checksums.
+- [x] Provide one PowerShell installer/updater that selects a compatible GitHub
+      release, verifies it, and optionally flashes an explicit COM port.
 - [ ] Add local release validation that flashes a clean board and performs smoke
       tests.
 - [ ] Keep Windows and ESP32 artifacts separate but allow one GitHub release to
