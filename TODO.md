@@ -713,6 +713,40 @@ Acceptance criteria:
 Detailed status, commands, and acceptance criteria:
 [`docs/INSTALLER.md`](docs/INSTALLER.md).
 
+### Priority 6 — macOS Apple Silicon application
+
+The first macOS target is a normal Apple Silicon application with windowed and
+fullscreen modes. A native system screensaver is a separate later phase because
+macOS uses a Cocoa `.saver` plug-in rather than the Windows `.scr` executable
+contract.
+
+- [x] Prove that the current Avalonia application cross-publishes for
+      `osx-arm64` with the required native Avalonia and Skia libraries.
+- [x] Add a repeatable `scripts/Build-MacOS.ps1` workflow that produces a
+      versioned `DMDClock.app` bundle and ZIP without changing the Windows build.
+- [x] Add bundle metadata, stable identifier `io.github.drwize.dmdclock`, and a
+      temporary PNG icon resource; replace it with a generated `.icns` set on a
+      Mac before public release.
+- [ ] Validate launch, rendering, fullscreen, multiple displays, file pickers,
+      Control-click menus, fonts, scenes, downloads, and settings under
+      `~/Library/Application Support/DmdClock` on a physical Apple Silicon Mac.
+- [ ] Add a `macos-14` CI build that verifies Mach-O architectures,
+      bundle structure, executable permissions, and package contents.
+- [ ] Join the Apple Developer Program and provision a Developer ID Application
+      certificate if public friction-free distribution is approved.
+- [ ] Sign nested native code and the app bundle with hardened runtime, submit it
+      with `notarytool`, inspect the notarization log, staple the ticket, and test
+      a quarantined download through Gatekeeper.
+- [ ] Publish an unsigned macOS DMG developer preview with its own build metadata
+      and SHA-256 checksums; keep it separate from Windows artifacts.
+- [ ] Replace the preview with a signed/notarized macOS ZIP or DMG and include it
+      in the platform-specific release manifest.
+- [ ] Decide whether launch-at-login fullscreen mode is sufficient before
+      starting a native Objective-C/Swift `ScreenSaverView` `.saver` host.
+
+Detailed phases, commands, risks, and acceptance criteria:
+[`docs/MACOS-ARM64.md`](docs/MACOS-ARM64.md).
+
 ## Backlog after the active priorities
 
 ### Clock and automatic display

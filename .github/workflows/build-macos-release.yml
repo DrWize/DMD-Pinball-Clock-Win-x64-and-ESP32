@@ -1,0 +1,127 @@
+name: Build macOS release asset
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing GitHub release tag to receive the unsigned DMG
+        required: true
+        default: v1.3.1
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ inputs.release_tag }}
+
+jobs:
+  build-macos-arm64:
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - name: Validate release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') {
+            throw 'release_tag must use the form v1.2.3.'
+          }
+          gh release view $env:RELEASE_TAG
+
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test DMDClock.sln -c Release
+
+      - name: Build unsigned Apple Silicon app
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_TAG.Substring(1)
+          ./scripts/Build-MacOS.ps1 -Configuration Release -Version $version
+
+      - name: Validate bundle and ARM64 binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="output/current/osx-arm64/DMDClock.app"
+          test -x "$app/Contents/MacOS/DmdClock.App"
+          test -f "$app/Contents/Info.plist"
+          test -f "$app/Contents/Resources/build-info.json"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "io.github.drwize.dmdclock"
+          file "$app/Contents/MacOS/DmdClock.App" | grep -q 'arm64'
+          while IFS= read -r library; do
+            file "$library" | grep -q 'arm64'
+          done < <(find "$app/Contents/MacOS" -type f -name '*.dylib' -print)
+
+      - name: Create and verify DMG
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$RELEASE_TAG"
+          version="${version#v}"
+          release_dir="output/current/osx-arm64/release"
+          dmg_name="DMDClock-${version}-osx-arm64-unsigned.dmg"
+          info_name="DMDClock-${version}-osx-arm64-build-info.json"
+          sums_name="DMDClock-${version}-osx-arm64-SHA256SUMS.txt"
+          dmg_root="output/current/osx-arm64/dmg-root"
+          mkdir -p "$release_dir"
+          mkdir -p "$dmg_root"
+          cp -R output/current/osx-arm64/DMDClock.app "$dmg_root/DMDClock.app"
+          ln -s /Applications "$dmg_root/Applications"
+          hdiutil create \
+            -volname DMDClock \
+            -srcfolder "$dmg_root" \
+            -format UDZO \
+            -ov \
+            "$release_dir/$dmg_name"
+          hdiutil verify "$release_dir/$dmg_name"
+          mount_dir="$(mktemp -d)"
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount_dir" "$release_dir/$dmg_name"
+          test -x "$mount_dir/DMDClock.app/Contents/MacOS/DmdClock.App"
+          test -f "$mount_dir/DMDClock.app/Contents/Info.plist"
+          hdiutil detach "$mount_dir"
+          rmdir "$mount_dir"
+          cp output/current/osx-arm64/build-info.json "$release_dir/$info_name"
+          plutil -replace artifactFile -string "$dmg_name" "$release_dir/$info_name"
+          plutil -insert packageFormat -string dmg "$release_dir/$info_name"
+          plutil -insert dmgVerified -bool YES "$release_dir/$info_name"
+          (
+            cd "$release_dir"
+            shasum -a 256 "$dmg_name" "$info_name" > "$sums_name"
+          )
+          echo "release_dir=$release_dir" >> "$GITHUB_OUTPUT"
+          echo "dmg_name=$dmg_name" >> "$GITHUB_OUTPUT"
+          echo "info_name=$info_name" >> "$GITHUB_OUTPUT"
+          echo "sums_name=$sums_name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DMDClock-${{ inputs.release_tag }}-osx-arm64-unsigned
+          path: output/current/osx-arm64/release/*
+          if-no-files-found: error
+
+      - name: Upload DMG to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.package.outputs.release_dir }}"
+          gh release upload "$RELEASE_TAG" \
+            "$root/${{ steps.package.outputs.dmg_name }}" \
+            "$root/${{ steps.package.outputs.info_name }}" \
+            "$root/${{ steps.package.outputs.sums_name }}" \
+            --clobber

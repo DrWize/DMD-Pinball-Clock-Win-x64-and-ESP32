@@ -94,6 +94,26 @@ Build output is generated below `output\` and is intentionally excluded from Git
 Every package contains the tracked `scenes\scene-metadata.json`; downloaded `.scn`
 animations are never packaged.
 
+### Build the macOS Apple Silicon developer preview
+
+Create the initial self-contained `osx-arm64` application bundle and ZIP:
+
+```powershell
+.\scripts\Build-MacOS.ps1
+```
+
+The output is written to `output\current\osx-arm64`. This first-stage package is
+deliberately marked unsigned, unnotarized, and not release-ready. A cross-build
+from Windows proves the bundle structure and native dependencies, but executable
+permissions and launch behavior must still be validated on Apple Silicon before
+distribution. Follow the [macOS Apple Silicon plan](MACOS-ARM64.md) for hardware
+testing, signing, notarization, and release criteria.
+
+Repository maintainers can run the `Build macOS release asset` workflow against
+an existing release tag. Its `macos-14` runner verifies the ARM64 bundle, creates
+and mounts a real DMG with `hdiutil`, and uploads the unsigned DMG, build metadata,
+and SHA-256 checksums to that release.
+
 ## Build and test ESP32-S3 firmware
 
 The firmware targets the original 800x480 Waveshare ESP32-S3-Touch-LCD-7 with an
