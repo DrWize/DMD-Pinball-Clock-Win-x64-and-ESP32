@@ -135,12 +135,18 @@ After identifying the board's exact COM port, flash it explicitly and keep the
 serial monitor open:
 
 ```powershell
-.\scripts\esp32\Flash-DmdClock.ps1 -Port COM5 -Monitor
+.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 -Monitor
 ```
 
 Replace `COM5` with the verified port. Read the
 [firmware development guide](../firmware/dmdclock-esp32/README.md) before changing
 board settings, partitions, Wi-Fi bootstrap data, or release artifacts.
+
+`Install-DmdClockEsp32.ps1` is the only supported flashing entry point. Without
+`-LocalBuild`, it presents compatible GitHub releases in a menu, downloads and
+verifies the selected package, and then offers application-only or complete
+flashing. The supported hardware is only the original 800×480
+`ESP32-S3-Touch-LCD-7` with an N16R8 module—not the 1024×600 `7B`.
 
 ## Publish a GitHub Release
 
@@ -148,6 +154,14 @@ After building and validating all packages, preview release publication:
 
 ```powershell
 .\scripts\Publish-GitHubRelease.ps1 -Tag v1.1.0 -Prerelease -WhatIf
+```
+
+When the release should appear in the ESP32 installer's download menu, build the
+credential-free firmware package and include its three release assets:
+
+```powershell
+.\scripts\esp32\Package-DmdClockEsp32.ps1
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.1.0 -IncludeEsp32 -WhatIf
 ```
 
 Publish after reviewing the preflight output:
@@ -160,9 +174,11 @@ The script requires an authenticated GitHub CLI, a clean working tree whose `HEA
 exactly matches `origin/master`, matching portable/standalone/installer build IDs,
 and a tag that does not already exist. It uploads the setup EXE, portable ZIP,
 standalone ZIP, installer build information, and a generated SHA-256 file covering
-all uploaded build artifacts. Use `-NotesPath path\to\notes.md` for curated release
-notes; otherwise GitHub generates notes from the repository history. The current
-published build is available through the
+all uploaded build artifacts. With `-IncludeEsp32`, it additionally requires an
+ESP32 manifest whose tag, source revision, and hardware target match the release,
+then rechecks and uploads its firmware ZIP, manifest, and checksum list. Use
+`-NotesPath path\to\notes.md` for curated release notes; otherwise GitHub generates
+notes from the repository history. The current published build is available through the
 [latest release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest).
 
 ## Work with Git

@@ -29,6 +29,19 @@ compiler on the global `PATH`.
 # Build the production DMDClock firmware. This never flashes a device.
 .\scripts\esp32\Build-DmdClock.ps1
 
+# Download a published ESP32 release, verify it, and optionally flash it.
+# This is the single supported flashing entry point.
+.\scripts\esp32\Install-DmdClockEsp32.ps1
+
+# Flash the current local build instead of downloading a release.
+.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 -Monitor
+
+# Package a credential-free local build for a GitHub release.
+.\scripts\esp32\Package-DmdClockEsp32.ps1
+
+# Include the verified ESP32 artifacts when previewing the combined release.
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.3.2 -IncludeEsp32 -WhatIf
+
 # Generate a one-time, ignored first-flash Wi-Fi header and build with it.
 # The password is entered through a masked SecureString prompt.
 .\scripts\esp32\Set-DmdClockBootstrapWifi.ps1 -WifiSsid 'My Wi-Fi' -Build
@@ -41,9 +54,19 @@ compiler on the global `PATH`.
 .\scripts\esp32\Build-DmdClockQemu.ps1
 .\scripts\esp32\Run-DmdClockQemu.ps1
 
-# Flash the exact connected port after confirming the 800x480 N16R8 board.
-.\scripts\esp32\Flash-DmdClock.ps1 -Port COM5 -Monitor
 ```
+
+`Install-DmdClockEsp32.ps1` is the only supported flashing command. Its menu can
+download a published release, use an offline release package, or use the current
+local build. It verifies target metadata and hashes, offers application-only or
+complete flashing, requires an explicit COM port, checks for an ESP32-S3 with
+16 MB flash, and never erases NVS.
+
+The only supported display board is the original Waveshare
+`ESP32-S3-Touch-LCD-7`, 800×480, with an `ESP32-S3-WROOM-1-N16R8` module. The
+later `ESP32-S3-Touch-LCD-7B`, 1024×600, is not supported. Chip detection cannot
+distinguish their LCD wiring, so the installer also requires confirmation from
+the physical board label.
 
 After the clock boots, it creates `/dmd/config/settings.json` and mirrors every
 web setting change to it. Back up that file before replacing or reformatting a

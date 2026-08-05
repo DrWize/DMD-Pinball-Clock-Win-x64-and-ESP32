@@ -100,7 +100,8 @@ After the board connects successfully:
 
 ```powershell
 .\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build
-.\scripts\esp32\Flash-DmdClock.ps1 -Port COM5
+.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 `
+  -FlashMode Application
 ```
 
 The normal application flash preserves NVS, so Wi-Fi continues using the saved
@@ -139,7 +140,19 @@ QEMU records and reports a due scheduled reboot without calling `esp_restart()`
 because its emulated network adapter does not recover from an in-process reset.
 The production ESP32-S3 build performs the real restart.
 
-## Flash
+## Install, update, or flash
+
+The only supported hardware is the original Waveshare
+`ESP32-S3-Touch-LCD-7`, 800×480, N16R8. The `ESP32-S3-Touch-LCD-7B`, 1024×600,
+is not supported. Do not flash a 7B with DMDClock firmware.
+
+The single supported flashing entry point can download a published release,
+verify its hashes and exact target metadata, and then offer application-only or
+complete flashing:
+
+```powershell
+.\scripts\esp32\Install-DmdClockEsp32.ps1
+```
 
 Connect a data-capable USB cable to the port labeled `UART`, then discover the
 port:
@@ -151,17 +164,20 @@ port:
 After verifying the physical board model, flash an explicit port:
 
 ```powershell
-.\scripts\esp32\Flash-DmdClock.ps1 -Port COM5
+.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5
 ```
 
 Add `-Monitor` to keep the serial log open after flashing:
 
 ```powershell
-.\scripts\esp32\Flash-DmdClock.ps1 -Port COM5 -Monitor
+.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 -Monitor
 ```
 
-The flash operation writes the bootloader, partition table, and application. It
-does not run unless an explicit connected COM port is supplied.
+Application mode writes only the application image and preserves the existing
+bootloader, partition table, NVS, and TF card. Full mode writes the bootloader,
+partition table, and application without erasing NVS. The installer requires an
+explicit COM-port selection, verifies an ESP32-S3 with 16 MB flash, requires the
+physical `7`-not-`7B` confirmation, and asks for `FLASH` before writing.
 
 ## First start and remote control
 

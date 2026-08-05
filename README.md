@@ -36,7 +36,8 @@ The firmware currently targets only the original **Waveshare ESP32-S3-Touch-LCD-
 
 1. Download or clone this repository on a Windows PC.
 2. Connect the board through its `UART` USB-C port.
-3. Run the documented PowerShell doctor and flash scripts.
+3. Run the doctor, then use the single installer/updater script:
+   `.\scripts\esp32\Install-DmdClockEsp32.ps1`.
 4. Connect it to a 2.4 GHz Wi-Fi network and open the local web remote.
 5. Prepare a FAT32 TF card if you want to use the original DotClk scene library.
 
