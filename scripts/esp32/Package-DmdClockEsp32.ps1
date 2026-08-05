@@ -13,6 +13,8 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $outputRoot = Join-Path $repoRoot 'output'
 $projectPath = Join-Path $repoRoot 'firmware/dmdclock-esp32'
 $buildPath = Join-Path $projectPath 'build'
+$toolRoot = Join-Path (Split-Path -Parent $repoRoot) '.tools/esp-idf/v5.5.2/tools'
+$python = Join-Path $toolRoot 'python/v5.5.2/venv/Scripts/python.exe'
 $bootstrapHeader = Join-Path $projectPath 'main/dmd_bootstrap_wifi.h'
 $targetSlug = 'esp32-s3-touch-lcd-7-800x480-n16r8'
 $buildNumber = (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmssfff')
@@ -80,11 +82,27 @@ if (Test-Path -LiteralPath $bootstrapHeader -PathType Leaf) {
 }
 
 if (-not $SkipBuild) {
-    & (Join-Path $PSScriptRoot 'Build-DmdClock.ps1')
+    & (Join-Path $PSScriptRoot 'Build-DmdClock.ps1') -Version $Version
     if ($LASTEXITCODE -ne 0) {
         throw "Firmware build failed with exit code $LASTEXITCODE."
     }
 }
+
+$applicationImage = Join-Path $buildPath 'dmdclock_esp32.bin'
+if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
+    throw "ESP-IDF Python/esptool was not found: $python"
+}
+if (-not (Test-Path -LiteralPath $applicationImage -PathType Leaf)) {
+    throw "Firmware application image is missing: $applicationImage"
+}
+$imageInfo = @(& $python -m esptool image_info --version 2 $applicationImage 2>&1)
+$imageInfoExitCode = $LASTEXITCODE
+$imageInfoText = $imageInfo | Out-String
+if ($imageInfoExitCode -ne 0 -or
+    $imageInfoText -notmatch "(?m)^App version:\s*$([Regex]::Escape($Version))\s*$") {
+    throw "Firmware image does not embed the requested version '$Version'."
+}
+Write-Host "Verified embedded firmware version: $Version"
 
 $flasherArgsPath = Join-Path $buildPath 'flasher_args.json'
 if (-not (Test-Path -LiteralPath $flasherArgsPath -PathType Leaf)) {

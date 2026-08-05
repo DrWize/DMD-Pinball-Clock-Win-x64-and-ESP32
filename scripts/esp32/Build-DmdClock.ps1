@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param()
+param(
+    [ValidatePattern('^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$')]
+    [string] $Version
+)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -13,10 +16,22 @@ $bootstrapOption = if (Test-Path -LiteralPath $bootstrapHeader -PathType Leaf) {
     'OFF'
 }
 
+if (-not $Version) {
+    $Version = (& git -C $repoRoot describe --tags --always --dirty).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($Version)) {
+        throw 'Unable to determine the local firmware version from Git.'
+    }
+}
+if ([Text.Encoding]::UTF8.GetByteCount($Version) -gt 31) {
+    throw "Firmware version '$Version' exceeds the ESP-IDF 31-byte limit."
+}
+
 Write-Host "Bootstrap Wi-Fi injection: $bootstrapOption"
+Write-Host "Firmware version: $Version"
 & (Join-Path $PSScriptRoot 'Invoke-Idf.ps1') `
     -ProjectPath $projectPath `
     "-DDMD_BOOTSTRAP_WIFI_HEADER=$bootstrapOption" `
+    "-DPROJECT_VER=$Version" `
     build
 
 $binary = Join-Path $projectPath 'build\dmdclock_esp32.bin'
