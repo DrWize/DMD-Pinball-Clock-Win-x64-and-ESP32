@@ -42,7 +42,7 @@ untouched.
 Download without flashing:
 
 ```powershell
-.\scripts\esp32\Install-DmdClockEsp32.ps1 -ReleaseTag v1.3.1 -DownloadOnly
+.\scripts\esp32\Install-DmdClockEsp32.ps1 -ReleaseTag v1.3.2 -DownloadOnly
 ```
 
 ## 2. Optional developer Wi-Fi bootstrap and local build
