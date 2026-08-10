@@ -74,7 +74,7 @@
 
   <section class="panel">
     <div class="endpoint"><span class="method">GET</span><h2><code>/api/scenes</code> — complete SD scene catalog</h2></div>
-    <p>Returns <code>sceneCount</code> and the full <code>scenes</code> array. Each entry contains index, filename, display name, title, game, manufacturer, year and metadata-match status. This response is much larger than <code>/api/state</code>; load it once rather than polling it.</p>
+    <p>Returns <code>sceneCount</code>, the shared HTTPS <code>scenePackCatalogUrl</code>, and the full <code>scenes</code> array. Each entry contains index, filename, display name, title, game, manufacturer, year and metadata-match status. This response is much larger than <code>/api/state</code>; load it once rather than polling it.</p>
     <pre>curl http://DMDClock-59D9/api/scenes</pre>
   </section>
 

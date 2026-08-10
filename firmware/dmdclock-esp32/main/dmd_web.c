@@ -25,6 +25,9 @@
 #include "lwip/sockets.h"
 
 static const char *TAG = "dmd_web";
+static const char *SCENE_PACK_CATALOG_URL =
+    "https://raw.githubusercontent.com/DrWize/"
+    "DMD-Pinball-Clock-Win-x64-and-ESP32/master/scenes/catalog.json";
 static httpd_handle_t s_server;
 
 static bool local_ipv4(uint32_t address)
@@ -602,6 +605,10 @@ static esp_err_t scenes_get(httpd_req_t *request)
 {
     cJSON *json = cJSON_CreateObject();
     cJSON_AddNumberToObject(json, "sceneCount", dmd_scene_count());
+    cJSON_AddStringToObject(
+        json,
+        "scenePackCatalogUrl",
+        SCENE_PACK_CATALOG_URL);
     cJSON *scenes = cJSON_AddArrayToObject(json, "scenes");
     for (uint16_t index = 0; index < dmd_scene_count(); index++) {
         dmd_scene_metadata_t metadata;

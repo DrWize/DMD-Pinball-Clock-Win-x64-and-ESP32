@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scenes/scene-pack-catalog.schema.json",
+  "title": "DMDClock scene-pack catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "updatedAt",
+    "packs"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "packs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/pack"
+      }
+    }
+  },
+  "$defs": {
+    "pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packId",
+        "displayName",
+        "description",
+        "available",
+        "distributionStatus",
+        "sourcePageUrl",
+        "downloadUrl",
+        "sourceRevision",
+        "archiveFormat",
+        "scenesPathMarker",
+        "downloadBytes",
+        "installedBytes",
+        "archiveSha256",
+        "sceneCount",
+        "supportedPlatforms"
+      ],
+      "properties": {
+        "packId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "distributionStatus": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourcePageUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "downloadUrl": {
+          "type": ["string", "null"],
+          "format": "uri"
+        },
+        "sourceRevision": {
+          "type": ["string", "null"],
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "archiveFormat": {
+          "const": "zip"
+        },
+        "scenesPathMarker": {
+          "const": "/Scenes/"
+        },
+        "downloadBytes": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "installedBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "archiveSha256": {
+          "type": ["string", "null"],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sceneCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "supportedPlatforms": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["windows-x64", "osx-arm64", "esp32-s3"]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "available": { "const": true }
+            }
+          },
+          "then": {
+            "properties": {
+              "downloadUrl": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https://"
+              },
+              "sourceRevision": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{40}$"
+              },
+              "downloadBytes": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "archiveSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "downloadUrl": {
+                "type": "null"
+              },
+              "sourceRevision": {
+                "type": "null"
+              },
+              "downloadBytes": {
+                "type": "null"
+              },
+              "archiveSha256": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
