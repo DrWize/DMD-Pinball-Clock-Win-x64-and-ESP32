@@ -70,6 +70,7 @@ static SemaphoreHandle_t s_lock;
 static scene_blob_t *s_scenes;
 static dmd_scene_metadata_t *s_metadata;
 static uint16_t s_scene_count;
+static bool s_embedded_scenes;
 static const uint8_t *s_data;
 static size_t s_size;
 static uint8_t *s_owned_data;
@@ -77,14 +78,12 @@ static uint32_t s_frame_offsets[SCN_MAX_FRAMES];
 static uint32_t s_mask_offsets[SCN_MAX_FRAMES];
 static dmd_scene_info_t s_info;
 
-#if !CONFIG_DMD_QEMU
 static int scene_name_compare(const void *left, const void *right)
 {
     const scene_blob_t *left_scene = left;
     const scene_blob_t *right_scene = right;
     return strcasecmp(left_scene->file_name, right_scene->file_name);
 }
-#endif
 
 static uint16_t read_u16(size_t offset)
 {
@@ -286,14 +285,21 @@ esp_err_t dmd_scene_init(void)
     }
 
 #if CONFIG_DMD_QEMU
-    s_scene_count = DMD_QEMU_SCENE_COUNT;
-    s_scenes = calloc(s_scene_count, sizeof(*s_scenes));
-    s_metadata = calloc(s_scene_count, sizeof(*s_metadata));
-    if (s_scenes == NULL || s_metadata == NULL) {
-        return ESP_ERR_NO_MEM;
+    if (dmd_storage_available()) {
+        s_embedded_scenes = false;
     }
-    memcpy(s_scenes, QEMU_SCENES, sizeof(QEMU_SCENES));
-#else
+    else {
+        s_embedded_scenes = true;
+        s_scene_count = DMD_QEMU_SCENE_COUNT;
+        s_scenes = calloc(s_scene_count, sizeof(*s_scenes));
+        s_metadata = calloc(s_scene_count, sizeof(*s_metadata));
+        if (s_scenes == NULL || s_metadata == NULL) {
+            return ESP_ERR_NO_MEM;
+        }
+        memcpy(s_scenes, QEMU_SCENES, sizeof(QEMU_SCENES));
+    }
+#endif
+
     if (dmd_storage_available()) {
         s_scenes = heap_caps_calloc(
             DMD_SCENE_MAX_COUNT,
@@ -325,7 +331,8 @@ esp_err_t dmd_scene_init(void)
                 };
             }
             closedir(directory);
-        } else {
+        }
+        else {
             ESP_LOGW(TAG, "Could not open scene directory %s", DMD_STORAGE_SCENES);
         }
         if (s_scene_count == DMD_SCENE_MAX_COUNT) {
@@ -351,7 +358,6 @@ esp_err_t dmd_scene_init(void)
             }
         }
     }
-#endif
 
     dmd_scene_metadata_catalog_t *catalog = NULL;
     esp_err_t metadata_error = dmd_scene_metadata_load(&catalog);
@@ -370,14 +376,14 @@ esp_err_t dmd_scene_init(void)
     }
     dmd_scene_metadata_free(catalog);
 
-#if CONFIG_DMD_QEMU
-    for (uint16_t index = 0; index < s_scene_count; index++) {
-        esp_err_t error = parse_scene(index);
-        if (error != ESP_OK) {
-            return error;
+    if (s_embedded_scenes) {
+        for (uint16_t index = 0; index < s_scene_count; index++) {
+            esp_err_t error = parse_scene(index);
+            if (error != ESP_OK) {
+                return error;
+            }
         }
     }
-#endif
     if (s_scene_count == 0) {
         ESP_LOGW(
             TAG,

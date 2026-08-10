@@ -4,12 +4,14 @@ obj/
 .vscode/*.log
 external/
 output/
+/original-dotclk-*.zip
 firmware/**/build*/
 firmware/**/managed_components/
 firmware/**/dependencies.lock
 firmware/**/sdkconfig
 firmware/**/sdkconfig.qemu
 firmware/**/sdkconfig.old
+firmware/**/dmdclock-qemu-sd*.img
 firmware/**/sdkconfig.*.old
 firmware/dmdclock-esp32/main/dmd_bootstrap_wifi.h
 scenes/*

@@ -4,7 +4,8 @@ DMDClock recreates the classic DotClk clock and animation display on Windows and
 the original 800x480 Waveshare ESP32-S3-Touch-LCD-7. Choose your platform below;
 no developer tools are needed for either user installation.
 
-> **Download:** [latest DMDClock release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest)
+> **Download and install:** [release page](docs/RELEASE.md) ·
+> [latest GitHub assets](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest)
 
 ## Choose your installation
 
@@ -81,6 +82,7 @@ guides explain storage, backup, and recovery in more detail.
 
 ## Guides
 
+- [Release downloads and quick installation](docs/RELEASE.md)
 - [Windows installation](docs/INSTALL-WINDOWS.md)
 - [Complete Windows user setup](docs/USER-SETUP.md)
 - [ESP32-S3 installation and TF-card setup](docs/INSTALL-ESP32.md)
@@ -93,6 +95,28 @@ Build commands, tests, release packaging, firmware workflows, and Git guidance
 have moved to the [developer guide](docs/DEVELOPMENT.md). The active backlog is in
 [TODO.md](TODO.md). Windows and ESP32-S3 now include the optional **Hot-core
 glow** dot style with Classic warm-centre, theme-derived, and dual-colour modes.
+
+To build and test either display model with the graphical QEMU runner:
+
+```powershell
+# Create independent writable cards from the local scene library.
+.\scripts\esp32\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
+  -OutputPath .\firmware\dmdclock-esp32\dmdclock-qemu-sd-waveshare7.img
+.\scripts\esp32\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
+  -OutputPath .\firmware\dmdclock-esp32\dmdclock-qemu-sd-landscape349.img
+
+# Terminal 1 - Waveshare 800x480, web 8080, monitor 4444
+.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model Waveshare7
+
+# Terminal 2 - Landscape349 640x172, web 8081, monitor 4445
+.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model Landscape349
+```
+
+Run the script without `-Model` for an interactive choice. Each model uses its
+own build directory, SD image, web port, and monitor port, so both commands can
+run concurrently. The image files are local, writable, and ignored by Git. See
+the [ESP32 firmware README](firmware/dmdclock-esp32/README.md#run-in-qemu) for
+prerequisites, emulated memory limits, SD-card behavior, and monitor details.
 
 ## Acknowledgements
 

@@ -55,6 +55,9 @@ update-safety rules.
 
 ## Test
 
+To inspect a locally owned Run-DMD `.imgc` or raw image and optionally convert its
+animations to native DMDClock scenes, see [Run-DMD image extraction](RUNDMD-EXTRACTION.md).
+
 ```powershell
 dotnet test DMDClock.sln -c Release
 ```
@@ -124,12 +127,19 @@ N16R8 module. Start by checking the workstation toolchain:
 .\scripts\esp32\Build-DmdClock.ps1
 ```
 
-Build and run the host QEMU validation profile:
+Build and run both host QEMU validation profiles in separate terminals:
 
 ```powershell
-.\scripts\esp32\Build-DmdClockQemu.ps1
-.\scripts\esp32\Run-DmdClockQemu.ps1 -SkipBuild
+.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model Waveshare7
+.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model Landscape349
 ```
+
+They use separate build directories, writable SD images, web ports 8080/8081,
+and QEMU monitor ports 4444/4445. Generate the model images with
+`New-DmdClockQemuSdImage.ps1`; do not commit or publish images containing the
+local scene library. QEMU targets the classic ESP32 model with 4 MiB emulated
+PSRAM, while the physical N16R8 ESP32-S3 has 8 MiB PSRAM, so it is a useful
+memory-pressure gate but not a cycle-accurate hardware substitute.
 
 After identifying the board's exact COM port, flash it explicitly and keep the
 serial monitor open:

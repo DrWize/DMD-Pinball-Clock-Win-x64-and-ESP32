@@ -74,7 +74,7 @@ The project uses the pinned workspace-local ESP-IDF 5.5.2 toolchain:
 The application binary is written to:
 
 ```text
-firmware\dmdclock-esp32\build\dmdclock_esp32.bin
+firmware\dmdclock-esp32\build-hw-esp32\dmdclock_esp32.bin
 ```
 
 Building does not access, reset, erase, or flash a connected device.
@@ -126,11 +126,49 @@ Then start the emulator, virtual RGB panel, and serial monitor:
 .\scripts\esp32\Run-DmdClockQemu.ps1 -SkipBuild
 ```
 
-Open `http://localhost:8080/` for the web remote. The virtual display is useful
-for validating the shared SCN decoder, timing, classic-color renderer, settings
-API, and browser UI. It does not validate ESP32-S3-specific instructions or
-emulate the Waveshare panel wiring, CH422G backlight controller, PSRAM, touch
-hardware, or Wi-Fi radio behavior.
+To choose the panel resolution, use the model runner instead. Each model has its
+own build directory, so switching models never rebuilds the other one:
+
+```powershell
+# Create separate writable SD images from the local scene library.
+.\scripts\esp32\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
+  -OutputPath .\firmware\dmdclock-esp32\dmdclock-qemu-sd-waveshare7.img
+.\scripts\esp32\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
+  -OutputPath .\firmware\dmdclock-esp32\dmdclock-qemu-sd-landscape349.img
+
+# Terminal 1 - Waveshare 800×480, web 8080, monitor 4444
+.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model Waveshare7
+
+# Terminal 2 - Landscape349 640×172, web 8081, monitor 4445
+.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model '640x172' -SkipBuild
+```
+
+The profiles use separate `dmdclock-qemu-sd-waveshare7.img` and
+`dmdclock-qemu-sd-landscape349.img` files, so QEMU never opens the same writable
+SD image twice. Use `-WebPort`, `-MonitorPort`, or `-SdImage` to override a
+model default. The generator writes a power-of-two FAT32 superfloppy with the
+boot sector at LBA 0; MBR-partitioned and non-power-of-two images are rejected
+by the emulated SD/MMC device. The generated images are ignored by Git.
+
+Both profiles emulate a classic ESP32 with 4 MiB quad PSRAM at 40 MHz and
+16 MiB flash. The physical Waveshare N16R8 uses an ESP32-S3 with 8 MiB octal
+PSRAM at 80 MHz and 16 MiB flash. The populated 2,416-scene images boot within
+the stricter QEMU PSRAM limit, but emulator results do not validate ESP32-S3
+instruction timing, RGB wiring, touch, or physical-card behavior.
+
+On the short 640×172 panel the chrome (information text and touch buttons)
+overlapped the DMD, so `paint_dmd` draws the DMD cells first and the chrome on
+top, and the information text renders at the lowest part of the screen
+(`INFO_TEXT_Y = LCD_HEIGHT - 19`, y153 on 640×172 and y461 on 800×480) with a
+translucent black backing strip for legibility. The QEMU HMP monitors listen on
+TCP 4444 and 4445 and support `screendump` screenshots.
+
+Open `http://localhost:8080/` for Waveshare7 or `http://localhost:8081/` for
+Landscape349. The virtual display is useful for validating the shared SCN
+decoder, timing, classic-color renderer, settings API, and browser UI. It does
+not validate ESP32-S3-specific instructions or emulate the Waveshare panel
+wiring, CH422G backlight controller, PSRAM, touch hardware, or Wi-Fi radio
+behavior.
 
 The web remote footer links to the same canonical GitHub repository so source,
 documentation, issues, and releases are reachable from the device interface.
@@ -340,9 +378,11 @@ RD1891.scn
 ```
 
 The production ESP32-S3 build embeds no scenes and uses only `/dmd/scenes` on
-the TF card. The live prepared card currently indexes all 2,324 SCNs; QEMU alone
-retains the deterministic 11-scene projection. If no SD-card scene is available,
-production remains in clock mode.
+the TF card. The live prepared physical card currently indexes all 2,324 SCNs.
+QEMU indexes the attached writable image when present; the current local test
+images contain 2,416 SCNs. Without an attached image, QEMU falls back to its
+deterministic 11-scene projection. If no SD-card scene is available, production
+remains in clock mode.
 Required QEMU inputs fail configuration clearly when absent. The SCNs remain
 ignored by Git and are intended for local decoder and playback testing. Do not
 publish or redistribute a firmware or card image containing them unless every
@@ -351,6 +391,9 @@ scene's distribution rights have been confirmed.
 ## Current verification boundary
 
 The production ESP32-S3 and QEMU profiles compile locally with ESP-IDF 5.5.2.
+Both QEMU display profiles have also run concurrently with independent images;
+each mounted FAT32, indexed 2,416 scenes, rendered frames, served its API, and
+persisted `/dmd/config/settings.json` with `ESP_OK`.
 The exact 800×480 N16R8 board has been flashed through COM4 and live checks cover:
 
 - RGB output, CH422G backlight control, double-buffered PSRAM rendering, and the

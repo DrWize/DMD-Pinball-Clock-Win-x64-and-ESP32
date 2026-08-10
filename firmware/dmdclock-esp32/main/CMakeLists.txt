@@ -14,6 +14,7 @@ idf_component_register(
         "dmd_playback_log.c"
         "dmd_plasma.c"
         "dmd_scene.c"
+        "dmd_scene_pack.c"
         "dmd_scene_metadata.c"
         "dmd_web.c"
     INCLUDE_DIRS "."
@@ -23,6 +24,7 @@ idf_component_register(
         esp_driver_tsens
         esp_event
         esp_app_format
+        esp_http_client
         esp_http_server
         esp_lcd
         mqtt
@@ -30,6 +32,7 @@ idf_component_register(
         esp_timer
         fatfs
         sdmmc
+        esp_driver_sdmmc
         esp_driver_spi
         esp_wifi
         esp_eth
@@ -38,6 +41,8 @@ idf_component_register(
         nvs_flash
         qrcode
         spi_flash
+        mbedtls
+        zlib
 )
 
 target_add_binary_data(

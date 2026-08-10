@@ -12,6 +12,12 @@ Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $workspaceRoot = Split-Path -Parent $repoRoot
+while ($workspaceRoot -and
+    -not (Test-Path -LiteralPath (Join-Path $workspaceRoot '.tools') -PathType Container)) {
+    $parent = Split-Path -Parent $workspaceRoot
+    if ($parent -eq $workspaceRoot) { break }
+    $workspaceRoot = $parent
+}
 $eim = Join-Path $workspaceRoot '.tools\eim\v0.17.1\eim.exe'
 $registry = Join-Path $workspaceRoot '.tools\esp-idf\tools'
 $idfVersion = 'v5.5.2'

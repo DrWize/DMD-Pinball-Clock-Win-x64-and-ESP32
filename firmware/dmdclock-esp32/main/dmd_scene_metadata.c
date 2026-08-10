@@ -77,6 +77,36 @@ static bool starts_with_case_insensitive(const char *value, const char *prefix)
 
 static esp_err_t load_text(const char **text, size_t *length, char **owned)
 {
+    if (dmd_storage_available()) {
+        FILE *file = fopen(DMD_SCENE_METADATA_PATH, "rb");
+        if (file != NULL) {
+            if (fseek(file, 0, SEEK_END) != 0) {
+                fclose(file);
+                return ESP_FAIL;
+            }
+            long file_length = ftell(file);
+            if (file_length <= 0 || fseek(file, 0, SEEK_SET) != 0) {
+                fclose(file);
+                return ESP_ERR_INVALID_SIZE;
+            }
+            char *buffer = malloc((size_t)file_length + 1);
+            if (buffer == NULL) {
+                fclose(file);
+                return ESP_ERR_NO_MEM;
+            }
+            size_t read = fread(buffer, 1, (size_t)file_length, file);
+            fclose(file);
+            if (read != (size_t)file_length) {
+                free(buffer);
+                return ESP_FAIL;
+            }
+            buffer[file_length] = '\0';
+            *text = buffer;
+            *length = (size_t)file_length;
+            *owned = buffer;
+            return ESP_OK;
+        }
+    }
 #if CONFIG_DMD_QEMU
     *text = (const char *)scene_metadata_start;
     *length = (size_t)(scene_metadata_end - scene_metadata_start);
@@ -86,35 +116,7 @@ static esp_err_t load_text(const char **text, size_t *length, char **owned)
     *owned = NULL;
     return ESP_OK;
 #else
-    FILE *file = fopen(DMD_SCENE_METADATA_PATH, "rb");
-    if (file == NULL) {
-        return ESP_ERR_NOT_FOUND;
-    }
-    if (fseek(file, 0, SEEK_END) != 0) {
-        fclose(file);
-        return ESP_FAIL;
-    }
-    long file_length = ftell(file);
-    if (file_length <= 0 || fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return ESP_ERR_INVALID_SIZE;
-    }
-    char *buffer = malloc((size_t)file_length + 1);
-    if (buffer == NULL) {
-        fclose(file);
-        return ESP_ERR_NO_MEM;
-    }
-    size_t read = fread(buffer, 1, (size_t)file_length, file);
-    fclose(file);
-    if (read != (size_t)file_length) {
-        free(buffer);
-        return ESP_FAIL;
-    }
-    buffer[file_length] = '\0';
-    *text = buffer;
-    *length = (size_t)file_length;
-    *owned = buffer;
-    return ESP_OK;
+    return ESP_ERR_NOT_FOUND;
 #endif
 }
 

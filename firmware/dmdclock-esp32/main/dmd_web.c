@@ -15,6 +15,7 @@
 #include "dmd_network.h"
 #include "dmd_playback_log.h"
 #include "dmd_scene.h"
+#include "dmd_scene_pack.h"
 #include "dmd_settings.h"
 #include "esp_app_desc.h"
 #include "esp_http_server.h"
@@ -636,6 +637,51 @@ static esp_err_t scenes_get(httpd_req_t *request)
     return send_json(request, json);
 }
 
+static esp_err_t scene_pack_get(httpd_req_t *request)
+{
+    dmd_scene_pack_status_t status;
+    dmd_scene_pack_get_status(&status);
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "phase", dmd_scene_pack_phase_name(status.phase));
+    cJSON_AddStringToObject(json, "operation", status.operation);
+    cJSON_AddStringToObject(json, "message", status.message);
+    cJSON_AddBoolToObject(json, "running", status.running);
+    cJSON_AddBoolToObject(json, "cancelRequested", status.cancel_requested);
+    cJSON_AddBoolToObject(json, "restartRequired", status.restart_required);
+    cJSON_AddNumberToObject(json, "completedBytes", (double)status.completed_bytes);
+    cJSON_AddNumberToObject(json, "totalBytes", (double)status.total_bytes);
+    cJSON_AddNumberToObject(json, "extractedScenes", status.extracted_scenes);
+    cJSON_AddNumberToObject(json, "expectedScenes", status.expected_scenes);
+    return send_json(request, json);
+}
+
+static esp_err_t scene_pack_post(httpd_req_t *request)
+{
+    cJSON *json = receive_json(request);
+    const cJSON *action = json == NULL ? NULL :
+        cJSON_GetObjectItemCaseSensitive(json, "action");
+    if (!cJSON_IsString(action)) {
+        cJSON_Delete(json);
+        return httpd_resp_send_err(
+            request, HTTPD_400_BAD_REQUEST,
+            "Expected install, update, repair, or cancel action");
+    }
+    esp_err_t error = !strcmp(action->valuestring, "cancel")
+        ? dmd_scene_pack_cancel()
+        : dmd_scene_pack_start(action->valuestring);
+    cJSON_Delete(json);
+    if (error != ESP_OK) {
+        return httpd_resp_send_err(
+            request,
+            error == ESP_ERR_INVALID_STATE ? HTTPD_400_BAD_REQUEST :
+                HTTPD_500_INTERNAL_SERVER_ERROR,
+            esp_err_to_name(error));
+    }
+    cJSON *response = cJSON_CreateObject();
+    cJSON_AddBoolToObject(response, "ok", true);
+    return send_json(request, response);
+}
+
 static void update_bool(cJSON *json, const char *name, bool *value)
 {
     cJSON *item = cJSON_GetObjectItemCaseSensitive(json, name);
@@ -1188,7 +1234,7 @@ static esp_err_t favicon_get(httpd_req_t *request)
 esp_err_t dmd_web_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 8;
+    config.max_uri_handlers = 10;
     config.stack_size = 6144;
     config.lru_purge_enable = true;
     config.open_fn = web_client_open;
@@ -1202,6 +1248,8 @@ esp_err_t dmd_web_start(void)
         {.uri = "/api-docs", .method = HTTP_GET, .handler = api_docs_get},
         {.uri = "/api/state", .method = HTTP_GET, .handler = state_get},
         {.uri = "/api/scenes", .method = HTTP_GET, .handler = scenes_get},
+        {.uri = "/api/scene-pack", .method = HTTP_GET, .handler = scene_pack_get},
+        {.uri = "/api/scene-pack", .method = HTTP_POST, .handler = scene_pack_post},
         {.uri = "/api/settings", .method = HTTP_POST, .handler = settings_post},
         {.uri = "/api/time", .method = HTTP_POST, .handler = time_post},
         {.uri = "/api/action", .method = HTTP_POST, .handler = action_post},

@@ -5,6 +5,18 @@ Waveshare `ESP32-S3-Touch-LCD-7`, `ESP32-S3-WROOM-1-N16R8`, with an 800×480
 display. The 1024×600 `ESP32-S3-Touch-LCD-7B` is not supported and must not be
 flashed with these packages.
 
+The firmware also defines a second development board target, a 3.49-inch
+`640×172` landscape panel (`DMD_BOARD_3_49_LANDSCAPE`), selectable through the
+`DMD_BOARD` Kconfig choice. It is validated in QEMU only so far and is not part
+of any published release image; it is not a supported flashing target until
+emulation-first validation completes and physical bring-up passes.
+
+The QEMU development profiles are not flash images. They emulate a classic
+ESP32 with 4 MiB PSRAM because the virtual RGB device stalls on the ESP32-S3
+machine. The supported N16R8 hardware instead has 8 MiB octal PSRAM. QEMU can
+therefore expose memory-pressure problems, but it cannot prove ESP32-S3 timing,
+RGB wiring, touch, or physical TF-card behavior.
+
 ## What you need
 
 - the correct Waveshare board;
