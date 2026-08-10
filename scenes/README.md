@@ -23,9 +23,9 @@ source revision, an exact byte size, and SHA-256. An unavailable pack must keep
 its download URL and checksum null.
 
 The original DotClk entry remains hosted by its official `sigmafx` source. The
-validated local complete collection is listed for roadmap visibility but remains
-unavailable while redistribution rights are under review. Proprietary `.scn`
-files and local scene-pack ZIPs remain ignored and must not be committed here.
+complete 2,416-scene collection is hosted as the versioned GitHub Release
+`scene-pack-v2026.08.10`, with its exact size and SHA-256 recorded in the
+catalog. Scene ZIPs remain release assets instead of Git history.
 
 The Avalonia downloader used by Windows and macOS resolves its source through
 this catalog. The ESP32 `/api/scenes` response exposes the same catalog URL; the

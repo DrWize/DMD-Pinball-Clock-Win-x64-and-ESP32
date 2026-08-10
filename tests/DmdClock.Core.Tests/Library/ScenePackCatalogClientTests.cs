@@ -21,7 +21,12 @@ public sealed class ScenePackCatalogClientTests
         Assert.Equal(2324, original.SceneCount);
         Assert.Equal(ScenePackDownloader.SourceUrl, original.DownloadUrl);
         Assert.Equal(ScenePackDownloader.SourceSha256, original.ArchiveSha256);
-        Assert.False(catalog.Packs.Single(pack => pack.PackId == "drwize-complete").Available);
+        var complete = catalog.GetRequiredAvailablePack("drwize-complete", "osx-arm64");
+        Assert.Equal(2416, complete.SceneCount);
+        Assert.Equal(17_506_516, complete.DownloadBytes);
+        Assert.Equal(
+            "9c2db7d93d5e359d1742ad595bee32929160d048f6a3f8318d3fce4ef4bdf3fa",
+            complete.ArchiveSha256);
     }
 
     [Fact]

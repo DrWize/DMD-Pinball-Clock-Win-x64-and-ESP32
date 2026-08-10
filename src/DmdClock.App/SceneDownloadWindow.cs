@@ -135,7 +135,7 @@ public sealed class SceneDownloadWindow : Window
             var platform = OperatingSystem.IsMacOS() ? "osx-arm64" : "windows-x64";
             var catalog = await new ScenePackCatalogClient(client)
                 .DownloadAsync(_cancellation.Token);
-            var pack = catalog.GetRequiredAvailablePack("dotclk-original", platform);
+            var pack = catalog.GetRequiredAvailablePack("drwize-complete", platform);
             var metadataPath = Path.Combine(
                 AppContext.BaseDirectory, "scenes", SceneMetadataStore.DefaultFileName);
             var result = await new ScenePackDownloader(client).DownloadAndInstallAsync(
