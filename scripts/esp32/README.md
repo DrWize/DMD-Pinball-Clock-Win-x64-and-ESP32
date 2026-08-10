@@ -20,7 +20,7 @@ compiler on the global `PATH`.
 # Validate and preview preparation of an already-formatted FAT32 card.
 .\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F -WhatIf
 
-# Download, validate, and idempotently install the complete DotClk scene set.
+# Download, validate, and idempotently install the preferred Original DotCLK-Orig set.
 .\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F
 
 # Run any idf.py operation against an explicit project.
@@ -85,6 +85,12 @@ Production firmware indexes every flat `.scn` file in `/dmd/scenes` (up to
 4,096 files); the prepared DotClk card currently contains 2,324. Optional
 playback logging is controlled from the web remote and writes the bounded
 `/dmd/logs/playback.log` plus one rotated previous file.
+
+The ESP32 web remote offers **Original DotCLK-Orig** (preferred, 2,324 scenes)
+and **DMD-Large** (2,416 scenes). Install, update, and repair validate the shared
+catalog, byte size, SHA-256, and every SCN before atomic activation. A managed
+scene list prevents files from the previously selected pack from being treated
+as custom scenes when switching packs.
 
 The vendor package is ignored by Git and stored at
 `external\waveshare-esp32-s3-touch-lcd-7`. Its downloaded archive has SHA-256

@@ -648,6 +648,10 @@ static esp_err_t scene_pack_get(httpd_req_t *request)
     cJSON_AddBoolToObject(json, "running", status.running);
     cJSON_AddBoolToObject(json, "cancelRequested", status.cancel_requested);
     cJSON_AddBoolToObject(json, "restartRequired", status.restart_required);
+    cJSON_AddBoolToObject(json, "installed", status.installed);
+    cJSON_AddStringToObject(json, "packId", status.pack_id);
+    cJSON_AddStringToObject(json, "displayName", status.display_name);
+    cJSON_AddStringToObject(json, "version", status.version);
     cJSON_AddNumberToObject(json, "completedBytes", (double)status.completed_bytes);
     cJSON_AddNumberToObject(json, "totalBytes", (double)status.total_bytes);
     cJSON_AddNumberToObject(json, "extractedScenes", status.extracted_scenes);
@@ -660,20 +664,30 @@ static esp_err_t scene_pack_post(httpd_req_t *request)
     cJSON *json = receive_json(request);
     const cJSON *action = json == NULL ? NULL :
         cJSON_GetObjectItemCaseSensitive(json, "action");
+    const cJSON *pack_id = json == NULL ? NULL :
+        cJSON_GetObjectItemCaseSensitive(json, "packId");
     if (!cJSON_IsString(action)) {
         cJSON_Delete(json);
         return httpd_resp_send_err(
             request, HTTPD_400_BAD_REQUEST,
             "Expected install, update, repair, or cancel action");
     }
-    esp_err_t error = !strcmp(action->valuestring, "cancel")
+    bool cancel = !strcmp(action->valuestring, "cancel");
+    if (!cancel && !cJSON_IsString(pack_id)) {
+        cJSON_Delete(json);
+        return httpd_resp_send_err(
+            request, HTTPD_400_BAD_REQUEST,
+            "Expected packId dotclk-original or drwize-complete");
+    }
+    esp_err_t error = cancel
         ? dmd_scene_pack_cancel()
-        : dmd_scene_pack_start(action->valuestring);
+        : dmd_scene_pack_start(action->valuestring, pack_id->valuestring);
     cJSON_Delete(json);
     if (error != ESP_OK) {
         return httpd_resp_send_err(
             request,
-            error == ESP_ERR_INVALID_STATE ? HTTPD_400_BAD_REQUEST :
+            error == ESP_ERR_INVALID_STATE || error == ESP_ERR_INVALID_ARG
+                ? HTTPD_400_BAD_REQUEST :
                 HTTPD_500_INTERNAL_SERVER_ERROR,
             esp_err_to_name(error));
     }

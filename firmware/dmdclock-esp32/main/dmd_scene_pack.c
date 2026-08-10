@@ -31,11 +31,19 @@
 #define CATALOG_FALLBACK_URL \
     "https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/" \
     "releases/download/scene-pack-v2026.08.10/DMDClock-scene-packs-catalog.json"
-#define PACK_ID "drwize-complete"
+#define ORIGINAL_PACK_ID "dotclk-original"
+#define LARGE_PACK_ID "drwize-complete"
+#define ORIGINAL_DISPLAY_NAME "Original DotCLK-Orig"
+#define LARGE_DISPLAY_NAME "DMD-Large"
+#define ORIGINAL_VERSION "11211af"
+#define LARGE_VERSION "2026.08.10"
 #define WORK_DIR DMD_STORAGE_ROOT "/scene-pack"
 #define ARCHIVE_PATH WORK_DIR "/download.zip.part"
 #define STAGING_DIR DMD_STORAGE_ROOT "/scenes.new"
 #define BACKUP_DIR DMD_STORAGE_ROOT "/scenes.previous"
+#define MANAGED_SCENES_FILE "managed-scenes.txt"
+#define INSTALLED_PACK_PATH DMD_STORAGE_CONFIG "/scene-pack-installed.json"
+#define INSTALLED_PACK_TEMP DMD_STORAGE_CONFIG "/scene-pack-installed.tmp"
 #define MAX_CATALOG_BYTES (1024 * 1024)
 #define MAX_ARCHIVE_BYTES (512ULL * 1024 * 1024)
 #define MAX_ENTRY_BYTES (16U * 1024 * 1024)
@@ -50,11 +58,15 @@
 #define SCN_MAX_FRAMES 512
 
 typedef struct {
+    char pack_id[32];
+    char display_name[48];
+    char version[24];
     char url[512];
     char sha256[65];
     uint64_t archive_bytes;
     uint64_t installed_bytes;
     uint16_t scene_count;
+    bool requires_packaged_metadata;
 } pack_info_t;
 
 static const char *TAG = "dmd_scene_pack";
@@ -329,7 +341,7 @@ static esp_err_t parse_release_manifest(
     if (cJSON_IsNumber(schema) && schema->valueint == 1 &&
         cJSON_IsString(kind) &&
         !strcmp(kind->valuestring, "dmdclock-scene-pack-release") &&
-        cJSON_IsString(pack_id) && !strcmp(pack_id->valuestring, PACK_ID) &&
+        cJSON_IsString(pack_id) && !strcmp(pack_id->valuestring, pack->pack_id) &&
         supports_esp32(manifest) &&
         cJSON_IsNumber(scene_count) && scene_count->valueint > 0 &&
         scene_count->valueint <= 4096 &&
@@ -385,8 +397,25 @@ static esp_err_t fetch_release_manifest(
     return error;
 }
 
-static esp_err_t fetch_pack_info(pack_info_t *pack)
+static bool supported_pack_id(const char *pack_id)
 {
+    return pack_id != NULL &&
+        (!strcmp(pack_id, ORIGINAL_PACK_ID) || !strcmp(pack_id, LARGE_PACK_ID));
+}
+
+static esp_err_t fetch_pack_info(const char *pack_id, pack_info_t *pack)
+{
+    if (!supported_pack_id(pack_id)) return ESP_ERR_INVALID_ARG;
+    strlcpy(pack->pack_id, pack_id, sizeof(pack->pack_id));
+    strlcpy(
+        pack->display_name,
+        !strcmp(pack_id, ORIGINAL_PACK_ID) ? ORIGINAL_DISPLAY_NAME : LARGE_DISPLAY_NAME,
+        sizeof(pack->display_name));
+    strlcpy(
+        pack->version,
+        !strcmp(pack_id, ORIGINAL_PACK_ID) ? ORIGINAL_VERSION : LARGE_VERSION,
+        sizeof(pack->version));
+    pack->requires_packaged_metadata = !strcmp(pack_id, LARGE_PACK_ID);
     char *text = NULL;
     size_t length = 0;
     esp_err_t error = http_read_all(CATALOG_URL, &text, &length);
@@ -404,7 +433,7 @@ static esp_err_t fetch_pack_info(pack_info_t *pack)
     const cJSON *entry;
     cJSON_ArrayForEach(entry, packs) {
         const cJSON *id = cJSON_GetObjectItemCaseSensitive(entry, "packId");
-        if (cJSON_IsString(id) && !strcmp(id->valuestring, PACK_ID)) {
+        if (cJSON_IsString(id) && !strcmp(id->valuestring, pack_id)) {
             selected = entry;
             break;
         }
@@ -414,6 +443,7 @@ static esp_err_t fetch_pack_info(pack_info_t *pack)
         goto cleanup;
     }
     const cJSON *available = cJSON_GetObjectItemCaseSensitive(selected, "available");
+    copy_json_string(selected, "version", pack->version, sizeof(pack->version));
     const cJSON *download_bytes = cJSON_GetObjectItemCaseSensitive(selected, "downloadBytes");
     const cJSON *installed_bytes = cJSON_GetObjectItemCaseSensitive(selected, "installedBytes");
     const cJSON *scene_count = cJSON_GetObjectItemCaseSensitive(selected, "sceneCount");
@@ -646,7 +676,8 @@ static esp_err_t validate_metadata_file(const char *path, uint16_t expected_scen
 
 static esp_err_t validate_content_manifest_file(
     const char *path,
-    uint16_t expected_scenes)
+    uint16_t expected_scenes,
+    const char *expected_pack_id)
 {
     FILE *file = fopen(path, "rb");
     if (file == NULL || fseek(file, 0, SEEK_END) != 0) {
@@ -676,7 +707,7 @@ static esp_err_t validate_content_manifest_file(
     const cJSON *files = cJSON_GetObjectItemCaseSensitive(json, "files");
     bool valid = cJSON_IsNumber(schema) && schema->valueint == 1 &&
         cJSON_IsString(kind) && !strcmp(kind->valuestring, "dmdclock-scene-pack-content") &&
-        cJSON_IsString(pack_id) && !strcmp(pack_id->valuestring, PACK_ID) &&
+        cJSON_IsString(pack_id) && !strcmp(pack_id->valuestring, expected_pack_id) &&
         cJSON_IsNumber(scene_count) && scene_count->valueint == expected_scenes &&
         cJSON_IsArray(files) && cJSON_GetArraySize(files) == expected_scenes;
     cJSON_Delete(json);
@@ -767,6 +798,13 @@ static esp_err_t extract_archive(const pack_info_t *pack)
     if (mkdir(STAGING_DIR, 0755) != 0) return ESP_FAIL;
     FILE *archive = fopen(ARCHIVE_PATH, "rb");
     if (archive == NULL) return ESP_ERR_NOT_FOUND;
+    char managed_path[192];
+    snprintf(managed_path, sizeof(managed_path), "%s/%s", STAGING_DIR, MANAGED_SCENES_FILE);
+    FILE *managed = fopen(managed_path, "wb");
+    if (managed == NULL) {
+        fclose(archive);
+        return ESP_FAIL;
+    }
     uint16_t scenes = 0;
     bool metadata_found = false;
     bool content_manifest_found = false;
@@ -818,13 +856,15 @@ static esp_err_t extract_archive(const pack_info_t *pack)
         if (is_scene) {
             error = validate_scene_file(destination);
             if (error != ESP_OK) { unlink(destination); break; }
+            if (fprintf(managed, "%s\n", name) < 0) { error = ESP_FAIL; break; }
             scenes++;
         } else if (is_metadata) {
             error = validate_metadata_file(destination, pack->scene_count);
             if (error != ESP_OK) { unlink(destination); break; }
             metadata_found = true;
         } else {
-            error = validate_content_manifest_file(destination, pack->scene_count);
+            error = validate_content_manifest_file(
+                destination, pack->scene_count, pack->pack_id);
             if (error != ESP_OK) { unlink(destination); break; }
             content_manifest_found = true;
         }
@@ -832,10 +872,69 @@ static esp_err_t extract_archive(const pack_info_t *pack)
             scenes, pack->scene_count, scenes, pack->scene_count);
     }
     fclose(archive);
+    if (fflush(managed) != 0) error = ESP_FAIL;
+    fclose(managed);
     if (cancelled()) return ESP_ERR_INVALID_STATE;
     if (error != ESP_OK) return error;
-    return scenes == pack->scene_count && metadata_found && content_manifest_found
+    return scenes == pack->scene_count &&
+        (!pack->requires_packaged_metadata || (metadata_found && content_manifest_found))
         ? ESP_OK : ESP_ERR_INVALID_SIZE;
+}
+
+static char *read_managed_index(bool *line_list)
+{
+    char path[192];
+    snprintf(path, sizeof(path), "%s/%s", DMD_STORAGE_SCENES, MANAGED_SCENES_FILE);
+    FILE *file = fopen(path, "rb");
+    *line_list = file != NULL;
+    if (file == NULL) {
+        snprintf(path, sizeof(path), "%s/scene-pack-content.json", DMD_STORAGE_SCENES);
+        file = fopen(path, "rb");
+    }
+    if (file == NULL || fseek(file, 0, SEEK_END) != 0) {
+        if (file != NULL) fclose(file);
+        return NULL;
+    }
+    long length = ftell(file);
+    if (length <= 0 || length > MAX_CATALOG_BYTES || fseek(file, 0, SEEK_SET) != 0) {
+        fclose(file);
+        return NULL;
+    }
+    char *text = heap_caps_malloc(
+        (size_t)length + 1,
+        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (text == NULL) text = malloc((size_t)length + 1);
+    if (text == NULL) {
+        fclose(file);
+        return NULL;
+    }
+    if (fread(text, 1, (size_t)length, file) != (size_t)length) {
+        free(text);
+        fclose(file);
+        return NULL;
+    }
+    text[length] = '\0';
+    fclose(file);
+    return text;
+}
+
+static bool managed_index_contains(const char *index, bool line_list, const char *name)
+{
+    if (index == NULL) return false;
+    if (!line_list) {
+        char marker[128];
+        snprintf(marker, sizeof(marker), "Scenes/%s\"", name);
+        return strstr(index, marker) != NULL;
+    }
+    size_t length = strlen(name);
+    const char *match = index;
+    while ((match = strstr(match, name)) != NULL) {
+        bool starts_line = match == index || match[-1] == '\n';
+        bool ends_line = match[length] == '\0' || match[length] == '\r' || match[length] == '\n';
+        if (starts_line && ends_line) return true;
+        match += length;
+    }
+    return false;
 }
 
 static esp_err_t preserve_custom_scenes(void)
@@ -845,10 +944,13 @@ static esp_err_t preserve_custom_scenes(void)
     struct dirent *entry;
     char source[320];
     char destination[320];
+    bool line_list = false;
+    char *managed_index = read_managed_index(&line_list);
     esp_err_t error = ESP_OK;
     while ((entry = readdir(directory)) != NULL) {
         size_t length = strlen(entry->d_name);
         if (length < 4 || strcasecmp(entry->d_name + length - 4, ".scn") != 0) continue;
+        if (managed_index_contains(managed_index, line_list, entry->d_name)) continue;
         snprintf(destination, sizeof(destination), "%s/%s", STAGING_DIR, entry->d_name);
         struct stat existing;
         if (stat(destination, &existing) == 0) continue;
@@ -857,6 +959,7 @@ static esp_err_t preserve_custom_scenes(void)
         if (error != ESP_OK) break;
     }
     closedir(directory);
+    free(managed_index);
     return error;
 }
 
@@ -872,12 +975,85 @@ static esp_err_t activate(void)
     return ESP_OK;
 }
 
+static void update_selected_pack(const pack_info_t *pack)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    strlcpy(s_status.pack_id, pack->pack_id, sizeof(s_status.pack_id));
+    strlcpy(s_status.display_name, pack->display_name, sizeof(s_status.display_name));
+    strlcpy(s_status.version, pack->version, sizeof(s_status.version));
+    s_status.expected_scenes = pack->scene_count;
+    xSemaphoreGive(s_lock);
+}
+
+static esp_err_t write_installed_pack(const pack_info_t *pack)
+{
+    cJSON *json = cJSON_CreateObject();
+    if (json == NULL) return ESP_ERR_NO_MEM;
+    cJSON_AddStringToObject(json, "packId", pack->pack_id);
+    cJSON_AddStringToObject(json, "displayName", pack->display_name);
+    cJSON_AddStringToObject(json, "version", pack->version);
+    cJSON_AddNumberToObject(json, "sceneCount", pack->scene_count);
+    char *text = cJSON_PrintUnformatted(json);
+    cJSON_Delete(json);
+    if (text == NULL) return ESP_ERR_NO_MEM;
+    FILE *file = fopen(INSTALLED_PACK_TEMP, "wb");
+    esp_err_t error = ESP_OK;
+    if (file == NULL || fwrite(text, 1, strlen(text), file) != strlen(text) ||
+        fflush(file) != 0) error = ESP_FAIL;
+    if (file != NULL) fclose(file);
+    free(text);
+    if (error != ESP_OK) {
+        unlink(INSTALLED_PACK_TEMP);
+        return error;
+    }
+    unlink(INSTALLED_PACK_PATH);
+    if (rename(INSTALLED_PACK_TEMP, INSTALLED_PACK_PATH) != 0) {
+        unlink(INSTALLED_PACK_TEMP);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
+static void load_installed_pack(void)
+{
+    FILE *file = fopen(INSTALLED_PACK_PATH, "rb");
+    if (file == NULL) return;
+    char text[512];
+    size_t length = fread(text, 1, sizeof(text) - 1, file);
+    fclose(file);
+    text[length] = '\0';
+    cJSON *json = cJSON_ParseWithLength(text, length);
+    if (json == NULL) return;
+    const cJSON *pack_id = cJSON_GetObjectItemCaseSensitive(json, "packId");
+    const cJSON *display_name = cJSON_GetObjectItemCaseSensitive(json, "displayName");
+    const cJSON *version = cJSON_GetObjectItemCaseSensitive(json, "version");
+    const cJSON *scene_count = cJSON_GetObjectItemCaseSensitive(json, "sceneCount");
+    if (cJSON_IsString(pack_id) && supported_pack_id(pack_id->valuestring) &&
+        cJSON_IsString(display_name) && cJSON_IsString(version) &&
+        cJSON_IsNumber(scene_count) && scene_count->valueint > 0 &&
+        scene_count->valueint <= 4096) {
+        strlcpy(s_status.pack_id, pack_id->valuestring, sizeof(s_status.pack_id));
+        strlcpy(s_status.display_name, display_name->valuestring, sizeof(s_status.display_name));
+        strlcpy(s_status.version, version->valuestring, sizeof(s_status.version));
+        s_status.expected_scenes = (uint16_t)scene_count->valueint;
+        s_status.extracted_scenes = (uint16_t)scene_count->valueint;
+        s_status.installed = true;
+        strlcpy(s_status.message, "Installed scene pack ready", sizeof(s_status.message));
+    }
+    cJSON_Delete(json);
+}
+
 static void install_task(void *argument)
 {
     (void)argument;
     pack_info_t pack = {0};
+    char selected_pack_id[sizeof(s_status.pack_id)];
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    strlcpy(selected_pack_id, s_status.pack_id, sizeof(selected_pack_id));
+    xSemaphoreGive(s_lock);
     set_status(DMD_SCENE_PACK_FETCHING_CATALOG, "Downloading shared catalog", 0, 0, 0, 0);
-    esp_err_t error = fetch_pack_info(&pack);
+    esp_err_t error = fetch_pack_info(selected_pack_id, &pack);
+    if (error == ESP_OK) update_selected_pack(&pack);
     if (error == ESP_OK) {
         uint64_t total = 0;
         uint64_t free_bytes = 0;
@@ -905,6 +1081,12 @@ static void install_task(void *argument)
     }
     if (error == ESP_OK) {
         unlink(ARCHIVE_PATH);
+        error = write_installed_pack(&pack);
+    }
+    if (error == ESP_OK) {
+        xSemaphoreTake(s_lock, portMAX_DELAY);
+        s_status.installed = true;
+        xSemaphoreGive(s_lock);
         finish(DMD_SCENE_PACK_COMPLETE, "Scene pack installed; reboot to load it");
     } else if (cancelled()) {
         finish(DMD_SCENE_PACK_CANCELLED, "Scene-pack operation cancelled");
@@ -923,12 +1105,13 @@ esp_err_t dmd_scene_pack_init(void)
     if (s_lock == NULL) return ESP_ERR_NO_MEM;
     memset(&s_status, 0, sizeof(s_status));
     strlcpy(s_status.message, "Ready", sizeof(s_status.message));
+    load_installed_pack();
     return recover_activation();
 }
 
-esp_err_t dmd_scene_pack_start(const char *operation)
+esp_err_t dmd_scene_pack_start(const char *operation, const char *pack_id)
 {
-    if (!dmd_storage_available() || operation == NULL ||
+    if (!dmd_storage_available() || operation == NULL || !supported_pack_id(pack_id) ||
         (strcmp(operation, "install") && strcmp(operation, "update") && strcmp(operation, "repair"))) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -940,6 +1123,11 @@ esp_err_t dmd_scene_pack_start(const char *operation)
     memset(&s_status, 0, sizeof(s_status));
     s_status.running = true;
     strlcpy(s_status.operation, operation, sizeof(s_status.operation));
+    strlcpy(s_status.pack_id, pack_id, sizeof(s_status.pack_id));
+    strlcpy(
+        s_status.display_name,
+        !strcmp(pack_id, ORIGINAL_PACK_ID) ? ORIGINAL_DISPLAY_NAME : LARGE_DISPLAY_NAME,
+        sizeof(s_status.display_name));
     strlcpy(s_status.message, "Starting", sizeof(s_status.message));
     xSemaphoreGive(s_lock);
     BaseType_t result = xTaskCreate(install_task, "scene_pack", 12288, NULL, 3, NULL);

@@ -394,8 +394,15 @@
         </select>
       </div>
       <p class="hint">Windows, macOS and ESP32 use the same versioned scene-pack catalog.</p>
+      <div class="row">
+        <label for="scenePackSelector">Scene pack<small>Original DotCLK-Orig is preferred. DMD-Large includes all 2,324 original scenes plus 92 additional scenes.</small></label>
+        <select id="scenePackSelector" style="width:min(260px,58vw)">
+          <option value="dotclk-original" selected>Original DotCLK-Orig · 2,324 (Preferred)</option>
+          <option value="drwize-complete">DMD-Large · 2,416</option>
+        </select>
+      </div>
       <div class="actions">
-        <button id="installScenePack" type="button">Install complete pack</button>
+        <button id="installScenePack" type="button">Install selected pack</button>
         <button id="updateScenePack" class="secondary" type="button">Update</button>
         <button id="repairScenePack" class="secondary" type="button">Repair</button>
         <button id="cancelScenePack" class="danger" type="button" disabled>Cancel</button>
@@ -1220,9 +1227,14 @@
           :Number(status.extractedScenes);
         $("scenePackProgress").max=Math.max(1,total);
         $("scenePackProgress").value=Math.min(total,Math.max(0,complete));
+        if(status.running&&status.packId)$("scenePackSelector").value=status.packId;
+        const identity=status.displayName
+          ?`${status.displayName}${status.version?` v${status.version}`:""}`
+          :"Scene pack";
         $("scenePackStatus").textContent=
-          `${status.message}${status.expectedScenes?` · ${status.extractedScenes}/${status.expectedScenes} scenes`:""}`;
+          `${identity} · ${status.message}${status.expectedScenes?` · ${status.extractedScenes}/${status.expectedScenes} scenes`:""}${status.installed?" · Installed":""}`;
         ["installScenePack","updateScenePack","repairScenePack"].forEach(id=>{$(id).disabled=status.running});
+        $("scenePackSelector").disabled=status.running;
         $("cancelScenePack").disabled=!status.running||status.cancelRequested;
         if(status.restartRequired){
           $("scenePackStatus").textContent+=" · Use Reboot device below to load the new library.";
@@ -1236,7 +1248,10 @@
         await request("/api/scene-pack",{
           method:"POST",
           headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({action})
+          body:JSON.stringify({
+            action,
+            packId:action==="cancel"?undefined:$("scenePackSelector").value
+          })
         });
         await refreshScenePack();
       }catch(error){

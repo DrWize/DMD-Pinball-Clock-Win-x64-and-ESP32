@@ -7,6 +7,15 @@ public sealed record ScenePackCatalog(
 {
     public const int CurrentSchemaVersion = 1;
 
+    public ScenePackCatalogEntry GetPreferredAvailablePack(string platform)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(platform);
+        return Packs.SingleOrDefault(item =>
+            item.Preferred && item.Available &&
+            item.SupportedPlatforms.Contains(platform, StringComparer.OrdinalIgnoreCase)) ??
+            throw new InvalidDataException($"The catalog does not define one preferred scene pack for '{platform}'.");
+    }
+
     public ScenePackCatalogEntry GetRequiredAvailablePack(string packId, string platform)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packId);
@@ -26,6 +35,10 @@ public sealed record ScenePackCatalogEntry(
     string PackId,
     string DisplayName,
     string Description,
+    string Version,
+    string ManagedDirectory,
+    bool Preferred,
+    IReadOnlyList<string> IncludesPackIds,
     bool Available,
     string DistributionStatus,
     string SourcePageUrl,

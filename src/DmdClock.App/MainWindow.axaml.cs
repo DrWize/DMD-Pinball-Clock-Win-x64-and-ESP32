@@ -237,11 +237,11 @@ public partial class MainWindow : Window
 
     private async Task DownloadScenesAsync()
     {
-        var destination = Path.Combine(
+        var destinationRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "DmdClock", "Scenes", "DotClk");
+            "DmdClock", "Scenes");
         var dialog = new SceneDownloadWindow(
-            destination,
+            destinationRoot,
             L("downloadScenesTitle"),
             L("downloadScenesDescription"),
             L("viewSceneSource"),
@@ -261,7 +261,8 @@ public partial class MainWindow : Window
             result.SceneCount));
         await _log.WriteAsync(DateTimeOffset.UtcNow,
             $"scenes.download status=success count={result.SceneCount} bytes={result.DownloadedBytes} " +
-            $"root=\"{SanitizeLogValue(result.DestinationDirectory)}\" source=\"{ScenePackDownloader.SourceUrl}\"");
+            $"pack=\"{SanitizeLogValue(result.PackId)}\" root=\"{SanitizeLogValue(result.DestinationDirectory)}\" " +
+            $"source=\"{SanitizeLogValue(result.SourcePageUrl)}\"");
     }
 
     private async Task ScanLibraryAsync(bool startPlayback)

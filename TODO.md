@@ -53,50 +53,50 @@ this hobby release will not use a paid code-signing service.
 ## Priority 0 — unified scene-pack downloads on every platform
 
 Goal: Windows, macOS Apple Silicon, and ESP32 must present the same two explicit
-scene-pack choices from the shared catalog. The complete DrWize pack includes the
-original DotClk collection, so the UI must explain that users select one pack;
+scene-pack choices from the shared catalog. DMD-Large includes the
+Original DotCLK-Orig collection, so the UI must explain that users select one pack;
 they do not need to install both.
 
 ### P0.1 — shared catalog and product language
 
-- [ ] Keep stable catalog IDs for `dotclk-original` and `drwize-complete` and
+- [x] Keep stable catalog IDs for `dotclk-original` and `drwize-complete` and
       expose display name, description, version, scene count, compressed size,
       installed size, SHA-256, supported platforms, and download/manifest URLs.
-- [ ] Present **Original DotClk pack — 2,324 scenes** and **Complete DrWize pack —
-      2,416 scenes, includes DotClk** consistently on every platform.
+- [x] Present **Original DotCLK-Orig — 2,324 scenes (preferred)** and **DMD-Large —
+      2,416 scenes, includes Original DotCLK-Orig** consistently on every platform.
 - [ ] Make unavailable or incompatible packs visible but disabled with a useful
       reason; never silently substitute one pack for the other.
 
 ### P0.2 — Windows and macOS download selector
 
-- [ ] Rename **Download DotClk scenes…** to **Download scenes…** in the shared
+- [x] Rename **Download DotClk scenes…** to **Download scenes…** in the shared
       Avalonia menu used by Windows and macOS.
-- [ ] Add a two-pack selection dialog driven by the shared catalog, with the
-      complete DrWize pack recommended and the inclusion relationship clearly
+- [x] Add a two-pack selection dialog driven by the shared catalog, with
+      Original DotCLK-Orig recommended and the inclusion relationship clearly
       stated before download.
-- [ ] Reuse the existing progress, cancellation, size/SHA validation, safe ZIP
+- [x] Reuse the existing progress, cancellation, size/SHA validation, safe ZIP
       extraction, atomic installation, library selection, and rescan workflow for
       either selected pack.
-- [ ] Store the two packs in distinct managed library directories and prevent a
+- [x] Store the two packs in distinct managed library directories and prevent a
       second installation from creating duplicate or ambiguous library entries.
 
 ### P0.3 — ESP32 web selector and API
 
-- [ ] Replace the hard-coded `drwize-complete` firmware selection with a validated
+- [x] Replace the hard-coded `drwize-complete` firmware selection with a validated
       catalog `packId` supplied to the scene-pack job.
-- [ ] Add **Original DotClk** and **Complete DrWize** choices to the ESP32 web
+- [x] Add **Original DotCLK-Orig** and **DMD-Large** choices to the ESP32 web
       interface, followed by the existing `Install`, `Update`, `Repair`, and
       `Cancel` controls and live progress.
-- [ ] Return the selected pack ID, display name, version, expected scene count,
+- [x] Return the selected pack ID, display name, version, expected scene count,
       and installed state through `/api/scene-pack`; reject unknown, unavailable,
       or non-ESP32 packs.
-- [ ] Preserve the current free-space checks, resumable HTTPS download, manifest
+- [x] Preserve the current free-space checks, resumable HTTPS download, manifest
       and SHA validation, staged extraction, custom-scene preservation, rollback,
       atomic activation, and reboot-required behavior for either pack.
 
 ### P0.4 — tests and release acceptance
 
-- [ ] Add .NET tests for both catalog choices, destination isolation, selection,
+- [x] Add .NET tests for both catalog choices, destination isolation, selection,
       cancellation, corrupt downloads, and upgrading one installed pack without
       changing the other.
 - [ ] Build the same Avalonia UI for Windows x64 and macOS ARM64 and verify that

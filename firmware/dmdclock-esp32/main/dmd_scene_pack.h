@@ -26,12 +26,16 @@ typedef struct {
     bool running;
     bool cancel_requested;
     bool restart_required;
+    bool installed;
     char operation[12];
+    char pack_id[32];
+    char display_name[48];
+    char version[24];
     char message[128];
 } dmd_scene_pack_status_t;
 
 esp_err_t dmd_scene_pack_init(void);
-esp_err_t dmd_scene_pack_start(const char *operation);
+esp_err_t dmd_scene_pack_start(const char *operation, const char *pack_id);
 esp_err_t dmd_scene_pack_cancel(void);
 void dmd_scene_pack_get_status(dmd_scene_pack_status_t *status);
 const char *dmd_scene_pack_phase_name(dmd_scene_pack_phase_t phase);

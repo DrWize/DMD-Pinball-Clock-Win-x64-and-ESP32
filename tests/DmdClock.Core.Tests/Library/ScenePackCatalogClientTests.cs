@@ -19,10 +19,16 @@ public sealed class ScenePackCatalogClientTests
         var original = catalog.GetRequiredAvailablePack("dotclk-original", "esp32-s3");
 
         Assert.Equal(2324, original.SceneCount);
+        Assert.Equal("Original DotCLK-Orig", original.DisplayName);
+        Assert.Equal("DotCLK-Orig", original.ManagedDirectory);
+        Assert.True(original.Preferred);
+        Assert.Equal(original, catalog.GetPreferredAvailablePack("windows-x64"));
         Assert.Equal(ScenePackDownloader.SourceUrl, original.DownloadUrl);
         Assert.Equal(ScenePackDownloader.SourceSha256, original.ArchiveSha256);
         var complete = catalog.GetRequiredAvailablePack("drwize-complete", "osx-arm64");
         Assert.Equal(2416, complete.SceneCount);
+        Assert.Equal("DMD-Large", complete.DisplayName);
+        Assert.Contains("dotclk-original", complete.IncludesPackIds);
         Assert.Equal(17_506_516, complete.DownloadBytes);
         Assert.Equal(
             "9c2db7d93d5e359d1742ad595bee32929160d048f6a3f8318d3fce4ef4bdf3fa",
@@ -41,6 +47,10 @@ public sealed class ScenePackCatalogClientTests
                   "packId": "dotclk-original",
                   "displayName": "Original DotClk scenes",
                   "description": "Official external source",
+                  "version": "test-1",
+                  "managedDirectory": "DotCLK-Orig",
+                  "preferred": true,
+                  "includesPackIds": [],
                   "available": true,
                   "distributionStatus": "official-external-source",
                   "sourcePageUrl": "https://example.test/source",

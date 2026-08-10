@@ -1,5 +1,5 @@
 {
-  "openScene": "Open SCN file… (Ctrl+O)", "chooseFolder": "Choose animation folder… (Ctrl+Shift+O)", "downloadScenes": "Download DotClk scenes…", "rescan": "Rescan library (F5)", "sceneReviewer": "Review and choose scenes… (Ctrl+Shift+R)",
+  "openScene": "Open SCN file… (Ctrl+O)", "chooseFolder": "Choose animation folder… (Ctrl+Shift+O)", "downloadScenes": "Download scenes…", "rescan": "Rescan library (F5)", "sceneReviewer": "Review and choose scenes… (Ctrl+Shift+R)",
   "playPause": "Play/pause (Space)", "nextFrame": "Next frame (Right)", "previousFrame": "Previous frame (Left)", "nextAnimation": "Next animation (N)", "previousAnimation": "Previous animation (P)",
   "random": "Random order", "automatic": "Automatic clock/animation cycle", "animationInfo": "Animation information (I)",
   "clockTime": "Clock duration", "seconds10": "10 seconds", "seconds30": "30 seconds", "seconds60": "60 seconds",
@@ -10,7 +10,7 @@
   "clock": "Clock", "showSeconds": "Show seconds", "timeFormat": "Time format", "hour24": "24-hour", "hour12": "12-hour (AM/PM)", "font": "Font", "builtInFont": "Built-in 5×7",
   "date": "Date", "dateFormat": "Date format", "dateIso": "YYYY-MM-DD (ISO)", "dateEuropean": "DD/MM/YYYY", "dateUs": "MM/DD/YYYY", "dateDots": "DD.MM.YYYY",
   "startupLoading": "Loading animations…", "startupLoaded": "{0:N0} animations loaded", "startupNoAnimations": "No animations found — right-click to download scenes",
-  "downloadScenesTitle": "Download DotClk scenes", "downloadScenesDescription": "Download and install the original DotClk .scn animations. The files stay outside DMDClock and can be updated or removed separately.", "viewSceneSource": "View original source", "download": "Download", "scenesInstalled": "{0:N0} scenes installed",
-  "sceneDownloadConnecting": "Connecting to the DotClk scene source…", "sceneDownloading": "Downloading scenes… {0}", "sceneDownloadingPercent": "Downloading scenes… {0}% ({1})", "sceneDownloadFailed": "Download failed: {0}", "sceneDownloadCancelling": "Cancelling…", "sceneSourceOpenFailed": "Could not open the source page: {0}",
+  "downloadScenesTitle": "Download scenes", "downloadScenesDescription": "Choose Original DotCLK-Orig (preferred) or DMD-Large. Each verified pack is installed in its own managed folder and can be updated independently.", "viewSceneSource": "View selected source", "download": "Download selected pack", "scenesInstalled": "{0:N0} scenes installed",
+  "sceneDownloadConnecting": "Loading the shared scene catalog…", "scenePackReady": "Choose a pack, then download it.", "sceneDownloading": "Downloading scenes… {0}", "sceneDownloadingPercent": "Downloading scenes… {0}% ({1})", "sceneDownloadFailed": "Download failed: {0}", "sceneDownloadCancelling": "Cancelling…", "sceneSourceOpenFailed": "Could not open the source page: {0}",
   "language": "Language", "english": "English", "swedish": "Swedish", "help": "Help – Alien Tech on GitHub", "exit": "Exit"
 }

@@ -24,7 +24,7 @@
                     </ContextMenu.Styles>
                     <MenuItem Header="Open SCN file… (Ctrl+O)" Click="OpenScene_Click" />
                     <MenuItem Header="Choose animation folder… (Ctrl+Shift+O)" Click="ChooseFolder_Click" />
-                    <MenuItem Header="Download DotClk scenes…" Click="DownloadScenes_Click" />
+                    <MenuItem Header="Download scenes…" Click="DownloadScenes_Click" />
                     <MenuItem Header="Rescan library (F5)" Click="Rescan_Click" />
                     <MenuItem Header="Review and choose scenes… (Ctrl+Shift+R)" Click="SceneReviewer_Click" />
                     <Separator />

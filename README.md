@@ -40,7 +40,7 @@ The firmware currently targets only the original **Waveshare ESP32-S3-Touch-LCD-
 3. Run the doctor, then use the single installer/updater script:
    `.\scripts\esp32\Install-DmdClockEsp32.ps1`.
 4. Connect it to a 2.4 GHz Wi-Fi network and open the local web remote.
-5. Prepare a FAT32 TF card if you want to use the original DotClk scene library.
+5. Insert a FAT32 TF card, then install either scene pack from the web remote.
 
 The [ESP32-S3 installation guide](docs/INSTALL-ESP32.md) gives the exact commands,
 first-boot flow, SD-card layout, recovery steps, and security notes.
@@ -64,10 +64,21 @@ first-boot flow, SD-card layout, recovery steps, and security notes.
 - Wi-Fi/NTP, MQTT and Home Assistant discovery, diagnostics, and recovery access point
 - local settings backup on the TF card with NVS fallback
 
-Original `.scn` animations are not included in Windows packages or production
-firmware. Windows can download the original DotClk scene pack in the app; ESP32
-users can prepare a card with the supplied script. You may also use your own
-compatible `.scn` files.
+Original `.scn` animations are not included in desktop packages or production
+firmware. Windows and macOS provide **Download scenes…** in the app, while ESP32
+provides the same selector in its web remote. **Original DotCLK-Orig** contains
+2,324 scenes and is the preferred choice. **DMD-Large** contains 2,416 scenes,
+including the complete Original collection. You may also use your own compatible
+`.scn` files.
+
+### Scene-pack downloads on ESP32
+
+Both supported QEMU profiles use the same web selector and verified catalog as
+the physical ESP32. The screenshots below were captured from the live profiles.
+
+| Waveshare7 — DMD-Large installed | Landscape349 — Original DotCLK-Orig installed |
+| --- | --- |
+| ![Waveshare7 web remote with DMD-Large installed](docs/screenshots/install/esp32-scene-packs-waveshare7.png) | ![Landscape349 web remote with Original DotCLK-Orig installed](docs/screenshots/install/esp32-scene-packs-landscape349.png) |
 
 ## User data and privacy
 
@@ -114,7 +125,9 @@ To build and test either display model with the graphical QEMU runner:
 
 Run the script without `-Model` for an interactive choice. Each model uses its
 own build directory, SD image, web port, and monitor port, so both commands can
-run concurrently. The image files are local, writable, and ignored by Git. See
+run concurrently. Open `http://localhost:8080/` for Waveshare7 and
+`http://localhost:8081/` for Landscape349. The image files are local, writable,
+and ignored by Git. See
 the [ESP32 firmware README](firmware/dmdclock-esp32/README.md#run-in-qemu) for
 prerequisites, emulated memory limits, SD-card behavior, and monitor details.
 

@@ -1,11 +1,15 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-10T20:52:04.8974717Z",
+  "updatedAt": "2026-08-11T00:00:00Z",
   "packs": [
     {
       "packId": "dotclk-original",
-      "displayName": "Original DotClk scenes",
-      "description": "The original scene collection downloaded from its official sigmafx repository.",
+      "displayName": "Original DotCLK-Orig",
+      "description": "Preferred original 2,324-scene collection downloaded from the official sigmafx repository.",
+      "version": "11211af",
+      "managedDirectory": "DotCLK-Orig",
+      "preferred": true,
+      "includesPackIds": [],
       "available": true,
       "distributionStatus": "official-external-source",
       "sourcePageUrl": "https://github.com/sigmafx/DotClk-Resources/tree/11211af85a2ade66d05d961839773a05a01bddcc/Scenes",
@@ -25,8 +29,14 @@
     },
     {
       "packId": "drwize-complete",
-      "displayName": "DrWize complete scene collection",
-      "description": "The complete validated 2,416-scene collection for DMDClock on Windows, macOS ARM64, and ESP32-S3.",
+      "displayName": "DMD-Large",
+      "description": "The larger validated 2,416-scene collection; it includes every Original DotCLK-Orig scene plus 92 additional scenes.",
+      "version": "2026.08.10",
+      "managedDirectory": "DMD-Large",
+      "preferred": false,
+      "includesPackIds": [
+        "dotclk-original"
+      ],
       "available": true,
       "distributionStatus": "github-release",
       "sourcePageUrl": "https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/tag/scene-pack-v2026.08.10",

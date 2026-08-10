@@ -22,7 +22,8 @@ public sealed class ScenePackDownloaderTests
             var progressValues = new List<ScenePackDownloadProgress>();
             var progress = new ImmediateProgress<ScenePackDownloadProgress>(progressValues.Add);
             var pack = new ScenePackCatalogEntry(
-                "test-pack", "Test pack", "Test scenes", true, "test-only",
+                "test-pack", "Test pack", "Test scenes", "test-1", "Test-Pack", true, [],
+                true, "test-only",
                 "https://example.test/source", downloadUrl, new string('a', 40),
                 "zip", "/Scenes/", archive.Length, 5,
                 Convert.ToHexString(SHA256.HashData(archive)).ToLowerInvariant(), 2,
@@ -32,11 +33,131 @@ public sealed class ScenePackDownloaderTests
                 .DownloadAndInstallAsync(pack, destination, progress);
 
             Assert.Equal(2, result.SceneCount);
+            Assert.Equal("test-pack", result.PackId);
             Assert.Equal(archive.Length, result.DownloadedBytes);
             Assert.Equal([1, 2, 3], await File.ReadAllBytesAsync(Path.Combine(destination, "RD0001.scn")));
             Assert.Equal([4, 5], await File.ReadAllBytesAsync(Path.Combine(destination, "sub", "demo.SCN")));
             Assert.False(File.Exists(Path.Combine(destination, "font.fnt")));
             Assert.Contains(progressValues, value => value.Percentage == 100);
+        }
+        finally
+        {
+            DeleteParent(destination);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadAndInstall_KeepsManagedPackDirectoriesIsolated()
+    {
+        var parent = Path.Combine(Path.GetTempPath(), $"dmdclock-two-packs-{Guid.NewGuid():N}");
+        var originalDestination = Path.Combine(parent, "DotCLK-Orig");
+        var largeDestination = Path.Combine(parent, "DMD-Large");
+        try
+        {
+            var originalArchive = CreateArchive(("original/Scenes/original.scn", [1]));
+            var largeArchive = CreateArchive(
+                ("large/Scenes/original.scn", [1]),
+                ("large/Scenes/extra.scn", [2]));
+            const string originalUrl = "https://example.test/original.zip";
+            const string largeUrl = "https://example.test/large.zip";
+            var original = CreatePack(
+                "dotclk-original", "Original DotCLK-Orig", "DotCLK-Orig",
+                originalUrl, originalArchive, 1, preferred: true);
+            var large = CreatePack(
+                "drwize-complete", "DMD-Large", "DMD-Large",
+                largeUrl, largeArchive, 2, preferred: false);
+
+            using (var client = new HttpClient(new ArchiveHandler(originalUrl, originalArchive)))
+                await new ScenePackDownloader(client)
+                    .DownloadAndInstallAsync(original, originalDestination);
+            using (var client = new HttpClient(new ArchiveHandler(largeUrl, largeArchive)))
+                await new ScenePackDownloader(client)
+                    .DownloadAndInstallAsync(large, largeDestination);
+            var originalUpdateArchive = CreateArchive(
+                ("original/Scenes/original.scn", [9]));
+            var originalUpdate = CreatePack(
+                "dotclk-original", "Original DotCLK-Orig", "DotCLK-Orig",
+                originalUrl, originalUpdateArchive, 1, preferred: true);
+            using (var client = new HttpClient(
+                new ArchiveHandler(originalUrl, originalUpdateArchive)))
+                await new ScenePackDownloader(client)
+                    .DownloadAndInstallAsync(originalUpdate, originalDestination);
+
+            Assert.Single(Directory.GetFiles(originalDestination, "*.scn"));
+            Assert.Equal([9], await File.ReadAllBytesAsync(
+                Path.Combine(originalDestination, "original.scn")));
+            Assert.Equal(2, Directory.GetFiles(largeDestination, "*.scn").Length);
+            Assert.Equal([2], await File.ReadAllBytesAsync(
+                Path.Combine(largeDestination, "extra.scn")));
+            Assert.False(File.Exists(Path.Combine(originalDestination, "extra.scn")));
+        }
+        finally
+        {
+            if (Directory.Exists(parent)) Directory.Delete(parent, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadAndInstall_RejectsCorruptArchiveWithoutChangingInstalledPack()
+    {
+        var destination = NewTemporaryPath();
+        const string downloadUrl = "https://example.test/corrupt.zip";
+        try
+        {
+            Directory.CreateDirectory(destination);
+            await File.WriteAllTextAsync(Path.Combine(destination, "installed.scn"), "keep");
+            var archive = CreateArchive(("repo/Scenes/new.scn", [1, 2, 3]));
+            var pack = CreatePack(
+                "dotclk-original", "Original DotCLK-Orig", "DotCLK-Orig",
+                downloadUrl, archive, 1, preferred: true) with
+            {
+                ArchiveSha256 = new string('0', 64)
+            };
+            using var client = new HttpClient(new ArchiveHandler(downloadUrl, archive));
+
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                new ScenePackDownloader(client).DownloadAndInstallAsync(pack, destination));
+
+            Assert.Equal("keep", await File.ReadAllTextAsync(
+                Path.Combine(destination, "installed.scn")));
+            Assert.False(File.Exists(Path.Combine(destination, "new.scn")));
+        }
+        finally
+        {
+            DeleteParent(destination);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadAndInstall_CancellationDoesNotChangeInstalledPack()
+    {
+        var destination = NewTemporaryPath();
+        const string downloadUrl = "https://example.test/cancel.zip";
+        try
+        {
+            Directory.CreateDirectory(destination);
+            await File.WriteAllTextAsync(Path.Combine(destination, "installed.scn"), "keep");
+            var scene = new byte[256 * 1024];
+            new Random(42).NextBytes(scene);
+            var archive = CreateArchive(("repo/Scenes/large.scn", scene));
+            var pack = CreatePack(
+                "dotclk-original", "Original DotCLK-Orig", "DotCLK-Orig",
+                downloadUrl, archive, 1, preferred: true);
+            using var cancellation = new CancellationTokenSource();
+            var progress = new ImmediateProgress<ScenePackDownloadProgress>(
+                value =>
+                {
+                    if (value.BytesDownloaded > 0) cancellation.Cancel();
+                });
+            using var client = new HttpClient(new ArchiveHandler(downloadUrl, archive));
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                new ScenePackDownloader(client).DownloadAndInstallAsync(
+                    pack, destination, progress, cancellation.Token));
+
+            Assert.Equal("keep", await File.ReadAllTextAsync(
+                Path.Combine(destination, "installed.scn")));
+            Assert.False(File.Exists(Path.Combine(destination, "large.scn")));
         }
         finally
         {
@@ -144,6 +265,21 @@ public sealed class ScenePackDownloaderTests
         var parent = Path.Combine(Path.GetTempPath(), $"dmdclock-scene-pack-tests-{Guid.NewGuid():N}");
         return Path.Combine(parent, "DotClk");
     }
+
+    private static ScenePackCatalogEntry CreatePack(
+        string packId,
+        string displayName,
+        string managedDirectory,
+        string downloadUrl,
+        byte[] archive,
+        int sceneCount,
+        bool preferred) =>
+        new(
+            packId, displayName, "Test scenes", "test-1", managedDirectory,
+            preferred, [], true, "test-only", "https://example.test/source",
+            downloadUrl, new string('a', 40), "zip", "/Scenes/", archive.Length,
+            archive.Length, Convert.ToHexString(SHA256.HashData(archive)).ToLowerInvariant(),
+            sceneCount, ["windows-x64", "osx-arm64"]);
 
     private static void DeleteParent(string destination)
     {

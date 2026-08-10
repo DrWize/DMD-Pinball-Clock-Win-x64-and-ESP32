@@ -64,12 +64,19 @@ public sealed class ScenePackCatalogClient
         if (catalog.Packs.GroupBy(item => item.PackId, StringComparer.OrdinalIgnoreCase)
             .Any(group => group.Count() > 1))
             throw new InvalidDataException("The scene-pack catalog contains duplicate pack IDs.");
+        if (catalog.Packs.Count(item => item.Preferred && item.Available) != 1)
+            throw new InvalidDataException("The scene-pack catalog must contain exactly one preferred available pack.");
 
         foreach (var pack in catalog.Packs)
         {
             if (string.IsNullOrWhiteSpace(pack.PackId) ||
                 string.IsNullOrWhiteSpace(pack.DisplayName) ||
                 string.IsNullOrWhiteSpace(pack.Description) ||
+                string.IsNullOrWhiteSpace(pack.Version) ||
+                string.IsNullOrWhiteSpace(pack.ManagedDirectory) ||
+                pack.ManagedDirectory.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                pack.ManagedDirectory is "." or ".." ||
+                pack.IncludesPackIds is null ||
                 string.IsNullOrWhiteSpace(pack.DistributionStatus) ||
                 !IsHttps(pack.SourcePageUrl) ||
                 pack.ArchiveFormat != "zip" ||
@@ -96,6 +103,12 @@ public sealed class ScenePackCatalogClient
                  pack.ArchiveSha256 is not null))
                 throw new InvalidDataException(
                     $"Unavailable scene pack '{pack.PackId}' must not expose archive metadata.");
+            if (pack.IncludesPackIds.Any(included =>
+                    string.Equals(included, pack.PackId, StringComparison.OrdinalIgnoreCase) ||
+                    !catalog.Packs.Any(candidate =>
+                        string.Equals(candidate.PackId, included, StringComparison.OrdinalIgnoreCase))))
+                throw new InvalidDataException(
+                    $"Scene pack '{pack.PackId}' contains an invalid inclusion reference.");
         }
     }
 

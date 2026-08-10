@@ -1,5 +1,5 @@
 {
-  "openScene": "Öppna SCN-fil… (Ctrl+O)", "chooseFolder": "Välj animationsmapp… (Ctrl+Shift+O)", "downloadScenes": "Ladda ner DotClk-scener…", "rescan": "Skanna om biblioteket (F5)", "sceneReviewer": "Granska och välj scener… (Ctrl+Shift+R)",
+  "openScene": "Öppna SCN-fil… (Ctrl+O)", "chooseFolder": "Välj animationsmapp… (Ctrl+Shift+O)", "downloadScenes": "Ladda ner scener…", "rescan": "Skanna om biblioteket (F5)", "sceneReviewer": "Granska och välj scener… (Ctrl+Shift+R)",
   "playPause": "Spela/pausa (Mellanslag)", "nextFrame": "Nästa bildruta (Höger)", "previousFrame": "Föregående bildruta (Vänster)", "nextAnimation": "Nästa animation (N)", "previousAnimation": "Föregående animation (P)",
   "random": "Slumpmässig ordning", "automatic": "Automatisk klock-/animationscykel", "animationInfo": "Animationsinformation (I)",
   "clockTime": "Klocktid", "seconds10": "10 sekunder", "seconds30": "30 sekunder", "seconds60": "60 sekunder",
@@ -10,7 +10,7 @@
   "clock": "Klocka", "showSeconds": "Visa sekunder", "timeFormat": "Tidsformat", "hour24": "24-timmars", "hour12": "12-timmars (FM/EM)", "font": "Typsnitt", "builtInFont": "Inbyggd 5×7",
   "date": "Datum", "dateFormat": "Datumformat", "dateIso": "ÅÅÅÅ-MM-DD (ISO)", "dateEuropean": "DD/MM/ÅÅÅÅ", "dateUs": "MM/DD/ÅÅÅÅ", "dateDots": "DD.MM.ÅÅÅÅ",
   "startupLoading": "Laddar animationer…", "startupLoaded": "{0:N0} animationer laddade", "startupNoAnimations": "Inga animationer hittades — högerklicka för att ladda ner scener",
-  "downloadScenesTitle": "Ladda ner DotClk-scener", "downloadScenesDescription": "Ladda ner och installera de ursprungliga DotClk-animationerna i .scn-format. Filerna ligger utanför DMDClock och kan uppdateras eller tas bort separat.", "viewSceneSource": "Visa originalkällan", "download": "Ladda ner", "scenesInstalled": "{0:N0} scener installerade",
-  "sceneDownloadConnecting": "Ansluter till DotClk-scenernas källa…", "sceneDownloading": "Laddar ner scener… {0}", "sceneDownloadingPercent": "Laddar ner scener… {0}% ({1})", "sceneDownloadFailed": "Nedladdningen misslyckades: {0}", "sceneDownloadCancelling": "Avbryter…", "sceneSourceOpenFailed": "Kunde inte öppna källsidan: {0}",
+  "downloadScenesTitle": "Ladda ner scener", "downloadScenesDescription": "Välj Original DotCLK-Orig (rekommenderad) eller DMD-Large. Varje verifierat paket installeras i en separat hanterad mapp och kan uppdateras oberoende.", "viewSceneSource": "Visa vald källa", "download": "Ladda ner valt paket", "scenesInstalled": "{0:N0} scener installerade",
+  "sceneDownloadConnecting": "Läser in den delade scenkatalogen…", "scenePackReady": "Välj ett paket och ladda sedan ner det.", "sceneDownloading": "Laddar ner scener… {0}", "sceneDownloadingPercent": "Laddar ner scener… {0}% ({1})", "sceneDownloadFailed": "Nedladdningen misslyckades: {0}", "sceneDownloadCancelling": "Avbryter…", "sceneSourceOpenFailed": "Kunde inte öppna källsidan: {0}",
   "language": "Språk", "english": "Engelska", "swedish": "Svenska", "help": "Hjälp – Alien Tech på GitHub", "exit": "Avsluta"
 }

@@ -33,8 +33,12 @@ public sealed class ScenePackDownloader
     {
         var source = new ScenePackCatalogEntry(
             "dotclk-original",
-            "Original DotClk scenes",
-            "The original scene collection downloaded from its official sigmafx repository.",
+            "Original DotCLK-Orig",
+            "Preferred original 2,324-scene collection downloaded from the official sigmafx repository.",
+            "11211af",
+            "DotCLK-Orig",
+            true,
+            [],
             true,
             "official-external-source",
             SourcePageUrl,
@@ -122,7 +126,8 @@ public sealed class ScenePackDownloader
                 temporaryArchive, destinationDirectory, cancellationToken, metadataPath)
                 .ConfigureAwait(false);
             return new ScenePackInstallResult(
-                Path.GetFullPath(destinationDirectory), sceneCount, downloadedBytes);
+                Path.GetFullPath(destinationDirectory), sceneCount, downloadedBytes,
+                pack.PackId, pack.DisplayName, pack.SourcePageUrl);
         }
         finally
         {
