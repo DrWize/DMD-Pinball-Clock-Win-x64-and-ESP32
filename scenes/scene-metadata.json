@@ -2,10 +2,23 @@
   "schemaVersion": 1,
   "source": "https://en.wikipedia.org/wiki/List_of_pinball_machines",
   "supportingSources": [
-    "https://www.ipdb.org/lists.cgi?puid=45565&list=games"
+    "https://www.ipdb.org/lists.cgi?puid=45565&list=games",
+    "https://en.wikipedia.org/wiki/Terminator_2:_Judgment_Day_(pinball)",
+    "https://en.wikipedia.org/wiki/Last_Action_Hero_(pinball)",
+    "https://en.wikipedia.org/wiki/Apollo_13_(pinball)"
   ],
   "sourceListingUpdated": "2026-07-30",
   "prefixes": [
+    {
+      "prefix": "apollo_13_",
+      "game": "Apollo 13",
+      "manufacturer": "Sega Pinball",
+      "year": 1995,
+      "dateManufactured": "October, 1995",
+      "players": 4,
+      "machineType": "SS",
+      "theme": "Licensed Theme - Outer Space"
+    },
     {
       "prefix": "afm",
       "game": "Attack from Mars",
@@ -78,6 +91,16 @@
       "players": 4,
       "machineType": "SS",
       "theme": "Adventure - Fictional - Licensed Theme"
+    },
+    {
+      "prefix": "last_action_hero_",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993,
+      "dateManufactured": "June, 1993",
+      "players": 4,
+      "machineType": "SS",
+      "theme": "Licensed Theme - Action"
     },
     {
       "prefix": "met",
@@ -390,6 +413,83 @@
       "game": "AC/DC",
       "manufacturer": "Stern Pinball",
       "year": 2012
+    },
+    {
+      "path": "APOLLO_13_001.scn",
+      "title": "Scene 001",
+      "game": "Apollo 13",
+      "manufacturer": "Sega Pinball",
+      "year": 1995
+    },
+    {
+      "path": "APOLLO_13_002.scn",
+      "title": "Scene 002",
+      "game": "Apollo 13",
+      "manufacturer": "Sega Pinball",
+      "year": 1995
+    },
+    {
+      "path": "APOLLO_13_003.scn",
+      "title": "Scene 003",
+      "game": "Apollo 13",
+      "manufacturer": "Sega Pinball",
+      "year": 1995
+    },
+    {
+      "path": "APOLLO_13_004.scn",
+      "title": "Scene 004",
+      "game": "Apollo 13",
+      "manufacturer": "Sega Pinball",
+      "year": 1995
+    },
+    {
+      "path": "APOLLO_13_005.scn",
+      "title": "Scene 005",
+      "game": "Apollo 13",
+      "manufacturer": "Sega Pinball",
+      "year": 1995
+    },
+    {
+      "path": "APOLLO_13_006.scn",
+      "title": "Scene 006",
+      "game": "Apollo 13",
+      "manufacturer": "Sega Pinball",
+      "year": 1995
+    },
+    {
+      "path": "APOLLO_13_007.scn",
+      "title": "Scene 007",
+      "game": "Apollo 13",
+      "manufacturer": "Sega Pinball",
+      "year": 1995
+    },
+    {
+      "path": "APOLLO_13_008.scn",
+      "title": "Scene 008",
+      "game": "Apollo 13",
+      "manufacturer": "Sega Pinball",
+      "year": 1995
+    },
+    {
+      "path": "APOLLO_13_009.scn",
+      "title": "Scene 009",
+      "game": "Apollo 13",
+      "manufacturer": "Sega Pinball",
+      "year": 1995
+    },
+    {
+      "path": "APOLLO_13_010.scn",
+      "title": "Scene 010",
+      "game": "Apollo 13",
+      "manufacturer": "Sega Pinball",
+      "year": 1995
+    },
+    {
+      "path": "afm01.scn",
+      "title": "Scene 001",
+      "game": "Attack From Mars",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1995
     },
     {
       "path": "RD0033.scn",
@@ -2131,6 +2231,13 @@
       "year": 1998
     },
     {
+      "path": "cv01.scn",
+      "title": "Scene 001",
+      "game": "Cirqus Voltaire",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
       "path": "RD0282.scn",
       "title": "Scene 001",
       "game": "Cirqus Voltaire",
@@ -2880,8 +2987,22 @@
       "year": 1994
     },
     {
+      "path": "cftbl01.scn",
+      "title": "Scene 001",
+      "game": "Creature from the Black Lagoon",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1992
+    },
+    {
       "path": "RD0389.scn",
       "title": "Scene 001",
+      "game": "Creature from the Black Lagoon",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1992
+    },
+    {
+      "path": "cftbl02.scn",
+      "title": "Scene 002",
       "game": "Creature from the Black Lagoon",
       "manufacturer": "Midway Manufacturing Company",
       "year": 1992
@@ -3104,8 +3225,22 @@
       "year": 1994
     },
     {
+      "path": "dh01.scn",
+      "title": "Scene 001",
+      "game": "Dirty Harry",
+      "manufacturer": "Williams Electronics Games",
+      "year": 1995
+    },
+    {
       "path": "RD0421.scn",
       "title": "Scene 001",
+      "game": "Dirty Harry",
+      "manufacturer": "Williams Electronics Games",
+      "year": 1995
+    },
+    {
+      "path": "dh02.scn",
+      "title": "Scene 002",
       "game": "Dirty Harry",
       "manufacturer": "Williams Electronics Games",
       "year": 1995
@@ -4082,6 +4217,116 @@
       "game": "Flintstones",
       "manufacturer": "Williams Electronics Games",
       "year": 1994
+    },
+    {
+      "path": "ftrama01.scn",
+      "title": "Scene 001",
+      "game": "Futurama"
+    },
+    {
+      "path": "got01.scn",
+      "title": "Scene 001",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "got02.scn",
+      "title": "Scene 002",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "got03.scn",
+      "title": "Scene 003",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "got04.scn",
+      "title": "Scene 004",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "got05.scn",
+      "title": "Scene 005",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "got06.scn",
+      "title": "Scene 006",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "got07.scn",
+      "title": "Scene 007",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "got08.scn",
+      "title": "Scene 008",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "got09.scn",
+      "title": "Scene 009",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "got10.scn",
+      "title": "Scene 010",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "got11.scn",
+      "title": "Scene 011",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "got12.scn",
+      "title": "Scene 012",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "got13.scn",
+      "title": "Scene 013",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "got14.scn",
+      "title": "Scene 014",
+      "game": "Game of Thrones",
+      "manufacturer": "Stern Pinball",
+      "year": 2015
+    },
+    {
+      "path": "gb01.scn",
+      "title": "Scene 001",
+      "game": "Ghostbusters",
+      "manufacturer": "Stern Pinball",
+      "year": 2016
     },
     {
       "path": "RD0561.scn",
@@ -6079,6 +6324,27 @@
       "year": 2008
     },
     {
+      "path": "ij01.scn",
+      "title": "Scene 001",
+      "game": "Indiana Jones: The Pinball Adventure",
+      "manufacturer": "Williams Electronics Games",
+      "year": 1993
+    },
+    {
+      "path": "ij02.scn",
+      "title": "Scene 002",
+      "game": "Indiana Jones: The Pinball Adventure",
+      "manufacturer": "Williams Electronics Games",
+      "year": 1993
+    },
+    {
+      "path": "ij03.scn",
+      "title": "Scene 003",
+      "game": "Indiana Jones: The Pinball Adventure",
+      "manufacturer": "Williams Electronics Games",
+      "year": 1993
+    },
+    {
       "path": "RD0846.scn",
       "title": "Scene 001",
       "game": "Indianapolis 500",
@@ -6168,6 +6434,13 @@
       "game": "Indianapolis 500",
       "manufacturer": "Midway Manufacturing Company",
       "year": 1995
+    },
+    {
+      "path": "RD0859.scn",
+      "title": "Scene 001",
+      "game": "Iron Man",
+      "manufacturer": "Stern Pinball",
+      "year": 2010
     },
     {
       "path": "RD0860.scn",
@@ -6418,6 +6691,13 @@
       "path": "RD0895.scn",
       "title": "Scene 035",
       "game": "Jack-Bot",
+      "manufacturer": "Williams Electronics Games",
+      "year": 1995
+    },
+    {
+      "path": "RD0896.scn",
+      "title": "Scene 001",
+      "game": "Johnny Mnemonic",
       "manufacturer": "Williams Electronics Games",
       "year": 1995
     },
@@ -7507,6 +7787,468 @@
       "year": 2015
     },
     {
+      "path": "LAST_ACTION_HERO_001.scn",
+      "title": "Scene 001",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_002.scn",
+      "title": "Scene 002",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_003.scn",
+      "title": "Scene 003",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_004.scn",
+      "title": "Scene 004",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_005.scn",
+      "title": "Scene 005",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_006.scn",
+      "title": "Scene 006",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_007.scn",
+      "title": "Scene 007",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_008.scn",
+      "title": "Scene 008",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_009.scn",
+      "title": "Scene 009",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_010.scn",
+      "title": "Scene 010",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_011.scn",
+      "title": "Scene 011",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_012.scn",
+      "title": "Scene 012",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_013.scn",
+      "title": "Scene 013",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_014.scn",
+      "title": "Scene 014",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_015.scn",
+      "title": "Scene 015",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_016.scn",
+      "title": "Scene 016",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_017.scn",
+      "title": "Scene 017",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_018.scn",
+      "title": "Scene 018",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_019.scn",
+      "title": "Scene 019",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_020.scn",
+      "title": "Scene 020",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_021.scn",
+      "title": "Scene 021",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_022.scn",
+      "title": "Scene 022",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_023.scn",
+      "title": "Scene 023",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_024.scn",
+      "title": "Scene 024",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_025.scn",
+      "title": "Scene 025",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_026.scn",
+      "title": "Scene 026",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_027.scn",
+      "title": "Scene 027",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_028.scn",
+      "title": "Scene 028",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_029.scn",
+      "title": "Scene 029",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_030.scn",
+      "title": "Scene 030",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_031.scn",
+      "title": "Scene 031",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_032.scn",
+      "title": "Scene 032",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_033.scn",
+      "title": "Scene 033",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_034.scn",
+      "title": "Scene 034",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_035.scn",
+      "title": "Scene 035",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_036.scn",
+      "title": "Scene 036",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_037.scn",
+      "title": "Scene 037",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_038.scn",
+      "title": "Scene 038",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_039.scn",
+      "title": "Scene 039",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_040.scn",
+      "title": "Scene 040",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_041.scn",
+      "title": "Scene 041",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_042.scn",
+      "title": "Scene 042",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_043.scn",
+      "title": "Scene 043",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_044.scn",
+      "title": "Scene 044",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_045.scn",
+      "title": "Scene 045",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_046.scn",
+      "title": "Scene 046",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_047.scn",
+      "title": "Scene 047",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_048.scn",
+      "title": "Scene 048",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_049.scn",
+      "title": "Scene 049",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_050.scn",
+      "title": "Scene 050",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_051.scn",
+      "title": "Scene 051",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_052.scn",
+      "title": "Scene 052",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_053.scn",
+      "title": "Scene 053",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_054.scn",
+      "title": "Scene 054",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_055.scn",
+      "title": "Scene 055",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_056.scn",
+      "title": "Scene 056",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_057.scn",
+      "title": "Scene 057",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_058.scn",
+      "title": "Scene 058",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_059.scn",
+      "title": "Scene 059",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_060.scn",
+      "title": "Scene 060",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_061.scn",
+      "title": "Scene 061",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_062.scn",
+      "title": "Scene 062",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_063.scn",
+      "title": "Scene 063",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_064.scn",
+      "title": "Scene 064",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_065.scn",
+      "title": "Scene 065",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
+      "path": "LAST_ACTION_HERO_066.scn",
+      "title": "Scene 066",
+      "game": "Last Action Hero",
+      "manufacturer": "Data East Pinball",
+      "year": 1993
+    },
+    {
       "path": "RD1052.scn",
       "title": "Scene 001",
       "game": "Medieval Madness",
@@ -7736,6 +8478,13 @@
       "game": "Medieval Madness",
       "manufacturer": "Williams Electronics Games",
       "year": 1997
+    },
+    {
+      "path": "met01.scn",
+      "title": "Scene 001",
+      "game": "Metallica",
+      "manufacturer": "Stern Pinball",
+      "year": 2013
     },
     {
       "path": "RD1085.scn",
@@ -8739,6 +9488,13 @@
       "year": 1997
     },
     {
+      "path": "RD1228.scn",
+      "title": "Scene 004",
+      "game": "NBA Fastbreak",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
       "path": "RD1229.scn",
       "title": "Scene 005",
       "game": "NBA Fastbreak",
@@ -8753,6 +9509,20 @@
       "year": 1997
     },
     {
+      "path": "RD1231.scn",
+      "title": "Scene 007",
+      "game": "NBA Fastbreak",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
+      "path": "RD1232.scn",
+      "title": "Scene 008",
+      "game": "NBA Fastbreak",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
       "path": "RD1233.scn",
       "title": "Scene 009",
       "game": "NBA Fastbreak",
@@ -8760,8 +9530,57 @@
       "year": 1997
     },
     {
+      "path": "RD1234.scn",
+      "title": "Scene 010",
+      "game": "NBA Fastbreak",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
+      "path": "RD1235.scn",
+      "title": "Scene 011",
+      "game": "NBA Fastbreak",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
+      "path": "RD1236.scn",
+      "title": "Scene 012",
+      "game": "NBA Fastbreak",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
+      "path": "RD1237.scn",
+      "title": "Scene 013",
+      "game": "NBA Fastbreak",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
+      "path": "RD1238.scn",
+      "title": "Scene 014",
+      "game": "NBA Fastbreak",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
+      "path": "RD1239.scn",
+      "title": "Scene 015",
+      "game": "NBA Fastbreak",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
       "path": "RD1240.scn",
       "title": "Scene 016",
+      "game": "NBA Fastbreak",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
+      "path": "RD1241.scn",
+      "title": "Scene 017",
       "game": "NBA Fastbreak",
       "manufacturer": "Midway Manufacturing Company",
       "year": 1997
@@ -8781,8 +9600,22 @@
       "year": 1997
     },
     {
+      "path": "RD1244.scn",
+      "title": "Scene 020",
+      "game": "NBA Fastbreak",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
       "path": "RD1245.scn",
       "title": "Scene 021",
+      "game": "NBA Fastbreak",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
+      "path": "RD1246.scn",
+      "title": "Scene 022",
       "game": "NBA Fastbreak",
       "manufacturer": "Midway Manufacturing Company",
       "year": 1997
@@ -8853,6 +9686,13 @@
     {
       "path": "RD1256.scn",
       "title": "Scene 032",
+      "game": "NBA Fastbreak",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1997
+    },
+    {
+      "path": "RD1257.scn",
+      "title": "Scene 033",
       "game": "NBA Fastbreak",
       "manufacturer": "Midway Manufacturing Company",
       "year": 1997
@@ -11287,7 +12127,21 @@
       "year": 1993
     },
     {
+      "path": "sttng01.scn",
+      "title": "Scene 001",
+      "game": "Star Trek: The Next Generation",
+      "manufacturer": "Williams Electronics Games",
+      "year": 1993
+    },
+    {
       "path": "RD1605.scn",
+      "title": "Scene 002",
+      "game": "Star Trek: The Next Generation",
+      "manufacturer": "Williams Electronics Games",
+      "year": 1993
+    },
+    {
+      "path": "sttng02.scn",
       "title": "Scene 002",
       "game": "Star Trek: The Next Generation",
       "manufacturer": "Williams Electronics Games",
@@ -11653,21 +12507,44 @@
       "title": "Scene 001",
       "game": "Terminator 2: Judgment Day",
       "manufacturer": "Williams Electronics Games",
-      "year": 1991
+      "year": 1991,
+      "dateManufactured": "July, 1991",
+      "players": 4,
+      "machineType": "SS",
+      "theme": "Licensed Theme - Science Fiction"
     },
     {
       "path": "RD1658.scn",
       "title": "Scene 002",
       "game": "Terminator 2: Judgment Day",
       "manufacturer": "Williams Electronics Games",
-      "year": 1991
+      "year": 1991,
+      "dateManufactured": "July, 1991",
+      "players": 4,
+      "machineType": "SS",
+      "theme": "Licensed Theme - Science Fiction"
     },
     {
       "path": "RD1659.scn",
       "title": "Scene 003",
       "game": "Terminator 2: Judgment Day",
       "manufacturer": "Williams Electronics Games",
-      "year": 1991
+      "year": 1991,
+      "dateManufactured": "July, 1991",
+      "players": 4,
+      "machineType": "SS",
+      "theme": "Licensed Theme - Science Fiction"
+    },
+    {
+      "path": "TERMINATOR_2_004.scn",
+      "title": "Scene 004",
+      "game": "Terminator 2: Judgment Day",
+      "manufacturer": "Williams Electronics Games",
+      "year": 1991,
+      "dateManufactured": "July, 1991",
+      "players": 4,
+      "machineType": "SS",
+      "theme": "Licensed Theme - Science Fiction"
     },
     {
       "path": "RD1660.scn",
@@ -12713,6 +13590,13 @@
       "year": 2014
     },
     {
+      "path": "twd01.scn",
+      "title": "Scene 001",
+      "game": "The Walking Dead",
+      "manufacturer": "Stern Pinball",
+      "year": 2014
+    },
+    {
       "path": "RD1809.scn",
       "title": "Scene 002",
       "game": "The Walking Dead",
@@ -12868,6 +13752,13 @@
     },
     {
       "path": "RD1831.scn",
+      "title": "Scene 001",
+      "game": "Theatre Of Magic",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1995
+    },
+    {
+      "path": "tom01.scn",
       "title": "Scene 001",
       "game": "Theatre Of Magic",
       "manufacturer": "Midway Manufacturing Company",
@@ -13189,6 +14080,13 @@
       "year": 1993
     },
     {
+      "path": "tz01.scn",
+      "title": "Scene 001",
+      "game": "Twilight Zone",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1993
+    },
+    {
       "path": "RD1877.scn",
       "title": "Scene 002",
       "game": "Twilight Zone",
@@ -13196,7 +14094,21 @@
       "year": 1993
     },
     {
+      "path": "tz02.scn",
+      "title": "Scene 002",
+      "game": "Twilight Zone",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1993
+    },
+    {
       "path": "RD1878.scn",
+      "title": "Scene 003",
+      "game": "Twilight Zone",
+      "manufacturer": "Midway Manufacturing Company",
+      "year": 1993
+    },
+    {
+      "path": "tz03.scn",
       "title": "Scene 003",
       "game": "Twilight Zone",
       "manufacturer": "Midway Manufacturing Company",
@@ -13462,6 +14374,13 @@
       "year": 1993
     },
     {
+      "path": "ww01.scn",
+      "title": "Scene 001",
+      "game": "White Water",
+      "manufacturer": "Williams Electronics Games",
+      "year": 1993
+    },
+    {
       "path": "RD1916.scn",
       "title": "Scene 002",
       "game": "White Water",
@@ -13469,7 +14388,21 @@
       "year": 1993
     },
     {
+      "path": "ww02.scn",
+      "title": "Scene 002",
+      "game": "White Water",
+      "manufacturer": "Williams Electronics Games",
+      "year": 1993
+    },
+    {
       "path": "RD1917.scn",
+      "title": "Scene 003",
+      "game": "White Water",
+      "manufacturer": "Williams Electronics Games",
+      "year": 1993
+    },
+    {
+      "path": "ww03.scn",
       "title": "Scene 003",
       "game": "White Water",
       "manufacturer": "Williams Electronics Games",

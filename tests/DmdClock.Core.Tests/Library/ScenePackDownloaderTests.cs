@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Net;
+using System.Security.Cryptography;
 using DmdClock.Core.Library;
 
 namespace DmdClock.Core.Tests.Library;
@@ -16,12 +17,19 @@ public sealed class ScenePackDownloaderTests
                 ("DotClk-Resources-master/Scenes/RD0001.scn", [1, 2, 3]),
                 ("DotClk-Resources-master/Scenes/sub/demo.SCN", [4, 5]),
                 ("DotClk-Resources-master/Fonts/font.fnt", [6]));
-            using var client = new HttpClient(new ArchiveHandler(archive));
+            const string downloadUrl = "https://example.test/scenes.zip";
+            using var client = new HttpClient(new ArchiveHandler(downloadUrl, archive));
             var progressValues = new List<ScenePackDownloadProgress>();
             var progress = new ImmediateProgress<ScenePackDownloadProgress>(progressValues.Add);
+            var pack = new ScenePackCatalogEntry(
+                "test-pack", "Test pack", "Test scenes", true, "test-only",
+                "https://example.test/source", downloadUrl, new string('a', 40),
+                "zip", "/Scenes/", archive.Length, 5,
+                Convert.ToHexString(SHA256.HashData(archive)).ToLowerInvariant(), 2,
+                ["windows-x64"]);
 
             var result = await new ScenePackDownloader(client)
-                .DownloadAndInstallAsync(destination, progress);
+                .DownloadAndInstallAsync(pack, destination, progress);
 
             Assert.Equal(2, result.SceneCount);
             Assert.Equal(archive.Length, result.DownloadedBytes);
@@ -143,13 +151,13 @@ public sealed class ScenePackDownloaderTests
         if (parent is not null && Directory.Exists(parent)) Directory.Delete(parent, recursive: true);
     }
 
-    private sealed class ArchiveHandler(byte[] archive) : HttpMessageHandler
+    private sealed class ArchiveHandler(string expectedUrl, byte[] archive) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
-            Assert.Equal(ScenePackDownloader.SourceUrl, request.RequestUri?.AbsoluteUri);
+            Assert.Equal(expectedUrl, request.RequestUri?.AbsoluteUri);
             var content = new ByteArrayContent(archive);
             content.Headers.ContentLength = archive.Length;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });

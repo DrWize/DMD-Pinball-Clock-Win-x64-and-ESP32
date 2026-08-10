@@ -33,19 +33,46 @@
 #include "esp_lcd_panel_rgb.h"
 #endif
 
-#define LCD_WIDTH 800
-#define LCD_HEIGHT 480
+#ifndef CONFIG_DMD_DISPLAY_WIDTH
+#define CONFIG_DMD_DISPLAY_WIDTH 800
+#endif
+#ifndef CONFIG_DMD_DISPLAY_HEIGHT
+#define CONFIG_DMD_DISPLAY_HEIGHT 480
+#endif
+#ifndef CONFIG_DMD_DMD_SCALE
+#define CONFIG_DMD_DMD_SCALE 6
+#endif
+#define LCD_WIDTH CONFIG_DMD_DISPLAY_WIDTH
+#define LCD_HEIGHT CONFIG_DMD_DISPLAY_HEIGHT
+#define DMD_SCALE CONFIG_DMD_DMD_SCALE
 #define LCD_PIXEL_CLOCK_HZ (16 * 1000 * 1000)
 #define TOUCH_SCHEDULE_OVERRIDE_US (INT64_C(60) * 60 * 1000000)
 
 #define DMD_WIDTH 128
 #define DMD_HEIGHT 32
-#define DMD_SCALE 6
 #define DMD_PIXEL_SIZE 4
 #define DMD_VIEW_WIDTH (DMD_WIDTH * DMD_SCALE)
 #define DMD_VIEW_HEIGHT (DMD_HEIGHT * DMD_SCALE)
 #define DMD_VIEW_X ((LCD_WIDTH - DMD_VIEW_WIDTH) / 2)
 #define DMD_VIEW_Y ((LCD_HEIGHT - DMD_VIEW_HEIGHT) / 2)
+
+#define CHROME_MARGIN 10
+#define TOP_BUTTON_HEIGHT 46
+#define BOTTOM_BUTTON_HEIGHT 56
+#define TOP_BUTTON_COUNT 3
+#define BOTTOM_BUTTON_COUNT 5
+#define TOP_BUTTON_Y CHROME_MARGIN
+#define BOTTOM_BUTTON_Y (LCD_HEIGHT - BOTTOM_BUTTON_HEIGHT - 24)
+#define TOP_BUTTON_WIDTH ((LCD_WIDTH - 4 * CHROME_MARGIN) / TOP_BUTTON_COUNT)
+#define BOTTOM_BUTTON_WIDTH \
+    ((LCD_WIDTH - (BOTTOM_BUTTON_COUNT + 1) * CHROME_MARGIN) / BOTTOM_BUTTON_COUNT)
+#define INFO_TEXT_SCALE 2
+#define INFO_TEXT_HEIGHT (7 * INFO_TEXT_SCALE)
+#define INFO_BOTTOM_MARGIN 5
+#define INFO_TEXT_Y (LCD_HEIGHT - INFO_TEXT_HEIGHT - INFO_BOTTOM_MARGIN)
+#define INFO_BACKING_PAD 3
+#define INFO_BACKING_Y (INFO_TEXT_Y - INFO_BACKING_PAD)
+#define INFO_BACKING_HEIGHT (INFO_TEXT_HEIGHT + 2 * INFO_BACKING_PAD)
 #define CONTROL_VISIBLE_US (8LL * 1000 * 1000)
 #define CONTROL_FADE_US (1LL * 1000 * 1000)
 #define STARTUP_NETWORK_STATUS_US (20LL * 1000 * 1000)
@@ -206,6 +233,7 @@ typedef enum {
     HOT_CORE_CENTER = 3,
 } hot_core_layer_t;
 
+#if DMD_SCALE == 6
 static const uint8_t HOT_CORE_KERNEL[DMD_SCALE][DMD_SCALE] = {
     {0, 0, 0, 0, 0, 0},
     {0, 1, 2, 2, 1, 0},
@@ -214,6 +242,17 @@ static const uint8_t HOT_CORE_KERNEL[DMD_SCALE][DMD_SCALE] = {
     {0, 1, 2, 2, 1, 0},
     {0, 0, 0, 0, 0, 0},
 };
+#elif DMD_SCALE == 5
+static const uint8_t HOT_CORE_KERNEL[DMD_SCALE][DMD_SCALE] = {
+    {0, 0, 0, 0, 0},
+    {0, 1, 2, 1, 0},
+    {0, 2, 3, 2, 0},
+    {0, 1, 2, 1, 0},
+    {0, 0, 0, 0, 0},
+};
+#else
+#error "Unsupported CONFIG_DMD_DMD_SCALE; add a matching HOT_CORE_KERNEL"
+#endif
 
 static const uint8_t HOT_CORE_INTENSITY[16] = {
     0, 7, 17, 29, 42, 57, 73, 90,
@@ -249,6 +288,43 @@ static void draw_rect(int x, int y, int width, int height, uint16_t color)
         uint16_t *target = s_framebuffer + (y + row) * LCD_WIDTH + x;
         for (int column = 0; column < width; column++) {
             target[column] = color;
+        }
+    }
+}
+
+static uint16_t blend_rgb565(uint16_t base, uint16_t over, uint8_t opacity)
+{
+    uint8_t base_red = (uint8_t)(((base >> 11) & 0x1f) << 3);
+    uint8_t base_green = (uint8_t)(((base >> 5) & 0x3f) << 2);
+    uint8_t base_blue = (uint8_t)((base & 0x1f) << 3);
+    uint8_t over_red = (uint8_t)(((over >> 11) & 0x1f) << 3);
+    uint8_t over_green = (uint8_t)(((over >> 5) & 0x3f) << 2);
+    uint8_t over_blue = (uint8_t)((over & 0x1f) << 3);
+    uint16_t inverse = (uint16_t)(255U - opacity);
+    return rgb565(
+        (uint8_t)(((uint16_t)base_red * inverse +
+                   (uint16_t)over_red * opacity) / 255U),
+        (uint8_t)(((uint16_t)base_green * inverse +
+                   (uint16_t)over_green * opacity) / 255U),
+        (uint8_t)(((uint16_t)base_blue * inverse +
+                   (uint16_t)over_blue * opacity) / 255U));
+}
+
+static void draw_rect_blend(
+    int x,
+    int y,
+    int width,
+    int height,
+    uint16_t color,
+    uint8_t opacity)
+{
+    if (x < 0 || y < 0 || x + width > LCD_WIDTH || y + height > LCD_HEIGHT) {
+        return;
+    }
+    for (int row = 0; row < height; row++) {
+        uint16_t *target = s_framebuffer + (y + row) * LCD_WIDTH + x;
+        for (int column = 0; column < width; column++) {
+            target[column] = blend_rgb565(target[column], color, opacity);
         }
     }
 }
@@ -297,6 +373,23 @@ static void draw_lcd_text(
     }
 }
 
+static int top_button_x(int index)
+{
+    return CHROME_MARGIN + index * (TOP_BUTTON_WIDTH + CHROME_MARGIN);
+}
+
+static int bottom_button_x(int index)
+{
+    return CHROME_MARGIN + index * (BOTTOM_BUTTON_WIDTH + CHROME_MARGIN);
+}
+
+static int top_button_width(int index)
+{
+    return index + 1 >= TOP_BUTTON_COUNT
+        ? LCD_WIDTH - top_button_x(index) - CHROME_MARGIN
+        : TOP_BUTTON_WIDTH;
+}
+
 static void draw_button_at(
     int x,
     int y,
@@ -324,7 +417,14 @@ static void draw_button(
     uint16_t accent,
     uint8_t opacity)
 {
-    draw_button_at(x, 400, width, 56, label, accent, opacity);
+    draw_button_at(
+        x,
+        BOTTOM_BUTTON_Y,
+        width,
+        BOTTOM_BUTTON_HEIGHT,
+        label,
+        accent,
+        opacity);
 }
 
 static void uppercase_copy(char *target, size_t capacity, const char *source)
@@ -419,19 +519,20 @@ static void paint_startup_network_status(
     uint16_t text = rgb565(245, 238, 230);
     char line[96];
 
+    int start_y = (LCD_HEIGHT - 136) / 2;
     draw_centered_lcd_text(
         network->device_name[0] != '\0' ? network->device_name : "DMDClock",
-        72,
+        start_y,
         4,
         accent);
-    draw_centered_lcd_text("Network startup", 132, 2, text);
+    draw_centered_lcd_text("Network startup", start_y + 44, 2, text);
 
     if (settings->wifi_ssid[0] != '\0') {
         snprintf(line, sizeof(line), "Wi-Fi: %s", settings->wifi_ssid);
     } else {
         strlcpy(line, "Wi-Fi: Not configured", sizeof(line));
     }
-    draw_centered_lcd_text(line, 214, 2, accent);
+    draw_centered_lcd_text(line, start_y + 70, 2, accent);
 
     if (network->station_connected && network->station_ip[0] != '\0') {
         snprintf(line, sizeof(line), "IP: %s", network->station_ip);
@@ -440,7 +541,7 @@ static void paint_startup_network_status(
     } else {
         strlcpy(line, "IP: Not available", sizeof(line));
     }
-    draw_centered_lcd_text(line, 262, 2, text);
+    draw_centered_lcd_text(line, start_y + 96, 2, text);
 
     if (!network->station_connected) {
         snprintf(
@@ -450,21 +551,30 @@ static void paint_startup_network_status(
             network->access_point_ip[0] != '\0'
                 ? network->access_point_ip
                 : "192.168.4.1");
-        draw_centered_lcd_text(line, 310, 2, text);
+        draw_centered_lcd_text(line, start_y + 122, 2, text);
     }
+}
+
+static int s_setup_qr_modules;
+
+static int qr_scale_for_modules(int module_count)
+{
+    int width_scale = 330 / module_count;
+    int height_scale = (LCD_HEIGHT - 32) / module_count;
+    int scale = width_scale < height_scale ? width_scale : height_scale;
+    return scale < 1 ? 1 : scale;
 }
 
 static void draw_setup_qr(esp_qrcode_handle_t qrcode)
 {
     int size = esp_qrcode_get_size(qrcode);
     const int quiet = 4;
-    int scale = 330 / (size + quiet * 2);
-    if (scale < 1) {
-        scale = 1;
-    }
-    int extent = (size + quiet * 2) * scale;
+    int modules = size + quiet * 2;
+    s_setup_qr_modules = modules;
+    int scale = qr_scale_for_modules(modules);
+    int extent = modules * scale;
     int origin_x = (LCD_WIDTH - extent) / 2;
-    int origin_y = 68;
+    int origin_y = 20;
     uint16_t white = rgb565(255, 255, 255);
     uint16_t black = rgb565(0, 0, 0);
     draw_rect(origin_x, origin_y, extent, extent, white);
@@ -496,16 +606,28 @@ static void paint_setup_qr(
     dmd_rgb_t rgb = settings_color_at(settings, 64, 16);
     uint16_t accent = rgb565(rgb.red, rgb.green, rgb.blue);
     uint16_t text = rgb565(245, 238, 230);
-    draw_centered_lcd_text("SCAN TO SET UP DMDCLOCK", 18, 2, accent);
+    draw_centered_lcd_text("SCAN TO SET UP DMDCLOCK", 6, 2, accent);
     esp_qrcode_config_t config = ESP_QRCODE_CONFIG_DEFAULT();
     config.display_func = draw_setup_qr;
     config.max_qrcode_version = 5;
     config.qrcode_ecc_level = ESP_QRCODE_ECC_MED;
     if (esp_qrcode_generate(&config, url) != ESP_OK) {
-        draw_centered_lcd_text("QR CODE COULD NOT BE GENERATED", 200, 2, text);
+        draw_centered_lcd_text(
+            "QR CODE COULD NOT BE GENERATED",
+            LCD_HEIGHT / 2 - 7,
+            2,
+            text);
+        return;
     }
-    draw_centered_lcd_text(url, 424, 2, text);
-    draw_centered_lcd_text("Returns automatically after 60 seconds", 454, 1, accent);
+    int scale = qr_scale_for_modules(s_setup_qr_modules);
+    int extent = s_setup_qr_modules * scale;
+    int url_y = 20 + extent + 6;
+    draw_centered_lcd_text(url, url_y, 2, text);
+    draw_centered_lcd_text(
+        "Returns automatically after 60 seconds",
+        url_y + 14,
+        1,
+        accent);
 }
 
 static void paint_touch_test(
@@ -515,12 +637,17 @@ static void paint_touch_test(
     uint32_t event_count,
     const dmd_touch_diagnostics_t *touch)
 {
-    static const int target_x[TOUCH_TEST_TARGET_COUNT] = {
-        120, 680, 400, 680, 120,
+    int cx = LCD_WIDTH / 2;
+    int cy = LCD_HEIGHT / 2;
+    int qx = LCD_WIDTH / 8;
+    int qy = LCD_HEIGHT / 8;
+    int target_x[TOUCH_TEST_TARGET_COUNT] = {
+        cx - 5 * qx / 2, cx + 5 * qx / 2, cx, cx + 5 * qx / 2, cx - 5 * qx / 2,
     };
-    static const int target_y[TOUCH_TEST_TARGET_COUNT] = {
-        190, 190, 280, 380, 380,
+    int target_y[TOUCH_TEST_TARGET_COUNT] = {
+        cy - qy, cy - qy, cy, cy + qy, cy + qy,
     };
+    int ring = LCD_HEIGHT < 300 ? 40 : 50;
     memset(s_framebuffer, 0, LCD_WIDTH * LCD_HEIGHT * sizeof(uint16_t));
 
     dmd_rgb_t rgb = settings_color_at(settings, 64, 16);
@@ -529,27 +656,33 @@ static void paint_touch_test(
     uint16_t target = rgb565(255, 190, 32);
     char line[96];
 
-    draw_centered_lcd_text("TOUCH TEST", 28, 3, accent);
+    draw_centered_lcd_text("TOUCH TEST", 6, 3, accent);
+
+    int x = target_x[target_index];
+    int y = target_y[target_index];
+    draw_outline(x - ring, y - ring, ring * 2 + 1, ring * 2 + 1, target);
+    draw_outline(
+        x - ring + 12,
+        y - ring + 12,
+        (ring - 12) * 2 + 1,
+        (ring - 12) * 2 + 1,
+        accent);
+    draw_rect(x - 4, y - 30, 8, 61, text);
+    draw_rect(x - 30, y - 4, 61, 8, text);
+    draw_rect(x - 8, y - 8, 16, 16, target);
+
     snprintf(
         line,
         sizeof(line),
         "TOUCH TARGET %u OF %u",
         target_index + 1,
         TOUCH_TEST_TARGET_COUNT);
-    draw_centered_lcd_text(line, 72, 2, text);
+    draw_centered_lcd_text(line, 34, 2, text);
     snprintf(line, sizeof(line), "COUNTDOWN %u", countdown);
-    draw_centered_lcd_text(line, 102, 2, target);
-
-    int x = target_x[target_index];
-    int y = target_y[target_index];
-    draw_outline(x - 50, y - 50, 101, 101, target);
-    draw_outline(x - 38, y - 38, 77, 77, accent);
-    draw_rect(x - 4, y - 30, 8, 61, text);
-    draw_rect(x - 30, y - 4, 61, 8, text);
-    draw_rect(x - 8, y - 8, 16, 16, target);
+    draw_centered_lcd_text(line, 54, 2, target);
 
     snprintf(line, sizeof(line), "EVENTS %lu", (unsigned long)event_count);
-    draw_centered_lcd_text(line, 438, 2, text);
+    draw_centered_lcd_text(line, LCD_HEIGHT - 34, 2, text);
     if (touch->event_count > 0) {
         snprintf(
             line,
@@ -557,7 +690,7 @@ static void paint_touch_test(
             "LAST %u %u",
             touch->last_x,
             touch->last_y);
-        draw_centered_lcd_text(line, 408, 2, accent);
+        draw_centered_lcd_text(line, LCD_HEIGHT - 16, 2, accent);
     }
 }
 
@@ -571,12 +704,13 @@ static void paint_touch_test_result(
     uint16_t text = rgb565(245, 238, 230);
     char line[64];
 
-    draw_centered_lcd_text("TOUCH TEST COMPLETE", 120, 3, accent);
+    int start_y = LCD_HEIGHT / 2 - 56;
+    draw_centered_lcd_text("TOUCH TEST COMPLETE", start_y, 3, accent);
     snprintf(line, sizeof(line), "EVENTS %lu", (unsigned long)event_count);
-    draw_centered_lcd_text(line, 210, 3, text);
+    draw_centered_lcd_text(line, start_y + 30, 3, text);
     draw_centered_lcd_text(
         event_count > 0 ? "TOUCH DATA RECEIVED" : "NO TOUCH DATA RECEIVED",
-        280,
+        start_y + 58,
         2,
         event_count > 0 ? accent : rgb565(255, 96, 64));
 }
@@ -642,12 +776,19 @@ static void draw_screen_chrome(
             strlcat(source, metadata.manufacturer, sizeof(source));
         }
         if (source[0] != '\0') {
+            draw_rect_blend(
+                10,
+                INFO_BACKING_Y,
+                LCD_WIDTH - 20,
+                INFO_BACKING_HEIGHT,
+                rgb565(0, 0, 0),
+                153);
             uppercase_copy(info, sizeof(info), source);
             draw_lcd_text_fit(
                 info,
                 20,
-                70,
-                2,
+                INFO_TEXT_Y,
+                INFO_TEXT_SCALE,
                 LCD_WIDTH - 40,
                 information_color);
         }
@@ -655,28 +796,50 @@ static void draw_screen_chrome(
 
     if (controls_opacity_value > 0) {
         draw_button_at(
-            10, 10, 253, 46, "NEXT PINBALL", accent, controls_opacity_value);
+            top_button_x(0),
+            TOP_BUTTON_Y,
+            top_button_width(0),
+            TOP_BUTTON_HEIGHT,
+            "NEXT PINBALL",
+            accent,
+            controls_opacity_value);
         draw_button_at(
-            273, 10, 253, 46, "NEXT SCENE", accent, controls_opacity_value);
+            top_button_x(1),
+            TOP_BUTTON_Y,
+            top_button_width(1),
+            TOP_BUTTON_HEIGHT,
+            "NEXT SCENE",
+            accent,
+            controls_opacity_value);
         draw_button_at(
-            536,
-            10,
-            254,
-            46,
+            top_button_x(2),
+            TOP_BUTTON_Y,
+            top_button_width(2),
+            TOP_BUTTON_HEIGHT,
             settings->random_playback ? "RANDOM ON" : "RANDOM OFF",
             accent,
             controls_opacity_value);
-        draw_button(10, 148, "THEME", accent, controls_opacity_value);
-        draw_button(168, 148, "COLOUR", accent, controls_opacity_value);
         draw_button(
-            326,
-            148,
+            bottom_button_x(0),
+            BOTTOM_BUTTON_WIDTH,
+            "THEME",
+            accent,
+            controls_opacity_value);
+        draw_button(
+            bottom_button_x(1),
+            BOTTOM_BUTTON_WIDTH,
+            "COLOUR",
+            accent,
+            controls_opacity_value);
+        draw_button(
+            bottom_button_x(2),
+            BOTTOM_BUTTON_WIDTH,
             settings->show_information ? "INFO ON" : "INFO OFF",
             accent,
             controls_opacity_value);
         draw_button(
-            484,
-            148,
+            bottom_button_x(3),
+            BOTTOM_BUTTON_WIDTH,
             settings->glow_strength > 0 ? "GLOW ON" : "GLOW OFF",
             accent,
             controls_opacity_value);
@@ -696,7 +859,12 @@ static void draw_screen_chrome(
                 snprintf(ntp_label, sizeof(ntp_label), "NTP OK %luh", age / 3600);
             }
         }
-        draw_button(642, 148, ntp_label, accent, controls_opacity_value);
+        draw_button(
+            bottom_button_x(4),
+            BOTTOM_BUTTON_WIDTH,
+            ntp_label,
+            accent,
+            controls_opacity_value);
     }
 }
 
@@ -828,11 +996,6 @@ static void paint_dmd(
     ensure_plasma_palette(settings);
     dmd_network_info_t network;
     dmd_network_get_info(&network);
-    draw_screen_chrome(
-        settings,
-        scene,
-        &network,
-        controls_opacity_value);
     for (int dmd_y = 0; dmd_y < DMD_HEIGHT; dmd_y++) {
         for (int dmd_x = 0; dmd_x < DMD_WIDTH; dmd_x++) {
             uint8_t intensity = s_dmd[dmd_y * DMD_WIDTH + dmd_x];
@@ -936,6 +1099,11 @@ static void paint_dmd(
             }
         }
     }
+    draw_screen_chrome(
+        settings,
+        scene,
+        &network,
+        controls_opacity_value);
 }
 
 static void refresh_display(void)
@@ -989,7 +1157,11 @@ esp_err_t dmd_display_init(void)
         TAG,
         "Plasma reference-vector self-test failed");
 #if CONFIG_DMD_QEMU
-    ESP_LOGI(TAG, "Initializing QEMU 800x480 virtual RGB panel");
+    ESP_LOGI(
+        TAG,
+        "Initializing QEMU %dx%d virtual RGB panel",
+        LCD_WIDTH,
+        LCD_HEIGHT);
     const esp_lcd_rgb_qemu_config_t qemu_config = {
         .width = LCD_WIDTH,
         .height = LCD_HEIGHT,
@@ -1005,7 +1177,11 @@ esp_err_t dmd_display_init(void)
         TAG,
         "get QEMU framebuffer");
 #else
-    ESP_LOGI(TAG, "Initializing 800x480 RGB panel");
+    ESP_LOGI(
+        TAG,
+        "Initializing %dx%d RGB panel",
+        LCD_WIDTH,
+        LCD_HEIGHT);
     const esp_lcd_rgb_panel_config_t panel_config = {
         .clk_src = LCD_CLK_SRC_DEFAULT,
         .timings = {
@@ -1238,22 +1414,24 @@ static bool handle_touch(
         return true;
     }
 
-    if (y < 70) {
+    int top_zone_bottom = TOP_BUTTON_Y + TOP_BUTTON_HEIGHT + CHROME_MARGIN;
+    int bottom_zone_top = BOTTOM_BUTTON_Y - CHROME_MARGIN;
+    if (y < top_zone_bottom) {
         dmd_action_execute(
-            x < 267
+            x < top_button_x(0) + TOP_BUTTON_WIDTH + CHROME_MARGIN / 2
                 ? DMD_ACTION_PINBALL_NEXT
-                : (x < 533
+                : (x < top_button_x(1) + TOP_BUTTON_WIDTH + CHROME_MARGIN / 2
                     ? DMD_ACTION_SCENE_NEXT
                     : DMD_ACTION_TOGGLE_RANDOM));
-    } else if (y < 390) {
+    } else if (y < bottom_zone_top) {
         return true;
-    } else if (x < 160) {
+    } else if (x < bottom_button_x(0) + BOTTOM_BUTTON_WIDTH + CHROME_MARGIN / 2) {
         dmd_action_execute(DMD_ACTION_COLOR_FAMILY_NEXT);
-    } else if (x < 320) {
+    } else if (x < bottom_button_x(1) + BOTTOM_BUTTON_WIDTH + CHROME_MARGIN / 2) {
         dmd_action_execute(DMD_ACTION_COLOR_THEME_NEXT);
-    } else if (x < 480) {
+    } else if (x < bottom_button_x(2) + BOTTOM_BUTTON_WIDTH + CHROME_MARGIN / 2) {
         dmd_action_execute(DMD_ACTION_TOGGLE_INFORMATION);
-    } else if (x < 640) {
+    } else if (x < bottom_button_x(3) + BOTTOM_BUTTON_WIDTH + CHROME_MARGIN / 2) {
         dmd_action_execute(DMD_ACTION_TOGGLE_GLOW);
     } else {
         dmd_action_execute(DMD_ACTION_SYNC_NTP);

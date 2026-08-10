@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [ValidatePattern('^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$')]
-    [string] $Version
+    [string] $Version,
+
+    [string] $BuildDir = 'build-hw-esp32'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,25 +18,28 @@ $bootstrapOption = if (Test-Path -LiteralPath $bootstrapHeader -PathType Leaf) {
     'OFF'
 }
 
-if (-not $Version) {
-    $Version = (& git -C $repoRoot describe --tags --always --dirty).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($Version)) {
+$resolvedVersion = $Version
+if (-not $resolvedVersion) {
+    $resolvedVersion = (& git -C $repoRoot describe --tags --always --dirty).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($resolvedVersion)) {
         throw 'Unable to determine the local firmware version from Git.'
     }
 }
-if ([Text.Encoding]::UTF8.GetByteCount($Version) -gt 31) {
-    throw "Firmware version '$Version' exceeds the ESP-IDF 31-byte limit."
+if ([Text.Encoding]::UTF8.GetByteCount($resolvedVersion) -gt 31) {
+    throw "Firmware version '$resolvedVersion' exceeds the ESP-IDF 31-byte limit."
 }
 
 Write-Host "Bootstrap Wi-Fi injection: $bootstrapOption"
-Write-Host "Firmware version: $Version"
+Write-Host "Firmware version: $resolvedVersion"
+Write-Host "Build directory: $BuildDir"
 & (Join-Path $PSScriptRoot 'Invoke-Idf.ps1') `
     -ProjectPath $projectPath `
+    "-B" $BuildDir `
     "-DDMD_BOOTSTRAP_WIFI_HEADER=$bootstrapOption" `
-    "-DPROJECT_VER=$Version" `
+    "-DPROJECT_VER=$resolvedVersion" `
     build
 
-$binary = Join-Path $projectPath 'build\dmdclock_esp32.bin'
+$binary = Join-Path $projectPath "$BuildDir\dmdclock_esp32.bin"
 if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) {
     throw "ESP-IDF returned without producing '$binary'."
 }

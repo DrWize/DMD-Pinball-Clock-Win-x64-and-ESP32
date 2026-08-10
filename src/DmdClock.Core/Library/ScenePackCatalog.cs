@@ -1,0 +1,40 @@
+namespace DmdClock.Core.Library;
+
+public sealed record ScenePackCatalog(
+    int SchemaVersion,
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<ScenePackCatalogEntry> Packs)
+{
+    public const int CurrentSchemaVersion = 1;
+
+    public ScenePackCatalogEntry GetRequiredAvailablePack(string packId, string platform)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(packId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(platform);
+        var pack = Packs.SingleOrDefault(item =>
+            string.Equals(item.PackId, packId, StringComparison.OrdinalIgnoreCase)) ??
+            throw new InvalidDataException($"Scene pack '{packId}' is not present in the catalog.");
+        if (!pack.Available)
+            throw new InvalidDataException($"Scene pack '{pack.DisplayName}' is not available for download.");
+        if (!pack.SupportedPlatforms.Contains(platform, StringComparer.OrdinalIgnoreCase))
+            throw new InvalidDataException($"Scene pack '{pack.DisplayName}' does not support '{platform}'.");
+        return pack;
+    }
+}
+
+public sealed record ScenePackCatalogEntry(
+    string PackId,
+    string DisplayName,
+    string Description,
+    bool Available,
+    string DistributionStatus,
+    string SourcePageUrl,
+    string? DownloadUrl,
+    string? SourceRevision,
+    string ArchiveFormat,
+    string ScenesPathMarker,
+    long? DownloadBytes,
+    long InstalledBytes,
+    string? ArchiveSha256,
+    int SceneCount,
+    IReadOnlyList<string> SupportedPlatforms);

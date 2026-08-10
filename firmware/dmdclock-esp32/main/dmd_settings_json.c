@@ -3,9 +3,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include "cJSON.h"
 #include "dmd_storage.h"
+#include "esp_log.h"
 
 #define SETTINGS_PATH DMD_STORAGE_CONFIG "/settings.json"
 #define SETTINGS_TEMP_PATH DMD_STORAGE_CONFIG "/settings.tmp"
@@ -475,6 +477,7 @@ esp_err_t dmd_settings_json_save(const dmd_settings_t *settings)
     }
     FILE *file = fopen(SETTINGS_TEMP_PATH, "wb");
     if (file == NULL) {
+        ESP_LOGE("dmd_settings_json", "fopen %s failed", SETTINGS_TEMP_PATH);
         free(text);
         return ESP_FAIL;
     }
@@ -485,12 +488,15 @@ esp_err_t dmd_settings_json_save(const dmd_settings_t *settings)
         fflush(file) == 0;
     free(text);
     if (fclose(file) != 0 || !written) {
+        ESP_LOGE("dmd_settings_json", "fwrite/fflush/fclose failed (written=%d)", written);
         remove(SETTINGS_TEMP_PATH);
         return ESP_FAIL;
     }
     if (rename(SETTINGS_TEMP_PATH, SETTINGS_PATH) != 0) {
+        ESP_LOGE("dmd_settings_json", "rename to %s failed errno=%d", SETTINGS_PATH, errno);
         remove(SETTINGS_PATH);
         if (rename(SETTINGS_TEMP_PATH, SETTINGS_PATH) != 0) {
+            ESP_LOGE("dmd_settings_json", "rename retry failed");
             remove(SETTINGS_TEMP_PATH);
             return ESP_FAIL;
         }

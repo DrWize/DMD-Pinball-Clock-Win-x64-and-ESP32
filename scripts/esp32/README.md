@@ -54,6 +54,15 @@ compiler on the global `PATH`.
 .\scripts\esp32\Build-DmdClockQemu.ps1
 .\scripts\esp32\Run-DmdClockQemu.ps1
 
+# Run both models concurrently from separate terminals. Each uses its own build
+# directory, SD image, web port, and QEMU monitor port.
+.\scripts\esp32\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
+  -OutputPath .\firmware\dmdclock-esp32\dmdclock-qemu-sd-waveshare7.img
+.\scripts\esp32\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
+  -OutputPath .\firmware\dmdclock-esp32\dmdclock-qemu-sd-landscape349.img
+.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model Waveshare7
+.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model Landscape349 -SkipBuild
+
 ```
 
 `Install-DmdClockEsp32.ps1` is the only supported flashing command. Its menu can
@@ -84,6 +93,30 @@ The vendor package is ignored by Git and stored at
 QEMU needs the 64-bit MSYS2 `libiconv` runtime at
 `C:\msys64\mingw64\bin\libiconv-2.dll`. The runner adds that directory only to
 its child process environment; it does not copy DLLs into Windows.
+
+`Run-DmdClockQemuModel.ps1` launches two board profiles: `Waveshare7`
+(800×480, DMD 6×) and `Landscape349` (640×172, DMD 5×). The smaller
+`Landscape349` profile is also the geometry-validation target; on it the
+information text renders at the very bottom of the panel (`INFO_TEXT_Y =
+LCD_HEIGHT - 19`) with a translucent black backing strip, below the touch
+buttons and over the DMD. `Waveshare7` uses
+`dmdclock-qemu-sd-waveshare7.img`, web port 8080, and monitor port 4444.
+`Landscape349` uses `dmdclock-qemu-sd-landscape349.img`, web port 8081, and
+monitor port 4445. These separate resources allow both profiles to run at the
+same time. Override them with `-SdImage`, `-WebPort`, or `-MonitorPort`. If the
+model's default image does not exist and no explicit image is supplied, QEMU
+boots with the deterministic 11-scene embedded fallback.
+
+`New-DmdClockQemuSdImage.ps1` creates a power-of-two 512 MiB FAT32 superfloppy
+with its boot sector at LBA 0, which is the layout accepted by QEMU's ESP32
+SD/MMC device. Larger images are selected automatically when necessary. The
+generated images are writable and ignored by Git; never publish one containing
+scenes unless their distribution rights are confirmed.
+
+Both QEMU models emulate a classic ESP32 with 4 MiB quad PSRAM at 40 MHz and
+16 MiB flash. The physical Waveshare N16R8 is an ESP32-S3 with 8 MiB octal
+PSRAM at 80 MHz and 16 MiB flash. The lower QEMU PSRAM ceiling is useful for
+finding oversized allocations, but QEMU is not cycle-accurate hardware testing.
 
 Building does not touch connected hardware. The Windows USB-driver installer
 requires an Administrator terminal; run it only if Windows does not recognize

@@ -5,7 +5,54 @@ menu "DMDClock"
         default n
         select ETH_USE_OPENETH
         help
-            Replace the Waveshare RGB/I2C and Wi-Fi backends with QEMU's
-            virtual RGB panel and OpenCores Ethernet adapter.
+            Replace the board RGB/I2C and Wi-Fi backends with QEMU's
+            virtual RGB panel and OpenCores Ethernet adapter. The display
+            geometry still follows the selected DMD_BOARD target.
+
+    choice DMD_BOARD
+        prompt "Display board target"
+        default DMD_BOARD_WAVESHARE_7
+        help
+            Select the physical display target. The panel geometry, DMD dot
+            scale, and derived on-screen layout follow this selection.
+
+        config DMD_BOARD_WAVESHARE_7
+            bool "Waveshare ESP32-S3-Touch-LCD-7 (800x480)"
+            help
+                Original Waveshare ESP32-S3-Touch-LCD-7, 800x480 RGB panel,
+                N16R8 module. Exact 6x DMD scale on a centered 768x192 surface.
+
+        config DMD_BOARD_3_49_LANDSCAPE
+            bool "3.49 inch IPS board, 640x172 landscape"
+            help
+                ESP32-S3 high-performance board with a 3.49 inch 172x640
+                capacitive-touch panel used in landscape orientation
+                (640x172). The 128x32 DMD fills the width at 5x scale.
+
+    endchoice
+
+    config DMD_DISPLAY_WIDTH
+        int "Display width in pixels"
+        default 800 if DMD_BOARD_WAVESHARE_7
+        default 640 if DMD_BOARD_3_49_LANDSCAPE
+        help
+            Framebuffer width in landscape orientation for the selected
+            board target.
+
+    config DMD_DISPLAY_HEIGHT
+        int "Display height in pixels"
+        default 480 if DMD_BOARD_WAVESHARE_7
+        default 172 if DMD_BOARD_3_49_LANDSCAPE
+        help
+            Framebuffer height in landscape orientation for the selected
+            board target.
+
+    config DMD_DMD_SCALE
+        int "DMD dot scale"
+        default 6 if DMD_BOARD_WAVESHARE_7
+        default 5 if DMD_BOARD_3_49_LANDSCAPE
+        help
+            Integer scale applied to each 128x32 DMD dot. The 800x480 target
+            uses 6x (768x192); the 640x172 landscape target uses 5x (640x160).
 
 endmenu

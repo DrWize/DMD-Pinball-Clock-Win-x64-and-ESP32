@@ -4,6 +4,7 @@
 #include "dmd_network.h"
 #include "dmd_mqtt.h"
 #include "dmd_scene.h"
+#include "dmd_scene_pack.h"
 #include "dmd_settings.h"
 #include "dmd_storage.h"
 #include "dmd_web.h"
@@ -28,6 +29,7 @@ void app_main(void)
 
     ESP_ERROR_CHECK(dmd_board_init());
     ESP_ERROR_CHECK(dmd_storage_init());
+    ESP_ERROR_CHECK(dmd_scene_pack_init());
     ESP_ERROR_CHECK(dmd_scene_init());
     ESP_ERROR_CHECK(dmd_settings_init());
     ESP_ERROR_CHECK(dmd_diagnostics_init());

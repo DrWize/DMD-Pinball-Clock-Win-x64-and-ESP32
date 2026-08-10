@@ -50,6 +50,67 @@ of translation fallback behavior, a fresh v1.3.0 build plus the manual Windows
 checklist. SmartScreen/antivirus reputation testing is intentionally skipped because
 this hobby release will not use a paid code-signing service.
 
+## Priority 0 — unified scene-pack downloads on every platform
+
+Goal: Windows, macOS Apple Silicon, and ESP32 must present the same two explicit
+scene-pack choices from the shared catalog. The complete DrWize pack includes the
+original DotClk collection, so the UI must explain that users select one pack;
+they do not need to install both.
+
+### P0.1 — shared catalog and product language
+
+- [ ] Keep stable catalog IDs for `dotclk-original` and `drwize-complete` and
+      expose display name, description, version, scene count, compressed size,
+      installed size, SHA-256, supported platforms, and download/manifest URLs.
+- [ ] Present **Original DotClk pack — 2,324 scenes** and **Complete DrWize pack —
+      2,416 scenes, includes DotClk** consistently on every platform.
+- [ ] Make unavailable or incompatible packs visible but disabled with a useful
+      reason; never silently substitute one pack for the other.
+
+### P0.2 — Windows and macOS download selector
+
+- [ ] Rename **Download DotClk scenes…** to **Download scenes…** in the shared
+      Avalonia menu used by Windows and macOS.
+- [ ] Add a two-pack selection dialog driven by the shared catalog, with the
+      complete DrWize pack recommended and the inclusion relationship clearly
+      stated before download.
+- [ ] Reuse the existing progress, cancellation, size/SHA validation, safe ZIP
+      extraction, atomic installation, library selection, and rescan workflow for
+      either selected pack.
+- [ ] Store the two packs in distinct managed library directories and prevent a
+      second installation from creating duplicate or ambiguous library entries.
+
+### P0.3 — ESP32 web selector and API
+
+- [ ] Replace the hard-coded `drwize-complete` firmware selection with a validated
+      catalog `packId` supplied to the scene-pack job.
+- [ ] Add **Original DotClk** and **Complete DrWize** choices to the ESP32 web
+      interface, followed by the existing `Install`, `Update`, `Repair`, and
+      `Cancel` controls and live progress.
+- [ ] Return the selected pack ID, display name, version, expected scene count,
+      and installed state through `/api/scene-pack`; reject unknown, unavailable,
+      or non-ESP32 packs.
+- [ ] Preserve the current free-space checks, resumable HTTPS download, manifest
+      and SHA validation, staged extraction, custom-scene preservation, rollback,
+      atomic activation, and reboot-required behavior for either pack.
+
+### P0.4 — tests and release acceptance
+
+- [ ] Add .NET tests for both catalog choices, destination isolation, selection,
+      cancellation, corrupt downloads, and upgrading one installed pack without
+      changing the other.
+- [ ] Build the same Avalonia UI for Windows x64 and macOS ARM64 and verify that
+      both choices are visible, correctly labelled, downloadable, selectable,
+      and retained after restart.
+- [ ] In both Waveshare7 and Landscape349 QEMU profiles, install each pack through
+      the web API, reboot, and verify exactly 2,324 or 2,416 indexed scenes as
+      selected, including update, repair, cancellation, and rollback checks.
+- [ ] On the original 800x480 Waveshare 7, install each pack from a clean TF card,
+      confirm display/web responsiveness during download, reboot, verify the
+      exact scene count, and confirm recovery after an interrupted installation.
+- [ ] Do not mark Priority 0 complete until the published catalog and ZIP assets
+      work from clean Windows, macOS ARM64, ESP32 QEMU, and physical ESP32 setups.
+
 ## End-user setup — no source code or SDK required
 
 If you only want to install and use DMDClock, follow this section and stop before
@@ -927,20 +988,31 @@ Detailed phases, commands, risks, and acceptance criteria:
       settings backup, playback log, and `/dmd` directory creation on the
       physical board and 64 GB card.
 - [ ] Verify live card removal, corruption, full-card, and power-loss behavior.
-- [ ] Let the ESP32 web server download SCN files directly over HTTPS into the TF
-      card, with progress, cancellation, free-space checks, maximum-size limits,
-      format validation, optional manifest hashes, temporary files, and atomic
-      installation
-- [ ] Add a one-click **Download complete DotClk scene set** action equivalent to
-      the Windows downloader, sourcing the files from the original
-      `sigmafx/DotClk-Resources` repository and installing them on the TF card
-- [ ] Make complete-set installation resumable and repairable, show total/file
-      progress and estimated storage, verify every downloaded scene, and activate
-      the new set only after the complete snapshot is valid
-- [ ] Support `Install`, `Update`, and `Repair` for the complete set without
-      deleting unrelated user-uploaded scenes or the last usable scene snapshot
-- [ ] Provide a curated/source-configurable SCN catalog without embedding or
-      redistributing scene files whose licenses do not permit it
+- [x] Publish the complete 2,416-scene cross-platform pack and expose its HTTPS
+      URL, exact byte size, SHA-256, scene count, and ESP32-S3 compatibility in
+      the shared schema-1 scene catalog.
+- [x] Add an ESP32 background scene-pack job with `Install`, `Update`, `Repair`,
+      progress/status APIs, cancellation, a single-operation lock, and clear
+      browser feedback that never blocks the display or HTTP server task.
+- [x] Download the shared catalog and selected archive over certificate-verified
+      HTTPS into TF-card staging, support restart-safe resume, enforce archive and
+      free-space limits, and verify the exact catalog byte size and SHA-256.
+- [x] Extract the versioned ZIP into a separate flat staged scene directory,
+      reject unsafe paths and unsupported entries, validate every SCN plus shared
+      metadata/content manifests, and require the catalog scene count.
+- [x] Preserve unrelated user-uploaded scenes, retain the last usable snapshot,
+      atomically activate only a fully validated staged set, recover interrupted
+      activation on boot, rebuild the scene index, and remove obsolete staging.
+- [x] Add one-click complete-pack `Install`, `Update`, `Repair`, and `Cancel`
+      controls plus live progress and reboot-required feedback to the ESP32 web
+      interface.
+- [x] Run the published complete ZIP through both writable-SD QEMU profiles:
+      Waveshare7 800x480 and Landscape349 640x172 each downloaded, verified,
+      extracted, activated, rebooted, and indexed all 2,416 scenes.
+- [ ] Add browser upload as an offline SCN import fallback.
+- [ ] Cover catalog/archive errors, cancellation, resume, corrupt data, removed or
+      full TF cards, power loss during every phase, rollback, custom-scene
+      preservation, and concurrent display playback in QEMU and on Waveshare 7.
 - [ ] Retain browser-to-device SCN upload as an offline fallback and automatically
       rescan the library after a successful import
 - [ ] Add an authenticated browser log viewer that follows new records

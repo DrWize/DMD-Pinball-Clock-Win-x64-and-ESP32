@@ -1,14 +1,18 @@
 using System.IO.Compression;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 
 namespace DmdClock.Core.Library;
 
 public sealed class ScenePackDownloader
 {
     public const string SourcePageUrl =
-        "https://github.com/sigmafx/DotClk-Resources/tree/master/Scenes";
+        "https://github.com/sigmafx/DotClk-Resources/tree/11211af85a2ade66d05d961839773a05a01bddcc/Scenes";
     public const string SourceUrl =
-        "https://github.com/sigmafx/DotClk-Resources/archive/refs/heads/master.zip";
+        "https://github.com/sigmafx/DotClk-Resources/archive/11211af85a2ade66d05d961839773a05a01bddcc.zip";
+    public const string SourceSha256 =
+        "360c9048fe379d8978e899cb4801324a736491e8696da012dd682db6ec569f70";
+    public const long SourceDownloadBytes = 16_814_900;
     public const long MaximumDownloadBytes = 512L * 1024 * 1024;
     public const long MaximumExtractedBytes = 2L * 1024 * 1024 * 1024;
     public const int MaximumSceneCount = 20_000;
@@ -27,14 +31,47 @@ public sealed class ScenePackDownloader
         CancellationToken cancellationToken = default,
         string? metadataPath = null)
     {
+        var source = new ScenePackCatalogEntry(
+            "dotclk-original",
+            "Original DotClk scenes",
+            "The original scene collection downloaded from its official sigmafx repository.",
+            true,
+            "official-external-source",
+            SourcePageUrl,
+            SourceUrl,
+            "11211af85a2ade66d05d961839773a05a01bddcc",
+            "zip",
+            "/Scenes/",
+            SourceDownloadBytes,
+            152_686_944,
+            SourceSha256,
+            2324,
+            ["windows-x64", "osx-arm64", "esp32-s3"]);
+        return await DownloadAndInstallAsync(
+            source, destinationDirectory, progress, cancellationToken, metadataPath)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<ScenePackInstallResult> DownloadAndInstallAsync(
+        ScenePackCatalogEntry pack,
+        string destinationDirectory,
+        IProgress<ScenePackDownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default,
+        string? metadataPath = null)
+    {
+        ArgumentNullException.ThrowIfNull(pack);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationDirectory);
+        if (!pack.Available || !Uri.TryCreate(pack.DownloadUrl, UriKind.Absolute, out var sourceUri) ||
+            sourceUri.Scheme != Uri.UriSchemeHttps || pack.DownloadBytes is not > 0 ||
+            pack.ArchiveSha256?.Length != 64)
+            throw new InvalidDataException("The selected scene pack does not provide a verified HTTPS archive.");
 
         var temporaryArchive = Path.Combine(
             Path.GetTempPath(), $"dmdclock-scenes-{Guid.NewGuid():N}.zip");
         long downloadedBytes = 0;
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, SourceUrl);
+            using var request = new HttpRequestMessage(HttpMethod.Get, sourceUri);
             request.Headers.UserAgent.Add(new ProductInfoHeaderValue("DMDClock", "1.0"));
             using var response = await _httpClient.SendAsync(
                 request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
@@ -42,6 +79,8 @@ public sealed class ScenePackDownloader
             response.EnsureSuccessStatusCode();
 
             var totalBytes = response.Content.Headers.ContentLength;
+            if (totalBytes is not null && totalBytes != pack.DownloadBytes)
+                throw new InvalidDataException("The scene archive size does not match the shared catalog.");
             if (totalBytes > MaximumDownloadBytes)
                 throw new InvalidDataException(
                     $"The scene archive is larger than the {MaximumDownloadBytes / 1024 / 1024} MB safety limit.");
@@ -70,6 +109,14 @@ public sealed class ScenePackDownloader
                             : null));
                 }
             }
+
+            if (downloadedBytes != pack.DownloadBytes)
+                throw new InvalidDataException("The downloaded scene archive size does not match the shared catalog.");
+            await using var archiveStream = File.OpenRead(temporaryArchive);
+            var archiveHash = Convert.ToHexString(
+                await SHA256.HashDataAsync(archiveStream, cancellationToken).ConfigureAwait(false));
+            if (!archiveHash.Equals(pack.ArchiveSha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("The downloaded scene archive failed SHA-256 verification.");
 
             var sceneCount = await ExtractScenesAtomicallyAsync(
                 temporaryArchive, destinationDirectory, cancellationToken, metadataPath)

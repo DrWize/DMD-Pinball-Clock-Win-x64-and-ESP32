@@ -40,9 +40,10 @@ OTA application partition.
 ## Offload order
 
 1. The production build indexes every valid flat `.scn` file in `/dmd/scenes`
-   and embeds no fallback scene. QEMU embeds an 11-scene compatibility corpus
-   and an automatically generated projection of the shared metadata catalog for
-   deterministic testing.
+   and embeds no fallback scene. QEMU reads the same layout from a writable
+   FAT32 superfloppy image when attached; without an image it uses an embedded
+   11-scene compatibility corpus and automatically generated projection of the
+   shared metadata catalog for deterministic recovery testing.
    Copy the repository's `scenes/scene-metadata.json` to
    `/dmd/scenes/scene-metadata.json`; this is the same schema-1 catalog used by
    Windows. The firmware releases the parsed JSON after resolving its compact

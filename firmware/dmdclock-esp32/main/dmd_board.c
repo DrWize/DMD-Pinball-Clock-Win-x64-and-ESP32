@@ -9,6 +9,13 @@
 #include "freertos/task.h"
 #include "sdkconfig.h"
 
+#ifndef CONFIG_DMD_DISPLAY_WIDTH
+#define CONFIG_DMD_DISPLAY_WIDTH 800
+#endif
+#ifndef CONFIG_DMD_DISPLAY_HEIGHT
+#define CONFIG_DMD_DISPLAY_HEIGHT 480
+#endif
+
 static const char *TAG = "dmd_board";
 
 #if CONFIG_DMD_QEMU
@@ -238,7 +245,8 @@ bool dmd_board_read_touch(uint16_t *x, uint16_t *y)
         if (touch_read(GT911_FIRST_POINT, point, sizeof(point)) == ESP_OK) {
             uint16_t point_x = point[0] | ((uint16_t)point[1] << 8);
             uint16_t point_y = point[2] | ((uint16_t)point[3] << 8);
-            if (point_x < 800 && point_y < 480) {
+            if (point_x < CONFIG_DMD_DISPLAY_WIDTH &&
+                point_y < CONFIG_DMD_DISPLAY_HEIGHT) {
                 *x = point_x;
                 *y = point_y;
                 touched = true;

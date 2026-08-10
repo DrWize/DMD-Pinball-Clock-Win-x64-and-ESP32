@@ -13,3 +13,21 @@ The same catalog is installed as `/dmd/scenes/scene-metadata.json` on an ESP32
 card. Production ESP32 firmware scans the flat `/dmd/scenes` directory and uses
 the catalog for game, scene title, manufacturer, and first-release year while
 keeping timing and masks authoritative in each SCN file.
+
+## Shared download catalog
+
+`catalog.json` is the single scene-pack discovery document for Windows x64,
+macOS ARM64, and ESP32-S3. Its JSON Schema is
+`scene-pack-catalog.schema.json`. Available archives must use HTTPS, a pinned
+source revision, an exact byte size, and SHA-256. An unavailable pack must keep
+its download URL and checksum null.
+
+The original DotClk entry remains hosted by its official `sigmafx` source. The
+complete 2,416-scene collection is hosted as the versioned GitHub Release
+`scene-pack-v2026.08.10`, with its exact size and SHA-256 recorded in the
+catalog. Scene ZIPs remain release assets instead of Git history.
+
+The Avalonia downloader used by Windows and macOS resolves its source through
+this catalog. The ESP32 `/api/scenes` response exposes the same catalog URL; the
+web page links to it while device-side staged download/upload remains a later,
+hardware-tested phase.

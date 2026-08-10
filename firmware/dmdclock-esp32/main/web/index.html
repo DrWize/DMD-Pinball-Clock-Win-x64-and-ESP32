@@ -393,6 +393,17 @@
           <option value="30">30 seconds</option>
         </select>
       </div>
+      <p class="hint">Windows, macOS and ESP32 use the same versioned scene-pack catalog.</p>
+      <div class="actions">
+        <button id="installScenePack" type="button">Install complete pack</button>
+        <button id="updateScenePack" class="secondary" type="button">Update</button>
+        <button id="repairScenePack" class="secondary" type="button">Repair</button>
+        <button id="cancelScenePack" class="danger" type="button" disabled>Cancel</button>
+      </div>
+      <progress id="scenePackProgress" value="0" max="1" style="width:100%"></progress>
+      <p id="scenePackStatus" class="hint">Scene-pack installer ready.</p>
+      <p class="hint">The device downloads and verifies the shared ZIP on the TF card, preserves custom SCNs, keeps the previous library, and requests a reboot only after activation succeeds.</p>
+      <p><a href="https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scenes/catalog.json" target="_blank" rel="noopener noreferrer">Open shared scene catalog</a></p>
     </section>
 
     <section class="panel">
@@ -1200,6 +1211,38 @@
         setTimeout(refresh,150);
       }catch(error){message(error.message,true)}
     }
+    async function refreshScenePack(){
+      try{
+        const status=await request("/api/scene-pack");
+        const total=Number(status.totalBytes)||Number(status.expectedScenes)||1;
+        const complete=Number(status.totalBytes)
+          ?Number(status.completedBytes)
+          :Number(status.extractedScenes);
+        $("scenePackProgress").max=Math.max(1,total);
+        $("scenePackProgress").value=Math.min(total,Math.max(0,complete));
+        $("scenePackStatus").textContent=
+          `${status.message}${status.expectedScenes?` · ${status.extractedScenes}/${status.expectedScenes} scenes`:""}`;
+        ["installScenePack","updateScenePack","repairScenePack"].forEach(id=>{$(id).disabled=status.running});
+        $("cancelScenePack").disabled=!status.running||status.cancelRequested;
+        if(status.restartRequired){
+          $("scenePackStatus").textContent+=" · Use Reboot device below to load the new library.";
+        }
+      }catch(error){
+        $("scenePackStatus").textContent=`Scene-pack status unavailable: ${error.message}`;
+      }
+    }
+    async function runScenePack(action){
+      try{
+        await request("/api/scene-pack",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({action})
+        });
+        await refreshScenePack();
+      }catch(error){
+        $("scenePackStatus").textContent=error.message;
+      }
+    }
     $("brightness").addEventListener("input",()=>{$("brightnessValue").textContent=$("brightness").value});
     $("glowStrength").addEventListener("input",()=>{$("glowStrengthValue").textContent=$("glowStrength").value});
     $("hotCoreStyle").addEventListener("change",()=>{
@@ -1289,6 +1332,10 @@
     });
     $("sceneIndex").addEventListener("change",()=>selectScene(Number($("sceneIndex").value)));
     $("syncTime").addEventListener("click",()=>syncTime(false));
+    $("installScenePack").addEventListener("click",()=>runScenePack("install"));
+    $("updateScenePack").addEventListener("click",()=>runScenePack("update"));
+    $("repairScenePack").addEventListener("click",()=>runScenePack("repair"));
+    $("cancelScenePack").addEventListener("click",()=>runScenePack("cancel"));
     document.querySelectorAll("[data-action]").forEach(button=>{
       button.addEventListener("click",()=>{
         const action=button.dataset.action;
@@ -1399,6 +1446,8 @@
     $("save").addEventListener("click",saveSettings);
     refresh();
     setInterval(refresh,1000);
+    refreshScenePack();
+    setInterval(refreshScenePack,1000);
   </script>
 </body>
 </html>

@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-08-10T20:52:04.8974717Z",
+  "packs": [
+    {
+      "packId": "dotclk-original",
+      "displayName": "Original DotClk scenes",
+      "description": "The original scene collection downloaded from its official sigmafx repository.",
+      "available": true,
+      "distributionStatus": "official-external-source",
+      "sourcePageUrl": "https://github.com/sigmafx/DotClk-Resources/tree/11211af85a2ade66d05d961839773a05a01bddcc/Scenes",
+      "downloadUrl": "https://github.com/sigmafx/DotClk-Resources/archive/11211af85a2ade66d05d961839773a05a01bddcc.zip",
+      "sourceRevision": "11211af85a2ade66d05d961839773a05a01bddcc",
+      "archiveFormat": "zip",
+      "scenesPathMarker": "/Scenes/",
+      "downloadBytes": 16814900,
+      "installedBytes": 152686944,
+      "archiveSha256": "360c9048fe379d8978e899cb4801324a736491e8696da012dd682db6ec569f70",
+      "sceneCount": 2324,
+      "supportedPlatforms": [
+        "windows-x64",
+        "osx-arm64",
+        "esp32-s3"
+      ]
+    },
+    {
+      "packId": "drwize-complete",
+      "displayName": "DrWize complete scene collection",
+      "description": "The complete validated 2,416-scene collection for DMDClock on Windows, macOS ARM64, and ESP32-S3.",
+      "available": true,
+      "distributionStatus": "github-release",
+      "sourcePageUrl": "https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/tag/scene-pack-v2026.08.10",
+      "downloadUrl": "https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/download/scene-pack-v2026.08.10/DMDClock-Scenes-Complete-2026.08.10.zip",
+      "sourceRevision": "97a45fdd36a483cbb5f1d9ad30a0e4a67e9f172f",
+      "archiveFormat": "zip",
+      "scenesPathMarker": "/Scenes/",
+      "downloadBytes": 17506516,
+      "installedBytes": 165980792,
+      "archiveSha256": "9c2db7d93d5e359d1742ad595bee32929160d048f6a3f8318d3fce4ef4bdf3fa",
+      "sceneCount": 2416,
+      "supportedPlatforms": [
+        "windows-x64",
+        "osx-arm64",
+        "esp32-s3"
+      ]
+    }
+  ]
+}
