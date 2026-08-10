@@ -134,6 +134,14 @@ The device name is also displayed, for example `DMDClock-59D9`.
 
 ![DMDClock ESP32 web remote](screenshots/install/esp32-web-remote.png)
 
+To add scenes, choose **Original DotCLK-Orig** or **DMD-Large** in the web
+remote and select **Install selected pack**. After the download is verified,
+the ESP32 must unpack 2,324 or 2,416 individual scene files onto the TF card.
+This can take several minutes or longer on a slower card, and progress may move
+slowly during the unpacking stage. Keep the ESP32 powered, leave the TF card
+inserted, and wait until the web remote reports that installation is complete
+before rebooting or removing the card.
+
 The remote checks GitHub once per page load and displays a link when a newer build
 exists. It never flashes firmware automatically.
 

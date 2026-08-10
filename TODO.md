@@ -96,6 +96,15 @@ they do not need to install both.
 
 ### P0.4 — tests and release acceptance
 
+- [x] Benchmark one ZIP download plus on-device extraction against sequential
+      single-file downloads for the same ESP32 scene pack. Run the ZIP path in
+      QEMU, retain timestamped phase logs, and record elapsed time, transferred
+      bytes, HTTPS request count, scene count, and output equivalence before
+      choosing the production delivery method. The 2026-08-11 Original-pack test
+      found one ZIP was 75.71x faster and transferred 9.08x fewer payload bytes
+      than 2,324 sequential requests in the controlled host comparison; the
+      actual QEMU ZIP installation completed in 613.925 seconds. Keep ZIP delivery;
+      see `docs/SCENE-PACK-DELIVERY-BENCHMARK.md`.
 - [x] Add .NET tests for both catalog choices, destination isolation, selection,
       cancellation, corrupt downloads, and upgrading one installed pack without
       changing the other.

@@ -92,6 +92,13 @@ catalog, byte size, SHA-256, and every SCN before atomic activation. A managed
 scene list prevents files from the previously selected pack from being treated
 as custom scenes when switching packs.
 
+`Measure-ScenePackDelivery.ps1` records the real ZIP phases from a running QEMU
+profile or compares the revision-pinned ZIP with sequential downloads of every
+source scene. Logs and machine-readable summaries are written below
+`output\benchmarks\scene-pack-delivery`. See
+[`docs/SCENE-PACK-DELIVERY-BENCHMARK.md`](../../docs/SCENE-PACK-DELIVERY-BENCHMARK.md)
+for the measured result and reproduction commands.
+
 The vendor package is ignored by Git and stored at
 `external\waveshare-esp32-s3-touch-lcd-7`. Its downloaded archive has SHA-256
 `5351D443EAA605CAB1EB80D050D867C18E1CE2B33C9CBC78AAE1B7BCA040B038`.
