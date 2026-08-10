@@ -12,7 +12,7 @@ Set-StrictMode -Version Latest
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $outputRoot = Join-Path $repoRoot 'output'
 $projectPath = Join-Path $repoRoot 'firmware/dmdclock-esp32'
-$buildPath = Join-Path $projectPath 'build'
+$buildPath = Join-Path $projectPath 'build-hw-esp32'
 $workspaceRoot = Split-Path -Parent $repoRoot
 while ($workspaceRoot -and
     -not (Test-Path -LiteralPath (Join-Path $workspaceRoot '.tools') -PathType Container)) {
