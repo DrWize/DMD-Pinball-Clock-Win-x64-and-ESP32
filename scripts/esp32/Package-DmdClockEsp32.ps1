@@ -13,7 +13,14 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $outputRoot = Join-Path $repoRoot 'output'
 $projectPath = Join-Path $repoRoot 'firmware/dmdclock-esp32'
 $buildPath = Join-Path $projectPath 'build'
-$toolRoot = Join-Path (Split-Path -Parent $repoRoot) '.tools/esp-idf/v5.5.2/tools'
+$workspaceRoot = Split-Path -Parent $repoRoot
+while ($workspaceRoot -and
+    -not (Test-Path -LiteralPath (Join-Path $workspaceRoot '.tools') -PathType Container)) {
+    $parent = Split-Path -Parent $workspaceRoot
+    if ($parent -eq $workspaceRoot) { break }
+    $workspaceRoot = $parent
+}
+$toolRoot = Join-Path $workspaceRoot '.tools/esp-idf/v5.5.2/tools'
 $python = Join-Path $toolRoot 'python/v5.5.2/venv/Scripts/python.exe'
 $bootstrapHeader = Join-Path $projectPath 'main/dmd_bootstrap_wifi.h'
 $targetSlug = 'esp32-s3-touch-lcd-7-800x480-n16r8'
