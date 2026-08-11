@@ -49,23 +49,57 @@ The [latest release page][latest-release] is the canonical place for published
 versions. `Flash-DmdClockEsp32.ps1` asks for the exact board first, then lists
 only releases containing a compatible, hash-verified image for that selection.
 
-## 1. Download and flash a release
+## 1. Download the two setup scripts
 
-From the repository root, start the single supported installer/updater:
+Create or open a clean folder in PowerShell. These commands download the latest
+versions of both scripts directly from the `master` branch:
 
 ```powershell
-.\scripts\esp32\Flash-DmdClockEsp32.ps1
+Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/Flash-DmdClockEsp32.ps1' -OutFile 'Flash-DmdClockEsp32.ps1'
+Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/Prepare-DmdClockSdCard.ps1' -OutFile 'Prepare-DmdClockSdCard.ps1'
 ```
 
-Its menu lets you:
+`Flash-DmdClockEsp32.ps1` discovers compatible firmware releases, downloads and
+verifies the selected image and flashing tool, checks the connected hardware,
+and performs the flash. `Prepare-DmdClockSdCard.ps1` downloads and validates the
+selected scene library and copies it to a FAT32 TF card. Neither script requires
+a repository clone, Git, Python, .NET, or ESP-IDF.
 
-1. select the exact ESP32 display board;
-2. select a stable or preview release containing an image for that board;
-3. download and verify its manifest, target ID, ZIP, and individual images;
-4. select an application update or complete installation;
-5. choose an explicit connected COM port;
-6. confirm the physical board label; and
-7. flash only after typing `FLASH` (uppercase or lowercase is accepted).
+If Windows marks the downloaded scripts as blocked, remove only their downloaded
+file markers:
+
+```powershell
+Unblock-File -Path .\Flash-DmdClockEsp32.ps1, .\Prepare-DmdClockSdCard.ps1
+```
+
+## 2. Connect and flash the ESP32-S3
+
+1. Power off the board.
+2. Connect a data-capable USB cable to the model-specific programming connector
+   described above. Not every USB connector provides UART.
+3. Open **Device Manager > Ports (COM & LPT)** and note which COM port appears
+   when the board is connected.
+4. From the folder containing the downloaded scripts, start the flasher:
+
+```powershell
+.\Flash-DmdClockEsp32.ps1
+```
+
+5. In the menu:
+
+   1. Select the exact ESP32 display board.
+   2. Select a stable or preview release containing an image for that board.
+   3. Choose **Complete installation** for a new board, or **Application update**
+      when updating an existing DMDClock installation.
+   4. Select the COM port identified in Device Manager.
+   5. Read the physical label on the board and enter the requested model
+      confirmation.
+   6. Review the final board, release, flash mode, and port summary.
+   7. Type `FLASH` when ready. Uppercase or lowercase is accepted.
+
+6. Keep USB power and the cable connected until the success message appears and
+   the board restarts. The script stops before writing if the chip, flash size,
+   board confirmation, package hash, or selected port does not match.
 
 The script downloads a verified portable Espressif `esptool` when it is not
 already cached under `%LOCALAPPDATA%\DmdClock\tools\esptool`. Python, ESP-IDF,
@@ -93,47 +127,10 @@ untouched.
 Download without flashing:
 
 ```powershell
-.\scripts\esp32\Flash-DmdClockEsp32.ps1 -ReleaseTag v1.3.4 -DownloadOnly
+.\Flash-DmdClockEsp32.ps1 -ReleaseTag v1.3.4 -DownloadOnly
 ```
 
-## 2. Optional developer Wi-Fi bootstrap and local build
-
-From the repository root, create the one-time local bootstrap header. The password
-prompt is masked and the generated header is ignored by Git:
-
-```powershell
-.\scripts\esp32\Set-DmdClockBootstrapWifi.ps1 `
-  -WifiSsid 'Your 2.4 GHz Wi-Fi name' `
-  -Build
-```
-
-The ESP32-S3 supports 2.4 GHz Wi-Fi, not a 5 GHz-only network.
-
-Developers can flash a current local build through the pinned ESP-IDF wrapper:
-
-```powershell
-.\scripts\esp32\Doctor.ps1
-.\scripts\esp32\Invoke-Idf.ps1 `
-  -ProjectPath .\firmware\dmdclock-esp32 `
-  -p COM5 -B build-hw-esp32 flash monitor
-```
-
-Replace `COM5` with the exact connected port reported by the doctor. The flash
-script refuses to guess a port. On first boot, the device copies the bootstrap
-Wi-Fi credentials into NVS and starts a recovery network named
-`DMDClock-xxxx`.
-
-After the home-network connection works, remove the credentials from subsequent
-firmware images while preserving NVS:
-
-```powershell
-.\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build
-.\scripts\esp32\Invoke-Idf.ps1 `
-  -ProjectPath .\firmware\dmdclock-esp32 `
-  -p COM5 -B build-hw-esp32 app-flash
-```
-
-Do not erase the device during this cleanup flash.
+![DMDClock ESP32 web remote after installation](screenshots/install/esp32-web-remote.png)
 
 ## 3. Prepare the SD card
 
@@ -147,7 +144,7 @@ capacity in File Explorer. The following examples use `J:`.
 Prepare preferred DMD-Large:
 
 ```powershell
-.\scripts\esp32\Prepare-DmdClockSdCard.ps1 `
+.\Prepare-DmdClockSdCard.ps1 `
   -DriveLetter J `
   -Library DmdLarge
 ```
@@ -155,7 +152,7 @@ Prepare preferred DMD-Large:
 Prepare Original DotCLK-Orig instead:
 
 ```powershell
-.\scripts\esp32\Prepare-DmdClockSdCard.ps1 `
+.\Prepare-DmdClockSdCard.ps1 `
   -DriveLetter J `
   -Library Original
 ```
@@ -229,6 +226,48 @@ exists. It never flashes firmware automatically.
 
 Keep LAN-only access enabled unless another trusted network firewall provides the
 boundary. Never forward ESP32 port 80 from the internet.
+
+## Optional developer Wi-Fi bootstrap and local build
+
+This section requires a repository clone and the development prerequisites. It
+is not needed when using the release flasher above.
+
+From the repository root, create the one-time local bootstrap header. The password
+prompt is masked and the generated header is ignored by Git:
+
+```powershell
+.\scripts\esp32\Set-DmdClockBootstrapWifi.ps1 `
+  -WifiSsid 'Your 2.4 GHz Wi-Fi name' `
+  -Build
+```
+
+The ESP32-S3 supports 2.4 GHz Wi-Fi, not a 5 GHz-only network.
+
+Developers can flash a current local build through the pinned ESP-IDF wrapper:
+
+```powershell
+.\scripts\esp32\Doctor.ps1
+.\scripts\esp32\Invoke-Idf.ps1 `
+  -ProjectPath .\firmware\dmdclock-esp32 `
+  -p COM5 -B build-hw-esp32 flash monitor
+```
+
+Replace `COM5` with the exact connected port reported by the doctor. The flash
+script refuses to guess a port. On first boot, the device copies the bootstrap
+Wi-Fi credentials into NVS and starts a recovery network named
+`DMDClock-xxxx`.
+
+After the home-network connection works, remove the credentials from subsequent
+firmware images while preserving NVS:
+
+```powershell
+.\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build
+.\scripts\esp32\Invoke-Idf.ps1 `
+  -ProjectPath .\firmware\dmdclock-esp32 `
+  -p COM5 -B build-hw-esp32 app-flash
+```
+
+Do not erase the device during this cleanup flash.
 
 ## Enclosures
 

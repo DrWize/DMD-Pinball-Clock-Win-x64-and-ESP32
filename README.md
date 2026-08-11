@@ -4,6 +4,8 @@ DMDClock recreates the classic DotClk clock and animation display on Windows and
 the original 800x480 Waveshare ESP32-S3-Touch-LCD-7. Choose your platform below;
 the guides provide the supported installation and preparation workflows.
 
+![DMDClock scene playback](docs/screenshots/setup/scene-playback.png)
+
 > **Download and install:** [release page](docs/RELEASE.md) ·
 > [latest GitHub assets](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest)
 
@@ -11,7 +13,7 @@ the guides provide the supported installation and preparation workflows.
 
 | Windows | ESP32-S3 |
 | --- | --- |
-| ![DMDClock running on Windows](docs/screenshots/install/windows-clock.png) | ![ESP32 web remote shown in the QEMU validation profile](docs/screenshots/install/esp32-web-remote.png) |
+| <img src="docs/screenshots/install/windows-clock.png" alt="DMDClock running on Windows" width="600"> | <img src="docs/screenshots/install/esp32-web-remote.png" alt="ESP32 web remote shown in the QEMU validation profile" width="600"> |
 | Install the app and optional Windows screensaver. | Flash the supported Waveshare board and prepare its TF card. |
 | **[Windows installation guide](docs/INSTALL-WINDOWS.md)** | **[ESP32-S3 installation guide](docs/INSTALL-ESP32.md)** |
 
@@ -28,17 +30,26 @@ The installer includes the required .NET runtime. See the
 [Windows installation guide](docs/INSTALL-WINDOWS.md) for upgrades, portable
 packages, screensaver setup, and troubleshooting.
 
-![Current Windows settings menu](docs/screenshots/setup/settings-menu.png)
-
 ### ESP32-S3 installation
 
 The firmware currently targets only the original **Waveshare ESP32-S3-Touch-LCD-7,
 800x480, N16R8**. It is not a firmware image for the later 7B board.
 
-1. Download or clone this repository on a 64-bit Windows PC and open PowerShell
-   in the repository root.
-2. Run `.\scripts\esp32\Flash-DmdClockEsp32.ps1`, select the exact board and a
-   compatible GitHub release, then follow its model-specific USB-port guidance.
+From an empty folder, download the two standalone Windows PowerShell scripts:
+
+```powershell
+Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/Flash-DmdClockEsp32.ps1' -OutFile 'Flash-DmdClockEsp32.ps1'
+Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/Prepare-DmdClockSdCard.ps1' -OutFile 'Prepare-DmdClockSdCard.ps1'
+```
+
+The first script finds, verifies, and flashes a compatible release. The second
+downloads, validates, and copies the selected scene library to a FAT32 TF card.
+No repository clone or external development tools are required.
+
+1. Connect a data-capable USB cable to the board's programming connector and
+   identify the new COM port in Windows Device Manager.
+2. Run `.\Flash-DmdClockEsp32.ps1`, select the exact board and a compatible
+   GitHub release, then follow its model-specific USB-port guidance.
 3. Select the correct COM port and type `FLASH` only after reviewing the final
    target and version summary.
 4. Connect it to a 2.4 GHz Wi-Fi network and open the local web remote.
@@ -47,6 +58,19 @@ The firmware currently targets only the original **Waveshare ESP32-S3-Touch-LCD-
 
 The [ESP32-S3 installation guide](docs/INSTALL-ESP32.md) gives the exact commands,
 first-boot flow, SD-card layout, recovery steps, and security notes.
+
+## Screenshots
+
+| Settings and appearance | Scene Reviewer |
+| --- | --- |
+| ![DMDClock settings and appearance menu](docs/screenshots/setup/settings-menu.png) | ![Scene Reviewer showing four reviewed scenes](docs/screenshots/setup/scene-reviewer.png) |
+| **C64 rainbow theme** | **Hot-core glow** |
+| ![C64 rainbow colour theme](docs/screenshots/colors/c64-rainbow.png) | ![Classic hot-core glow dots](docs/screenshots/colors/hot-core-classic.png) |
+| **Date display** | **ESP32 web remote** |
+| ![DMDClock date display](docs/screenshots/date.png) | ![ESP32 web remote and display controls](docs/screenshots/install/esp32-web-remote.png) |
+
+The Windows app and ESP32 firmware share the DMD rendering style and scene
+metadata, while each platform provides controls suited to its display.
 
 ## What is included
 
