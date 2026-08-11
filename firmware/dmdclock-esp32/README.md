@@ -3,6 +3,9 @@
 Source, documentation, and releases:
 [DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32).
 
+Run the repository's ESP32 scripts from PowerShell 7 (`pwsh`). Windows
+PowerShell 5.1 is not supported by the current toolchain scripts.
+
 This firmware targets the original Waveshare
 `ESP32-S3-Touch-LCD-7`:
 
@@ -227,11 +230,20 @@ uppercase and lowercase letters.
 3. Use password `dmdclock`.
 4. Open `http://192.168.4.1/`.
 5. The browser supplies the current time automatically.
-6. Optionally enter home Wi-Fi credentials and select a timezone, then save.
+6. Optionally enter home Wi-Fi credentials, choose a timezone region and a city
+   that follows the same clock changes as your location, then save.
 
 The access point remains enabled after home Wi-Fi connects, providing a recovery
 path if home-network settings are wrong. The remote reports the home-network IP
 when connected. SNTP uses `pool.ntp.org` and `time.cloudflare.com`.
+
+The timezone selector contains the 90 representative rule groups from IANA's
+`zonenow.tab`, split into eight regional data files. The web page shows readable
+IANA city names while the firmware stores the corresponding POSIX rule required
+by ESP-IDF. `UTC` is always available without loading a regional file. Selecting
+a time zone applies and persists it immediately; the main Save button remains
+for the other fields. Timezone and daylight-saving legislation can change;
+refresh the regional data when the firmware adopts a newer IANA database.
 
 The recovery network uses WPA2 password `dmdclock`. This controls who can join the
 access point; it is not a web login. The HTTP server has no account password or
@@ -258,7 +270,7 @@ Remote controls:
 - a confirmation-protected device reboot button and matching `reboot` action
   through `POST /api/action`;
 - a glow-strength slider with a matching transient touchscreen toggle;
-- timezone;
+- region and representative-city timezone selection;
 - home Wi-Fi name and password;
 - optional local MQTT broker host, port, username, password, and Home Assistant
   discovery prefix;

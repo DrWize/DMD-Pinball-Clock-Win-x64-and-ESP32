@@ -58,8 +58,8 @@ function Assert-PathBelowRoot {
 function Get-Sha256 {
     param([Parameter(Mandatory)][string]$Path)
 
-    # Use the framework directly because Windows PowerShell 5.1 propagates the
-    # caller's WhatIf preference into the provider used by Get-FileHash.
+    # Use the framework directly so the caller's WhatIf preference cannot
+    # propagate into the provider used by Get-FileHash.
     $stream = [IO.File]::OpenRead([IO.Path]::GetFullPath($Path))
     $algorithm = [Security.Cryptography.SHA256]::Create()
     try {

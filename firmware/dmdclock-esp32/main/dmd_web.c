@@ -117,6 +117,22 @@ extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 extern const uint8_t api_html_start[] asm("_binary_api_html_start");
 extern const uint8_t api_html_end[] asm("_binary_api_html_end");
+extern const uint8_t africa_json_start[] asm("_binary_africa_json_start");
+extern const uint8_t africa_json_end[] asm("_binary_africa_json_end");
+extern const uint8_t america_json_start[] asm("_binary_america_json_start");
+extern const uint8_t america_json_end[] asm("_binary_america_json_end");
+extern const uint8_t antarctica_json_start[] asm("_binary_antarctica_json_start");
+extern const uint8_t antarctica_json_end[] asm("_binary_antarctica_json_end");
+extern const uint8_t asia_json_start[] asm("_binary_asia_json_start");
+extern const uint8_t asia_json_end[] asm("_binary_asia_json_end");
+extern const uint8_t atlantic_json_start[] asm("_binary_atlantic_json_start");
+extern const uint8_t atlantic_json_end[] asm("_binary_atlantic_json_end");
+extern const uint8_t australia_json_start[] asm("_binary_australia_json_start");
+extern const uint8_t australia_json_end[] asm("_binary_australia_json_end");
+extern const uint8_t europe_json_start[] asm("_binary_europe_json_start");
+extern const uint8_t europe_json_end[] asm("_binary_europe_json_end");
+extern const uint8_t pacific_json_start[] asm("_binary_pacific_json_start");
+extern const uint8_t pacific_json_end[] asm("_binary_pacific_json_end");
 extern const uint8_t dmdclock_ico_start[] asm("_binary_dmdclock_ico_start");
 extern const uint8_t dmdclock_ico_end[] asm("_binary_dmdclock_ico_end");
 
@@ -600,6 +616,59 @@ static esp_err_t api_docs_get(httpd_req_t *request)
         request,
         (const char *)api_html_start,
         api_html_end - api_html_start);
+}
+
+typedef struct {
+    const char *region;
+    const uint8_t *start;
+    const uint8_t *end;
+} timezone_region_file_t;
+
+static esp_err_t timezones_get(httpd_req_t *request)
+{
+    char query[48] = {0};
+    char requested_region[16] = {0};
+    if (httpd_req_get_url_query_str(request, query, sizeof(query)) != ESP_OK ||
+        httpd_query_key_value(
+            query,
+            "region",
+            requested_region,
+            sizeof(requested_region)) != ESP_OK) {
+        return httpd_resp_send_err(
+            request,
+            HTTPD_400_BAD_REQUEST,
+            "A timezone region is required");
+    }
+
+    static const timezone_region_file_t regions[] = {
+        {"africa", africa_json_start, africa_json_end},
+        {"america", america_json_start, america_json_end},
+        {"antarctica", antarctica_json_start, antarctica_json_end},
+        {"asia", asia_json_start, asia_json_end},
+        {"atlantic", atlantic_json_start, atlantic_json_end},
+        {"australia", australia_json_start, australia_json_end},
+        {"europe", europe_json_start, europe_json_end},
+        {"pacific", pacific_json_start, pacific_json_end},
+    };
+    for (size_t index = 0; index < sizeof(regions) / sizeof(regions[0]); index++) {
+        if (strcmp(requested_region, regions[index].region) == 0) {
+            size_t length = regions[index].end - regions[index].start;
+            if (length > 0 && regions[index].start[length - 1] == '\0') {
+                length--;
+            }
+            httpd_resp_set_type(request, "application/json");
+            httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+            return httpd_resp_send(
+                request,
+                (const char *)regions[index].start,
+                length);
+        }
+    }
+
+    return httpd_resp_send_err(
+        request,
+        HTTPD_404_NOT_FOUND,
+        "Unknown timezone region");
 }
 
 static esp_err_t scenes_get(httpd_req_t *request)
@@ -1211,7 +1280,7 @@ static esp_err_t favicon_get(httpd_req_t *request)
 esp_err_t dmd_web_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 10;
+    config.max_uri_handlers = 11;
     config.stack_size = 6144;
     config.lru_purge_enable = true;
     config.open_fn = web_client_open;
@@ -1224,6 +1293,7 @@ esp_err_t dmd_web_start(void)
         {.uri = "/", .method = HTTP_GET, .handler = index_get},
         {.uri = "/api-docs", .method = HTTP_GET, .handler = api_docs_get},
         {.uri = "/api/state", .method = HTTP_GET, .handler = state_get},
+        {.uri = "/api/timezones", .method = HTTP_GET, .handler = timezones_get},
         {.uri = "/api/scenes", .method = HTTP_GET, .handler = scenes_get},
         {.uri = "/api/scene-library", .method = HTTP_GET, .handler = scene_pack_get},
         {.uri = "/api/scene-pack", .method = HTTP_GET, .handler = scene_pack_get},

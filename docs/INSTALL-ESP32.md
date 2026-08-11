@@ -22,7 +22,7 @@ RGB wiring, touch, or physical TF-card behavior.
 - the correct Waveshare board;
 - a data-capable USB cable connected to the port marked **UART**;
 - a FAT32 microSD/TF card with at least 256 MB free;
-- a Windows PC with Windows PowerShell 5.1 or PowerShell 7;
+- a Windows PC with PowerShell 7 (`pwsh`);
 - this repository and its workspace tools.
 
 The [latest release page][latest-release] is the canonical place for published
@@ -156,6 +156,20 @@ and use the [Windows TF-card preparation article](PREPARE-ESP32-SD-CARD.md).
 Windows and macOS keep their normal in-app **Download scenes…** workflow for
 desktop libraries. Full ESP32 library downloads are prepared on Windows to avoid
 competing for the device's display, TLS, and SDMMC memory.
+
+## Time and timezone
+
+On first start, the browser supplies a usable fallback time. In **Time and
+network**, choose a region and then a representative city that follows the same
+UTC offset and daylight-saving changes as your location. The selector uses 90
+current and predicted-future clock-rule groups split across eight regional data
+files; `UTC` is always available. The selected time zone is applied and saved
+immediately, without using the page's main Save button.
+
+After home Wi-Fi connects, the ESP32 synchronizes automatically with
+`pool.ntp.org` and `time.cloudflare.com`. It continues running from its local
+timebase during temporary network or NTP outages and resynchronizes when the
+connection returns.
 
 The remote checks GitHub once per page load and displays a link when a newer build
 exists. It never flashes firmware automatically.

@@ -8,7 +8,7 @@ DMDClock runs locally. ChatGPT and other hosted AI services are optional.
 - Windows 10 or Windows 11 x64
 - Git
 - .NET 10 SDK
-- PowerShell 7 recommended
+- PowerShell 7 (`pwsh`)
 - Visual Studio 2022, JetBrains Rider, or VS Code with C# support
 - Inno Setup 7 only when building the setup EXE
 

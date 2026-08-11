@@ -403,16 +403,24 @@
       <h2>Time and network</h2>
       <div class="fields">
         <div class="field">
-          <label for="timezone">Timezone</label>
-          <select id="timezone">
-            <option value="CET-1CEST,M3.5.0,M10.5.0/3">Stockholm / Central Europe</option>
-            <option value="GMT0BST,M3.5.0/1,M10.5.0">London</option>
-            <option value="UTC0">UTC</option>
-            <option value="EST5EDT,M3.2.0,M11.1.0">New York</option>
-            <option value="CST6CDT,M3.2.0,M11.1.0">Chicago</option>
-            <option value="MST7MDT,M3.2.0,M11.1.0">Denver</option>
-            <option value="PST8PDT,M3.2.0,M11.1.0">Los Angeles</option>
+          <label for="timezoneRegion">Timezone region</label>
+          <select id="timezoneRegion">
+            <option value="utc">UTC</option>
+            <option value="africa">Africa</option>
+            <option value="america">America</option>
+            <option value="antarctica">Antarctica</option>
+            <option value="asia">Asia</option>
+            <option value="atlantic">Atlantic</option>
+            <option value="australia">Australia</option>
+            <option value="europe">Europe</option>
+            <option value="pacific">Pacific</option>
           </select>
+        </div>
+        <div class="field">
+          <label for="timezone">Time zone
+            <small>Choose a city that follows the same clock changes as your location.</small>
+          </label>
+          <select id="timezone"><option value="UTC0">UTC</option></select>
         </div>
         <div class="field">
           <label for="wifiSsid">Home Wi-Fi name</label>
@@ -512,6 +520,19 @@
     let loaded=false;
     let refreshing=false;
     let releaseChecked=false;
+    const timezoneRegions=new Set([
+      "africa","america","antarctica","asia","atlantic","australia","europe","pacific"
+    ]);
+    const legacyTimezoneRegions={
+      "UTC0":"utc",
+      "CET-1CEST,M3.5.0,M10.5.0/3":"europe",
+      "GMT0BST,M3.5.0/1,M10.5.0":"europe",
+      "EST5EDT,M3.2.0,M11.1.0":"america",
+      "CST6CDT,M3.2.0,M11.1.0":"america",
+      "MST7MDT,M3.2.0,M11.1.0":"america",
+      "PST8PDT,M3.2.0,M11.1.0":"america"
+    };
+    let savedTimezone="UTC0";
     const latestReleaseUrl="https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest";
     const scheduleDays=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
     let screenOffSchedule=Array(7).fill("0".repeat(24));
@@ -852,6 +873,68 @@
       if(!response.ok)throw new Error((await response.text())||`HTTP ${response.status}`);
       return response.headers.get("content-type")?.includes("json")?response.json():null;
     }
+    function timezoneLabel(name){
+      return name.split("/").slice(1).join(" / ").replaceAll("_"," ");
+    }
+    function browserTimezoneRegion(){
+      try{
+        const region=Intl.DateTimeFormat().resolvedOptions().timeZone.split("/")[0].toLowerCase();
+        return timezoneRegions.has(region)?region:"europe";
+      }catch{return "europe"}
+    }
+    async function loadTimezoneRegion(region,preferredValue=null,preserveUnknown=false){
+      const select=$("timezone");
+      if(region==="utc"){
+        select.replaceChildren(new Option("UTC","UTC0"));
+        select.disabled=false;
+        return;
+      }
+      select.replaceChildren(new Option("Loading time zones…",preferredValue||""));
+      select.disabled=true;
+      try{
+        const entries=await request(
+          `/api/timezones?region=${encodeURIComponent(region)}`,
+          {cache:"no-store"}
+        );
+        if(!Array.isArray(entries)||!entries.length)throw new Error("No time zones found");
+        const options=entries.map(entry=>new Option(entry.label||timezoneLabel(entry.name),entry.value));
+        if(!preferredValue){
+          const prompt=new Option("Choose a time zone…","",true,true);
+          prompt.disabled=true;
+          options.unshift(prompt);
+        }
+        if(preferredValue&&!entries.some(entry=>entry.value===preferredValue)&&preserveUnknown){
+          options.unshift(new Option("Current saved setting",preferredValue));
+        }
+        select.replaceChildren(...options);
+        if(preferredValue)select.value=preferredValue;
+        select.disabled=false;
+      }catch(error){
+        select.replaceChildren(new Option("Current saved setting",preferredValue||savedTimezone));
+        select.disabled=false;
+        message(`Could not load time zones: ${error.message}`,true);
+      }
+    }
+    function initializeTimezoneSelector(value){
+      savedTimezone=value||"UTC0";
+      const region=legacyTimezoneRegions[savedTimezone]||browserTimezoneRegion();
+      $("timezoneRegion").value=region;
+      loadTimezoneRegion(region,savedTimezone,true);
+    }
+    async function applyTimezone(){
+      const timezone=$("timezone").value;
+      if(!timezone)return;
+      message("Applying time zone…");
+      try{
+        await request("/api/settings",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({timezone})
+        });
+        savedTimezone=timezone;
+        message("Time zone applied.");
+      }catch(error){message(error.message,true)}
+    }
     function message(text,error=false){
       $("message").textContent=text;
       $("message").style.color=error?"#ff786d":"var(--amber)";
@@ -1086,7 +1169,7 @@
         $("animationsPerCycle").value=String(state.animationsPerCycle);
         $("clockDisplaySeconds").value=String(state.clockDisplaySeconds);
         $("animationGapSeconds").value=String(state.animationGapSeconds);
-        $("timezone").value=state.timezone;
+        initializeTimezoneSelector(state.timezone);
         $("wifiSsid").value=state.wifiSsid;
         $("lanOnlyWeb").checked=state.lanOnlyWeb!==false;
         $("mqttEnabled").checked=state.mqttEnabled===true;
@@ -1413,6 +1496,11 @@
       }
     }
     $("saveRebootSchedule").addEventListener("click",saveRebootSchedule);
+    $("timezoneRegion").addEventListener("change",async event=>{
+      await loadTimezoneRegion(event.target.value);
+      if(event.target.value==="utc")await applyTimezone();
+    });
+    $("timezone").addEventListener("change",applyTimezone);
     $("save").addEventListener("click",saveSettings);
     refresh();
     setInterval(refresh,1000);

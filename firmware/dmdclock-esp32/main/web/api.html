@@ -73,6 +73,12 @@
   </section>
 
   <section class="panel">
+    <div class="endpoint"><span class="method">GET</span><h2><code>/api/timezones?region=europe</code> — regional timezone choices</h2></div>
+    <p>Returns one of the eight embedded regional lists. Valid region values are <code>africa</code>, <code>america</code>, <code>antarctica</code>, <code>asia</code>, <code>atlantic</code>, <code>australia</code>, <code>europe</code>, and <code>pacific</code>. Each entry contains a readable IANA representative name and the POSIX value accepted by <code>timezone</code>.</p>
+    <pre>curl "http://DMDClock-59D9/api/timezones?region=europe"</pre>
+  </section>
+
+  <section class="panel">
     <div class="endpoint"><span class="method">GET</span><h2><code>/api/scenes</code> — complete SD scene catalog</h2></div>
     <p>Returns <code>sceneCount</code>, the shared HTTPS <code>sceneLibraryCatalogUrl</code>, and the full <code>scenes</code> array. Each entry contains index, filename, display name, title, game, manufacturer, year and metadata-match status. This response is much larger than <code>/api/state</code>; load it once rather than polling it.</p>
     <pre>curl http://DMDClock-59D9/api/scenes</pre>

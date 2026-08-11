@@ -41,7 +41,7 @@ checksums are published together on the
 
 - Windows 10/11 x64
 - .NET 10 SDK
-- PowerShell 7 recommended
+- PowerShell 7 (`pwsh`)
 - Inno Setup 7 x64
 
 Install the compiler:

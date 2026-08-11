@@ -18,7 +18,17 @@ idf_component_register(
         "dmd_scene_metadata.c"
         "dmd_web.c"
     INCLUDE_DIRS "."
-    EMBED_TXTFILES "web/index.html" "web/api.html"
+    EMBED_TXTFILES
+        "web/index.html"
+        "web/api.html"
+        "web/timezones/africa.json"
+        "web/timezones/america.json"
+        "web/timezones/antarctica.json"
+        "web/timezones/asia.json"
+        "web/timezones/atlantic.json"
+        "web/timezones/australia.json"
+        "web/timezones/europe.json"
+        "web/timezones/pacific.json"
     REQUIRES
         esp_driver_i2c
         esp_driver_tsens

@@ -39,7 +39,7 @@ $workspaceRoot = Split-Path -Parent $repoRoot
 $outputRoot = Join-Path $repoRoot 'output'
 $cacheRoot = Join-Path $outputRoot 'esp32/releases'
 $projectPath = Join-Path $repoRoot 'firmware/dmdclock-esp32'
-$buildPath = Join-Path $projectPath 'build'
+$buildPath = Join-Path $projectPath 'build-hw-esp32'
 $toolRoot = Join-Path $workspaceRoot '.tools/esp-idf/v5.5.2/tools'
 $python = Join-Path $toolRoot 'python/v5.5.2/venv/Scripts/python.exe'
 

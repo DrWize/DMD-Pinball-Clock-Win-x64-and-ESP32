@@ -5,7 +5,8 @@ Repository:
 
 These scripts use the pinned, workspace-local ESP-IDF 5.5.2 installation under
 `E:\ai\.tools`. They do not require ESP-IDF, Python, CMake, Ninja, or the Xtensa
-compiler on the global `PATH`.
+compiler on the global `PATH`. Run the scripts from PowerShell 7 (`pwsh`), not
+Windows PowerShell 5.1.
 
 ```powershell
 # Verify the local toolchain and list connected serial devices.

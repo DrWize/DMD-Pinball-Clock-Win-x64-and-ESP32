@@ -35,7 +35,8 @@ packages, screensaver setup, and troubleshooting.
 The firmware currently targets only the original **Waveshare ESP32-S3-Touch-LCD-7,
 800x480, N16R8**. It is not a firmware image for the later 7B board.
 
-1. Download or clone this repository on a Windows PC.
+1. Download or clone this repository on a Windows PC and open PowerShell 7
+   (`pwsh`) in the repository root.
 2. Connect the board through its `UART` USB-C port.
 3. Run the doctor, then use the single installer/updater script:
    `.\scripts\esp32\Install-DmdClockEsp32.ps1`.
@@ -72,6 +73,21 @@ use the [Windows TF-card preparation guide](docs/PREPARE-ESP32-SD-CARD.md).
 Original collection. **Original DotCLK-Orig** remains available separately with
 2,324 scenes.
 You may also use your own compatible `.scn` files.
+
+## Clock and timezone behavior
+
+Windows and macOS use the computer's local clock, timezone, and daylight-saving
+rules. The desktop app does not run its own NTP client; keep automatic date,
+time, timezone, and network time synchronization enabled in the operating
+system.
+
+The ESP32 keeps its own clock. Its web remote separates timezone selection into
+a region and a representative city, covering 90 current and predicted-future
+clock-rule groups. The technical POSIX rule is stored internally. After Wi-Fi
+is configured, the device synchronizes with NTP automatically and continues
+from its local timebase through temporary network outages. Browser time remains
+available as a first-start fallback. Selecting a time zone applies and persists
+it immediately; the page's main Save button is not required for that change.
 
 ## User data and privacy
 

@@ -8,8 +8,8 @@ scenes); **Original DotCLK-Orig** (2,324 scenes) remains selectable. It verifies
 the published byte count and SHA-256, validates every SCN, and synchronizes the
 card. It never formats a card and refuses the Windows system volume.
 
-The current repository workflow requires Windows PowerShell 5.1 or PowerShell 7,
-the repository checkout, and the .NET 10 SDK used by the SCN validator.
+The current repository workflow requires PowerShell 7 (`pwsh`), the repository
+checkout, and the .NET 10 SDK used by the SCN validator.
 
 ## 1. Identify and format the correct card
 
@@ -28,7 +28,7 @@ Windows normally offers FAT32 directly for cards up to 32 GB. A modest card is
 recommended because DMDClock needs only about 166 MB for the larger library.
 The preparation script deliberately does not partition or format media.
 
-## 2. Open PowerShell in the repository
+## 2. Open PowerShell 7 in the repository
 
 ```powershell
 cd E:\ai\DMDClock-Windows-x64
