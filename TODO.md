@@ -37,14 +37,13 @@ Windows application is release-ready.
       four DotClk fonts as generated firmware assets, add clock/date font selection
       and persistence to the web interface, preserve the built-in fallback, and
       verify every choice in both QEMU profiles and on the original Waveshare 7.
-- [ ] Preserve and separate the uncommitted work in `qemu-sd-settings-debug`;
-      do not discard or combine it with the scene-library release accidentally.
-- [ ] Integrate `c24ecb5` and `b86ed2e` into the protected default branch
-      (`master`, not `main`) through the approved review/merge workflow, rerun
-      release validation, and push the resulting branch state.
-- [ ] Confirm the version 1.4.1 Windows EXE/SCR, installer, macOS ARM64 package,
+- [x] Preserve and separate the uncommitted work in `qemu-sd-settings-debug`;
+      it now has its own retained worktree and was not combined with the release.
+- [x] Integrate `c24ecb5` and `b86ed2e` into the default branch (`master`, not
+      `main`), rerun release validation, and push the resulting branch state.
+- [x] Confirm the version 1.4.1 Windows EXE/SCR, installer, macOS ARM64 package,
       ESP32 package, manifests, and checksums all reference the integrated commit.
-- [ ] Remove only clean, fully merged feature branches and stale worktrees; audit
+- [x] Remove only clean, fully merged feature branches and stale worktrees; audit
       local and remote branch reachability before each deletion and retain any
       branch containing unique or uncommitted work.
 
