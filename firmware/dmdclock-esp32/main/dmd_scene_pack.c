@@ -558,7 +558,7 @@ static esp_err_t download_archive(const pack_info_t *pack)
         goto close;
     }
     uint64_t completed = offset;
-    set_status(DMD_SCENE_PACK_DOWNLOADING, "Downloading scene pack", completed,
+    set_status(DMD_SCENE_PACK_DOWNLOADING, "Downloading scene library", completed,
         pack->archive_bytes, 0, pack->scene_count);
     while (completed < pack->archive_bytes && !cancelled()) {
         int read = esp_http_client_read(client, (char *)buffer, IO_BUFFER_SIZE);
@@ -567,7 +567,7 @@ static esp_err_t download_archive(const pack_info_t *pack)
             break;
         }
         completed += read;
-        set_status(DMD_SCENE_PACK_DOWNLOADING, "Downloading scene pack", completed,
+        set_status(DMD_SCENE_PACK_DOWNLOADING, "Downloading scene library", completed,
             pack->archive_bytes, 0, pack->scene_count);
     }
     free(buffer);
@@ -1038,7 +1038,7 @@ static void load_installed_pack(void)
         s_status.expected_scenes = (uint16_t)scene_count->valueint;
         s_status.extracted_scenes = (uint16_t)scene_count->valueint;
         s_status.installed = true;
-        strlcpy(s_status.message, "Installed scene pack ready", sizeof(s_status.message));
+        strlcpy(s_status.message, "Installed scene library ready", sizeof(s_status.message));
     }
     cJSON_Delete(json);
 }
@@ -1087,12 +1087,12 @@ static void install_task(void *argument)
         xSemaphoreTake(s_lock, portMAX_DELAY);
         s_status.installed = true;
         xSemaphoreGive(s_lock);
-        finish(DMD_SCENE_PACK_COMPLETE, "Scene pack installed; reboot to load it");
+        finish(DMD_SCENE_PACK_COMPLETE, "Scene library installed; reboot to load it");
     } else if (cancelled()) {
-        finish(DMD_SCENE_PACK_CANCELLED, "Scene-pack operation cancelled");
+        finish(DMD_SCENE_PACK_CANCELLED, "Scene-library operation cancelled");
     } else {
         char message[128];
-        snprintf(message, sizeof(message), "Scene-pack operation failed: %s", esp_err_to_name(error));
+        snprintf(message, sizeof(message), "Scene-library operation failed: %s", esp_err_to_name(error));
         finish(DMD_SCENE_PACK_FAILED, message);
         ESP_LOGE(TAG, "%s", message);
     }
@@ -1131,7 +1131,7 @@ esp_err_t dmd_scene_pack_start(const char *operation, const char *pack_id)
     strlcpy(s_status.message, "Starting", sizeof(s_status.message));
     xSemaphoreGive(s_lock);
     BaseType_t result = xTaskCreate(install_task, "scene_pack", 12288, NULL, 3, NULL);
-    if (result != pdPASS) finish(DMD_SCENE_PACK_FAILED, "Could not start scene-pack task");
+    if (result != pdPASS) finish(DMD_SCENE_PACK_FAILED, "Could not start scene-library task");
     return result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
 }
 

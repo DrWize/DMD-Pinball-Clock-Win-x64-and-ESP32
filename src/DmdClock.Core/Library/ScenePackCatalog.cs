@@ -13,7 +13,7 @@ public sealed record ScenePackCatalog(
         return Packs.SingleOrDefault(item =>
             item.Preferred && item.Available &&
             item.SupportedPlatforms.Contains(platform, StringComparer.OrdinalIgnoreCase)) ??
-            throw new InvalidDataException($"The catalog does not define one preferred scene pack for '{platform}'.");
+            throw new InvalidDataException($"The catalog does not define one preferred scene library for '{platform}'.");
     }
 
     public ScenePackCatalogEntry GetRequiredAvailablePack(string packId, string platform)
@@ -22,11 +22,11 @@ public sealed record ScenePackCatalog(
         ArgumentException.ThrowIfNullOrWhiteSpace(platform);
         var pack = Packs.SingleOrDefault(item =>
             string.Equals(item.PackId, packId, StringComparison.OrdinalIgnoreCase)) ??
-            throw new InvalidDataException($"Scene pack '{packId}' is not present in the catalog.");
+            throw new InvalidDataException($"Scene library '{packId}' is not present in the catalog.");
         if (!pack.Available)
-            throw new InvalidDataException($"Scene pack '{pack.DisplayName}' is not available for download.");
+            throw new InvalidDataException($"Scene library '{pack.DisplayName}' is not available for download.");
         if (!pack.SupportedPlatforms.Contains(platform, StringComparer.OrdinalIgnoreCase))
-            throw new InvalidDataException($"Scene pack '{pack.DisplayName}' does not support '{platform}'.");
+            throw new InvalidDataException($"Scene library '{pack.DisplayName}' does not support '{platform}'.");
         return pack;
     }
 }

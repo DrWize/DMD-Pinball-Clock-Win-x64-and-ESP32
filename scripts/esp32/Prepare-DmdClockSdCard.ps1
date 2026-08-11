@@ -1,4 +1,4 @@
-[CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
+[CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
 param(
     [Parameter(Mandatory, Position = 0, ParameterSetName = 'Card')]
     [ValidatePattern('^[A-Za-z]:?$')]
@@ -6,6 +6,9 @@ param(
 
     [Parameter(Mandatory, ParameterSetName = 'Test', DontShow)]
     [string]$TestRoot,
+
+    [ValidateSet('Original', 'DmdLarge')]
+    [string]$Library = 'DmdLarge',
 
     [string]$SourceDirectory,
 
@@ -20,8 +23,9 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $cardTemplateRoot = Join-Path $projectRoot 'firmware\dmdclock-esp32\sdcard\dmd'
 $metadataPath = Join-Path $projectRoot 'scenes\scene-metadata.json'
+$catalogPath = Join-Path $projectRoot 'scenes\catalog.json'
 $toolsProject = Join-Path $projectRoot 'tools\DmdClock.Tools\DmdClock.Tools.csproj'
-$downloadUri = 'https://github.com/sigmafx/DotClk-Resources/archive/refs/heads/master.zip'
+$preparationGuide = 'https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md'
 $minimumSafetyBytes = 64MB
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) (
     'DmdClockSdCard-' + [Guid]::NewGuid().ToString('N'))
@@ -49,6 +53,23 @@ function Assert-PathBelowRoot {
     }
 
     return $fullPath
+}
+
+function Get-Sha256 {
+    param([Parameter(Mandatory)][string]$Path)
+
+    # Use the framework directly because Windows PowerShell 5.1 propagates the
+    # caller's WhatIf preference into the provider used by Get-FileHash.
+    $stream = [IO.File]::OpenRead([IO.Path]::GetFullPath($Path))
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $algorithm.ComputeHash($stream)
+        return ([BitConverter]::ToString($hash)).Replace('-', '')
+    }
+    finally {
+        $algorithm.Dispose()
+        $stream.Dispose()
+    }
 }
 
 function Get-CardTarget {
@@ -178,7 +199,47 @@ function Resolve-SceneSource {
     return (Resolve-Path -LiteralPath $candidate).Path
 }
 
+function Get-LibraryDefinition {
+    if (-not (Test-Path -LiteralPath $catalogPath -PathType Leaf)) {
+        throw "Shared scene catalog not found: $catalogPath"
+    }
+
+    $catalog = Get-Content -LiteralPath $catalogPath -Raw | ConvertFrom-Json
+    if ([int]$catalog.schemaVersion -ne 1) {
+        throw "Unsupported shared scene catalog schema '$($catalog.schemaVersion)'."
+    }
+
+    $packId = if ($Library -eq 'Original') { 'dotclk-original' } else { 'drwize-complete' }
+    $matches = @($catalog.packs | Where-Object { [string]$_.packId -eq $packId })
+    if ($matches.Count -ne 1) {
+        throw "The shared scene catalog must contain exactly one '$packId' entry."
+    }
+
+    $entry = $matches[0]
+    if (-not [bool]$entry.available -or
+        @($entry.supportedPlatforms) -notcontains 'esp32-s3' -or
+        [string]$entry.downloadUrl -notmatch '^https://' -or
+        [string]$entry.archiveSha256 -notmatch '^[0-9a-fA-F]{64}$' -or
+        [long]$entry.downloadBytes -le 0 -or
+        [int]$entry.sceneCount -le 0) {
+        throw "The '$packId' catalog entry is not a valid ESP32 scene-library download."
+    }
+
+    return [pscustomobject]@{
+        PackId = [string]$entry.packId
+        DisplayName = [string]$entry.displayName
+        Version = [string]$entry.version
+        DownloadUrl = [string]$entry.downloadUrl
+        DownloadBytes = [long]$entry.downloadBytes
+        ArchiveSha256 = ([string]$entry.archiveSha256).ToUpperInvariant()
+        SceneCount = [int]$entry.sceneCount
+        SourceRevision = [string]$entry.sourceRevision
+    }
+}
+
 function Get-SceneSource {
+    param([Parameter(Mandatory)]$Definition)
+
     if (-not [string]::IsNullOrWhiteSpace($SourceDirectory)) {
         return [pscustomobject]@{
             Scenes = Resolve-SceneSource $SourceDirectory
@@ -189,31 +250,52 @@ function Get-SceneSource {
 
     $cacheRoot = Join-Path (
         [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
-    ) 'DmdClock\cache'
-    $cacheArchive = Join-Path $cacheRoot 'DotClk-Resources-master.zip'
+    ) 'DmdClock\cache\scene-libraries'
+    $safeVersion = $Definition.Version -replace '[^0-9A-Za-z._-]', '_'
+    $cacheArchive = Join-Path $cacheRoot "$($Definition.PackId)-$safeVersion.zip"
     $archivePath = $cacheArchive
+    $cacheValid = $false
 
-    if ($RefreshSource -or -not (Test-Path -LiteralPath $cacheArchive -PathType Leaf)) {
-        $downloadPath = Join-Path $temporaryRoot 'DotClk-Resources-master.zip'
-        Write-Host "Downloading the original DotClk scene archive..."
-        Invoke-WebRequest -Uri $downloadUri -OutFile $downloadPath
-        if ((Get-Item -LiteralPath $downloadPath).Length -eq 0) {
-            throw 'The downloaded DotClk archive is empty.'
+    if (Test-Path -LiteralPath $cacheArchive -PathType Leaf) {
+        $cachedItem = Get-Item -LiteralPath $cacheArchive
+        $cachedHash = Get-Sha256 $cacheArchive
+        $cacheValid = $cachedItem.Length -eq $Definition.DownloadBytes -and
+            $cachedHash -eq $Definition.ArchiveSha256
+        if (-not $cacheValid) {
+            Write-Warning "Ignoring an invalid cached archive: $cacheArchive"
+        }
+    }
+
+    if ($RefreshSource -or -not $cacheValid) {
+        $downloadPath = Join-Path $temporaryRoot "$($Definition.PackId)-download.zip"
+        Write-Host "Downloading $($Definition.DisplayName) v$($Definition.Version)..."
+        Invoke-WebRequest -Uri $Definition.DownloadUrl -OutFile $downloadPath
+        $downloadItem = Get-Item -LiteralPath $downloadPath
+        $downloadHash = Get-Sha256 $downloadPath
+        if ($downloadItem.Length -ne $Definition.DownloadBytes) {
+            throw (
+                "Downloaded archive size mismatch. Expected $($Definition.DownloadBytes) " +
+                "bytes; received $($downloadItem.Length).")
+        }
+        if ($downloadHash -ne $Definition.ArchiveSha256) {
+            throw (
+                "Downloaded archive SHA-256 mismatch. Expected " +
+                "$($Definition.ArchiveSha256); received $downloadHash.")
         }
 
         $archivePath = $downloadPath
         if (-not $WhatIfPreference -and
-            $PSCmdlet.ShouldProcess($cacheArchive, 'Cache the downloaded DotClk scene archive')) {
+            $PSCmdlet.ShouldProcess($cacheArchive, 'Cache the verified scene-library archive')) {
             [IO.Directory]::CreateDirectory($cacheRoot) | Out-Null
             $cacheTemporary = Join-Path $cacheRoot (
-                '.DotClk-Resources-' + [Guid]::NewGuid().ToString('N') + '.tmp')
+                '.' + $Definition.PackId + '-' + [Guid]::NewGuid().ToString('N') + '.tmp')
             Copy-Item -LiteralPath $downloadPath -Destination $cacheTemporary
             Move-Item -LiteralPath $cacheTemporary -Destination $cacheArchive -Force
             $archivePath = $cacheArchive
         }
     }
     else {
-        Write-Host "Using cached DotClk scene archive: $cacheArchive"
+        Write-Host "Using verified cached archive: $cacheArchive"
     }
 
     $expandedRoot = Join-Path $temporaryRoot 'source'
@@ -222,13 +304,13 @@ function Get-SceneSource {
         Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'Scenes') } |
         Select-Object -First 1
     if ($null -eq $resourceRoot) {
-        throw 'The DotClk archive does not contain the expected Scenes directory.'
+        throw 'The downloaded archive does not contain the expected Scenes directory.'
     }
 
     return [pscustomobject]@{
         Scenes = Resolve-SceneSource $resourceRoot.FullName
-        ArchiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash
-        Source = $downloadUri
+        ArchiveHash = Get-Sha256 $archivePath
+        Source = $Definition.DownloadUrl
     }
 }
 
@@ -263,7 +345,7 @@ function Get-ManagedFile {
         RelativeTarget = $RelativeTarget.Replace('/', '\')
         Category = $Category
         Length = $item.Length
-        Hash = (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash
+        Hash = Get-Sha256 $item.FullName
     }
 }
 
@@ -285,7 +367,7 @@ function Install-FileAtomically {
 
     try {
         Copy-Item -LiteralPath $File.SourcePath -Destination $temporaryPath
-        $copiedHash = (Get-FileHash -LiteralPath $temporaryPath -Algorithm SHA256).Hash
+        $copiedHash = Get-Sha256 $temporaryPath
         if ($copiedHash -ne $File.Hash) {
             throw "Hash verification failed while staging $($File.RelativeTarget)"
         }
@@ -298,6 +380,48 @@ function Install-FileAtomically {
     }
 }
 
+function Get-PreviouslyManagedScenePaths {
+    param([Parameter(Mandatory)][string]$CardRoot)
+
+    $candidateManifests = @(
+        @{ Path = 'dmd\config\scene-library-manifest.json'; Prefix = '' },
+        @{ Path = 'dmd\config\dotclk-scenes-manifest.json'; Prefix = '' },
+        @{ Path = 'dmd\scenes\scene-pack-content.json'; Prefix = 'Scenes/' }
+    )
+    foreach ($candidate in $candidateManifests) {
+        $path = Join-Path $CardRoot $candidate.Path
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            continue
+        }
+
+        try {
+            $manifest = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+            $paths = [Collections.Generic.HashSet[string]]::new(
+                [StringComparer]::OrdinalIgnoreCase)
+            foreach ($entry in @($manifest.files)) {
+                $relative = [string]$entry.path
+                if ($candidate.Prefix -and
+                    $relative.StartsWith($candidate.Prefix, [StringComparison]::OrdinalIgnoreCase)) {
+                    $relative = $relative.Substring($candidate.Prefix.Length)
+                }
+                if ($relative -and $relative -notmatch '(^|/)\.\.(/|$)' -and
+                    $relative -match '\.scn$') {
+                    [void]$paths.Add($relative.Replace('\', '/'))
+                }
+            }
+            if ($paths.Count -gt 0) {
+                return $paths
+            }
+        }
+        catch {
+            Write-Warning "Ignoring unreadable previous library manifest '$path'."
+        }
+    }
+
+    return [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::OrdinalIgnoreCase)
+}
+
 [IO.Directory]::CreateDirectory($temporaryRoot) | Out-Null
 try {
     if (-not (Test-Path -LiteralPath $cardTemplateRoot -PathType Container)) {
@@ -307,15 +431,18 @@ try {
         throw "Scene metadata not found: $metadataPath"
     }
 
+    $definition = Get-LibraryDefinition
     $target = Get-CardTarget
+    Write-Host "Library: $($definition.DisplayName) v$($definition.Version) ($($definition.SceneCount) scenes)"
     Write-Host "Target: $($target.Root)"
+    Write-Host "Instructions: $preparationGuide"
     if (-not $target.IsTest) {
         Write-Host (
             "Volume: FAT32, $($target.Volume.DriveType), " +
             "$([Math]::Round($target.Volume.Size / 1GB, 2)) GiB")
     }
 
-    $source = Get-SceneSource
+    $source = Get-SceneSource -Definition $definition
     Test-SceneLibrary $source.Scenes
 
     $managed = [Collections.Generic.List[object]]::new()
@@ -323,6 +450,11 @@ try {
     $sourceRoot = Get-NormalizedRoot $source.Scenes
     $sceneFiles = Get-ChildItem -LiteralPath $source.Scenes -File -Filter '*.scn' -Recurse |
         Sort-Object FullName
+    if ($sceneFiles.Count -ne $definition.SceneCount) {
+        throw (
+            "Scene count mismatch for $($definition.DisplayName). Expected " +
+            "$($definition.SceneCount); found $($sceneFiles.Count).")
+    }
     foreach ($sceneFile in $sceneFiles) {
         $relative = $sceneFile.FullName.Substring($sourceRoot.Length).Replace('\', '/')
         $managedFile = Get-ManagedFile `
@@ -337,8 +469,12 @@ try {
         })
     }
 
+    $sourceMetadataPath = Join-Path $source.Scenes 'scene-metadata.json'
+    if (-not (Test-Path -LiteralPath $sourceMetadataPath -PathType Leaf)) {
+        $sourceMetadataPath = $metadataPath
+    }
     $managed.Add((Get-ManagedFile `
-        -SourcePath $metadataPath `
+        -SourcePath $sourceMetadataPath `
         -RelativeTarget 'dmd/scenes/scene-metadata.json' `
         -Category Metadata))
     foreach ($templateName in @('manifest.json', 'README.md')) {
@@ -349,14 +485,18 @@ try {
     }
 
     $contentManifest = [ordered]@{
-        schema = 'dmdclock-dotclk-scenes'
+        schema = 'dmdclock-scene-library'
         version = 1
+        packId = $definition.PackId
+        displayName = $definition.DisplayName
+        libraryVersion = $definition.Version
+        sourceRevision = $definition.SourceRevision
         source = $source.Source
         sourceArchiveSha256 = $source.ArchiveHash
         fileCount = $sceneManifestEntries.Count
         files = $sceneManifestEntries
     }
-    $manifestPath = Join-Path $temporaryRoot 'dotclk-scenes-manifest.json'
+    $manifestPath = Join-Path $temporaryRoot 'scene-library-manifest.json'
     $manifestJson = $contentManifest | ConvertTo-Json -Depth 6
     [IO.File]::WriteAllText(
         $manifestPath,
@@ -364,7 +504,23 @@ try {
         [Text.UTF8Encoding]::new($false))
     $managed.Add((Get-ManagedFile `
         -SourcePath $manifestPath `
-        -RelativeTarget 'dmd/config/dotclk-scenes-manifest.json' `
+        -RelativeTarget 'dmd/config/scene-library-manifest.json' `
+        -Category Manifest))
+
+    $installedLibrary = [ordered]@{
+        packId = $definition.PackId
+        displayName = $definition.DisplayName
+        version = $definition.Version
+        sceneCount = $definition.SceneCount
+    }
+    $installedLibraryPath = Join-Path $temporaryRoot 'scene-library-installed.json'
+    [IO.File]::WriteAllText(
+        $installedLibraryPath,
+        (($installedLibrary | ConvertTo-Json -Compress) + [Environment]::NewLine),
+        [Text.UTF8Encoding]::new($false))
+    $managed.Add((Get-ManagedFile `
+        -SourcePath $installedLibraryPath `
+        -RelativeTarget 'dmd/config/scene-pack-installed.json' `
         -Category Manifest))
 
     $directories = @(
@@ -384,6 +540,7 @@ try {
         Added = 0
         Repaired = 0
         Updated = 0
+        Removed = 0
         Preserved = 0
     }
     $copyBytes = [long]0
@@ -400,7 +557,7 @@ try {
 
         $destinationItem = Get-Item -LiteralPath $destination
         $matches = $destinationItem.Length -eq $file.Length -and
-            (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -eq $file.Hash
+            (Get-Sha256 $destination) -eq $file.Hash
         if ($matches) {
             $counts.Unchanged++
         }
@@ -419,6 +576,22 @@ try {
     foreach ($file in $managed | Where-Object Category -eq 'Scene') {
         [void]$managedScenePaths.Add($file.RelativeTarget.Replace('\', '/'))
     }
+    $previousManagedPaths = Get-PreviouslyManagedScenePaths -CardRoot $target.Root
+    $obsoleteManagedFiles = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::OrdinalIgnoreCase)
+    foreach ($relative in $previousManagedPaths) {
+        $managedRelative = "dmd/scenes/$relative"
+        if (-not $managedScenePaths.Contains($managedRelative)) {
+            $obsoletePath = Assert-PathBelowRoot `
+                -Path (Join-Path $target.Root $managedRelative) `
+                -Root $target.Root `
+                -Description "Previously managed scene '$relative'"
+            if (Test-Path -LiteralPath $obsoletePath -PathType Leaf) {
+                [void]$obsoleteManagedFiles.Add($obsoletePath)
+                $counts.Removed++
+            }
+        }
+    }
     $targetScenes = Join-Path $target.Root 'dmd\scenes'
     if (Test-Path -LiteralPath $targetScenes -PathType Container) {
         $targetRootNormalized = Get-NormalizedRoot $target.Root
@@ -426,6 +599,7 @@ try {
             $relativeExisting = $existing.FullName.Substring(
                 $targetRootNormalized.Length).Replace('\', '/')
             if ($relativeExisting -ne 'dmd/scenes/scene-metadata.json' -and
+                -not $obsoleteManagedFiles.Contains($existing.FullName) -and
                 -not $managedScenePaths.Contains($relativeExisting)) {
                 $counts.Preserved++
             }
@@ -448,10 +622,11 @@ try {
     Write-Host "  Added:     $($counts.Added)"
     Write-Host "  Repaired:  $($counts.Repaired)"
     Write-Host "  Updated:   $($counts.Updated)"
+    Write-Host "  Removed:   $($counts.Removed)"
     Write-Host "  Preserved: $($counts.Preserved)"
     Write-Host "  Write:     $([Math]::Round($copyBytes / 1MB, 1)) MiB"
 
-    $changeCount = $counts.Added + $counts.Repaired + $counts.Updated
+    $changeCount = $counts.Added + $counts.Repaired + $counts.Updated + $counts.Removed
     if ($changeCount -eq 0) {
         Write-Host 'The card is already up to date; no files were written.'
         return
@@ -459,7 +634,7 @@ try {
 
     if (-not $PSCmdlet.ShouldProcess(
         $target.Root,
-        "Synchronize $($sceneFiles.Count) DotClk scenes and the DMDClock card layout")) {
+        "Synchronize $($sceneFiles.Count) scenes for $($definition.DisplayName) and the DMDClock card layout")) {
         return
     }
 
@@ -470,12 +645,12 @@ try {
             -Description "Directory '$directory'"
         [IO.Directory]::CreateDirectory($directoryPath) | Out-Null
     }
-    foreach ($file in $managed) {
+    foreach ($file in $managed | Where-Object Category -ne 'Manifest') {
         $destination = Join-Path $target.Root $file.RelativeTarget
         if (Test-Path -LiteralPath $destination -PathType Leaf) {
             $destinationItem = Get-Item -LiteralPath $destination
             if ($destinationItem.Length -eq $file.Length -and
-                (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -eq $file.Hash) {
+                (Get-Sha256 $destination) -eq $file.Hash) {
                 continue
             }
         }
@@ -483,11 +658,32 @@ try {
         Install-FileAtomically -File $file -CardRoot $target.Root
     }
 
+    foreach ($obsoletePath in $obsoleteManagedFiles) {
+        Remove-Item -LiteralPath $obsoletePath -Force
+    }
+    foreach ($file in $managed | Where-Object Category -eq 'Manifest') {
+        $destination = Join-Path $target.Root $file.RelativeTarget
+        if (Test-Path -LiteralPath $destination -PathType Leaf) {
+            $destinationItem = Get-Item -LiteralPath $destination
+            if ($destinationItem.Length -eq $file.Length -and
+                (Get-Sha256 $destination) -eq $file.Hash) {
+                continue
+            }
+        }
+
+        Install-FileAtomically -File $file -CardRoot $target.Root
+    }
+    $legacyManifest = Join-Path $target.Root 'dmd\config\dotclk-scenes-manifest.json'
+    if (Test-Path -LiteralPath $legacyManifest -PathType Leaf) {
+        Remove-Item -LiteralPath $legacyManifest -Force
+    }
+
     Write-Host ''
     Write-Host (
         "SD card preparation complete: added $($counts.Added), " +
         "repaired $($counts.Repaired), updated $($counts.Updated), " +
-        "unchanged $($counts.Unchanged), preserved $($counts.Preserved).")
+        "removed $($counts.Removed), unchanged $($counts.Unchanged), " +
+        "preserved $($counts.Preserved).")
 }
 finally {
     $temporaryBase = Get-NormalizedRoot ([IO.Path]::GetTempPath())

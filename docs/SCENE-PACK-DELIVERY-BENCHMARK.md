@@ -1,8 +1,8 @@
-# ESP32 scene-pack delivery benchmark
+# ESP32 scene-library delivery benchmark
 
 This benchmark compares the current single-ZIP delivery with downloading every
-scene as a separate HTTPS request. It uses the preferred **Original
-DotCLK-Orig** pack at revision `11211af`, containing 2,324 scenes.
+scene as a separate HTTPS request. It uses **Original DotCLK-Orig** at revision
+`11211af`, containing 2,324 scenes; DMD-Large became preferred afterward.
 
 ## Result
 

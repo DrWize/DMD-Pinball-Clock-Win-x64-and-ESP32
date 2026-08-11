@@ -16,19 +16,19 @@ keeping timing and masks authoritative in each SCN file.
 
 ## Shared download catalog
 
-`catalog.json` is the single scene-pack discovery document for Windows x64,
+`catalog.json` is the single scene-library discovery document for Windows x64,
 macOS ARM64, and ESP32-S3. Its JSON Schema is
 `scene-pack-catalog.schema.json`. Available archives must use HTTPS, a pinned
 source revision, an exact byte size, and SHA-256. An unavailable pack must keep
 its download URL and checksum null.
 
-The preferred **Original DotCLK-Orig** entry (2,324 scenes) remains hosted by its
-official `sigmafx` source. **DMD-Large** (2,416 scenes, including every original
-scene) is hosted as the versioned GitHub Release
+The selectable **Original DotCLK-Orig** entry (2,324 scenes) remains hosted by its
+official `sigmafx` source. Preferred **DMD-Large** (2,416 scenes, including every
+original scene) is hosted as the versioned GitHub Release
 `scene-pack-v2026.08.10`, with its exact size and SHA-256 recorded in the
 catalog. Scene ZIPs remain release assets instead of Git history.
 
 The Avalonia downloader used by Windows and macOS installs the choices in
-separate `DotCLK-Orig` and `DMD-Large` managed directories. The ESP32 web page
-uses the same two catalog IDs through `/api/scene-pack`, stages and verifies the
-selected archive on the TF card, and keeps custom scenes when switching packs.
+separate `DotCLK-Orig` and `DMD-Large` managed directories. The Windows TF-card
+preparation script uses the same catalog IDs, stages and verifies the selected
+archive, and keeps custom scenes when switching libraries.

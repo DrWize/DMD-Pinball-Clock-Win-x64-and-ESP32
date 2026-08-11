@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scenes/scene-pack-catalog.schema.json",
-  "title": "DMDClock scene-pack catalog",
+  "title": "DMDClock scene-library catalog",
   "type": "object",
   "additionalProperties": false,
   "required": [

@@ -5,10 +5,10 @@
     {
       "packId": "dotclk-original",
       "displayName": "Original DotCLK-Orig",
-      "description": "Preferred original 2,324-scene collection downloaded from the official sigmafx repository.",
+      "description": "Original 2,324-scene collection downloaded from the official sigmafx repository.",
       "version": "11211af",
       "managedDirectory": "DotCLK-Orig",
-      "preferred": true,
+      "preferred": false,
       "includesPackIds": [],
       "available": true,
       "distributionStatus": "official-external-source",
@@ -30,10 +30,10 @@
     {
       "packId": "drwize-complete",
       "displayName": "DMD-Large",
-      "description": "The larger validated 2,416-scene collection; it includes every Original DotCLK-Orig scene plus 92 additional scenes.",
+      "description": "Preferred larger 2,416-scene collection; it includes every Original DotCLK-Orig scene plus 92 additional scenes.",
       "version": "2026.08.10",
       "managedDirectory": "DMD-Large",
-      "preferred": false,
+      "preferred": true,
       "includesPackIds": [
         "dotclk-original"
       ],

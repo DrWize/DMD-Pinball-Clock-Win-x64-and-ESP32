@@ -18,10 +18,13 @@ compiler on the global `PATH`.
 .\scripts\esp32\Build-WaveshareExample.ps1 -Example SD
 
 # Validate and preview preparation of an already-formatted FAT32 card.
-.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F -WhatIf
+.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F -Library Original -WhatIf
 
-# Download, validate, and idempotently install the preferred Original DotCLK-Orig set.
-.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F
+# Download, validate, and idempotently install Original DotCLK-Orig.
+.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F -Library Original
+
+# Or prepare the larger DMD-Large library.
+.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F -Library DmdLarge
 
 # Run any idf.py operation against an explicit project.
 .\scripts\esp32\Invoke-Idf.ps1 -ProjectPath <path> build
@@ -86,11 +89,11 @@ Production firmware indexes every flat `.scn` file in `/dmd/scenes` (up to
 playback logging is controlled from the web remote and writes the bounded
 `/dmd/logs/playback.log` plus one rotated previous file.
 
-The ESP32 web remote offers **Original DotCLK-Orig** (preferred, 2,324 scenes)
-and **DMD-Large** (2,416 scenes). Install, update, and repair validate the shared
-catalog, byte size, SHA-256, and every SCN before atomic activation. A managed
-scene list prevents files from the previously selected pack from being treated
-as custom scenes when switching packs.
+`Prepare-DmdClockSdCard.ps1` defaults to preferred **DMD-Large** (2,416 scenes);
+**Original DotCLK-Orig** (2,324 scenes) remains selectable. Preparation validates
+the shared catalog, byte size, SHA-256, and every SCN. A managed scene list
+prevents files from the previously selected library from being treated as custom
+when switching libraries.
 
 `Measure-ScenePackDelivery.ps1` records the real ZIP phases from a running QEMU
 profile or compares the revision-pinned ZIP with sequential downloads of every

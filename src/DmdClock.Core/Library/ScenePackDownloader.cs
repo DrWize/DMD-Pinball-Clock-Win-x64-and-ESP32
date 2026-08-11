@@ -34,10 +34,10 @@ public sealed class ScenePackDownloader
         var source = new ScenePackCatalogEntry(
             "dotclk-original",
             "Original DotCLK-Orig",
-            "Preferred original 2,324-scene collection downloaded from the official sigmafx repository.",
+            "Original 2,324-scene collection downloaded from the official sigmafx repository.",
             "11211af",
             "DotCLK-Orig",
-            true,
+            false,
             [],
             true,
             "official-external-source",
@@ -68,7 +68,7 @@ public sealed class ScenePackDownloader
         if (!pack.Available || !Uri.TryCreate(pack.DownloadUrl, UriKind.Absolute, out var sourceUri) ||
             sourceUri.Scheme != Uri.UriSchemeHttps || pack.DownloadBytes is not > 0 ||
             pack.ArchiveSha256?.Length != 64)
-            throw new InvalidDataException("The selected scene pack does not provide a verified HTTPS archive.");
+            throw new InvalidDataException("The selected scene library does not provide a verified HTTPS archive.");
 
         var temporaryArchive = Path.Combine(
             Path.GetTempPath(), $"dmdclock-scenes-{Guid.NewGuid():N}.zip");

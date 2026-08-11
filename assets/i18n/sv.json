@@ -10,7 +10,7 @@
   "clock": "Klocka", "showSeconds": "Visa sekunder", "timeFormat": "Tidsformat", "hour24": "24-timmars", "hour12": "12-timmars (FM/EM)", "font": "Typsnitt", "builtInFont": "Inbyggd 5×7",
   "date": "Datum", "dateFormat": "Datumformat", "dateIso": "ÅÅÅÅ-MM-DD (ISO)", "dateEuropean": "DD/MM/ÅÅÅÅ", "dateUs": "MM/DD/ÅÅÅÅ", "dateDots": "DD.MM.ÅÅÅÅ",
   "startupLoading": "Laddar animationer…", "startupLoaded": "{0:N0} animationer laddade", "startupNoAnimations": "Inga animationer hittades — högerklicka för att ladda ner scener",
-  "downloadScenesTitle": "Ladda ner scener", "downloadScenesDescription": "Välj Original DotCLK-Orig (rekommenderad) eller DMD-Large. Varje verifierat paket installeras i en separat hanterad mapp och kan uppdateras oberoende.", "viewSceneSource": "Visa vald källa", "download": "Ladda ner valt paket", "scenesInstalled": "{0:N0} scener installerade",
+  "downloadScenesTitle": "Ladda ner scener", "downloadScenesDescription": "Välj DMD-Large (rekommenderad) eller Original DotCLK-Orig. Varje verifierat bibliotek installeras i en separat hanterad mapp och kan uppdateras oberoende.", "viewSceneSource": "Visa vald källa", "download": "Ladda ner valt bibliotek", "scenesInstalled": "{0:N0} scener installerade",
   "sceneDownloadConnecting": "Läser in den delade scenkatalogen…", "scenePackReady": "Välj ett paket och ladda sedan ner det.", "sceneDownloading": "Laddar ner scener… {0}", "sceneDownloadingPercent": "Laddar ner scener… {0}% ({1})", "sceneDownloadFailed": "Nedladdningen misslyckades: {0}", "sceneDownloadCancelling": "Avbryter…", "sceneSourceOpenFailed": "Kunde inte öppna källsidan: {0}",
   "language": "Språk", "english": "Engelska", "swedish": "Svenska", "help": "Hjälp – Alien Tech på GitHub", "exit": "Avsluta"
 }

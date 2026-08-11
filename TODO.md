@@ -23,6 +23,31 @@ Windows application is release-ready.
 
 ## Current baseline
 
+### Tomorrow — 2026-08-12 repository integration and cleanup
+
+- [x] For the next release, make **DMD-Large** the preferred/default scene library
+      on Windows, macOS, and ESP32 while keeping **Original DotCLK-Orig** as an
+      explicit selectable alternative; update the shared and bundled catalogs,
+      UI labels, tests, screenshots, and release validation together.
+- [ ] Make the bundled font choices consistent across the next Windows, macOS,
+      and ESP32 release. Windows and macOS must retain the built-in 5x7 fallback,
+      embedded ALTERN8, FISHY, TREK, and TWILIGHT DotClk fonts, and bundled Inter
+      TTF; add package assertions that verify every font in both release artifacts.
+      ESP32 currently has only the built-in 5x7 renderer: convert and package the
+      four DotClk fonts as generated firmware assets, add clock/date font selection
+      and persistence to the web interface, preserve the built-in fallback, and
+      verify every choice in both QEMU profiles and on the original Waveshare 7.
+- [ ] Preserve and separate the uncommitted work in `qemu-sd-settings-debug`;
+      do not discard or combine it with the scene-library release accidentally.
+- [ ] Integrate `c24ecb5` and `b86ed2e` into the protected default branch
+      (`master`, not `main`) through the approved review/merge workflow, rerun
+      release validation, and push the resulting branch state.
+- [ ] Confirm the version 1.4.1 Windows EXE/SCR, installer, macOS ARM64 package,
+      ESP32 package, manifests, and checksums all reference the integrated commit.
+- [ ] Remove only clean, fully merged feature branches and stale worktrees; audit
+      local and remote branch reachability before each deletion and retain any
+      branch containing unique or uncommitted work.
+
 Final user-facing release pass:
 
 - [x] Show a non-blocking latest-release notice in the normal Windows startup and
@@ -50,10 +75,10 @@ of translation fallback behavior, a fresh v1.3.0 build plus the manual Windows
 checklist. SmartScreen/antivirus reputation testing is intentionally skipped because
 this hobby release will not use a paid code-signing service.
 
-## Priority 0 — unified scene-pack downloads on every platform
+## Priority 0 — unified scene-library downloads on every platform
 
 Goal: Windows, macOS Apple Silicon, and ESP32 must present the same two explicit
-scene-pack choices from the shared catalog. DMD-Large includes the
+scene-library choices from the shared catalog. DMD-Large includes the
 Original DotCLK-Orig collection, so the UI must explain that users select one pack;
 they do not need to install both.
 
@@ -62,8 +87,9 @@ they do not need to install both.
 - [x] Keep stable catalog IDs for `dotclk-original` and `drwize-complete` and
       expose display name, description, version, scene count, compressed size,
       installed size, SHA-256, supported platforms, and download/manifest URLs.
-- [x] Present **Original DotCLK-Orig — 2,324 scenes (preferred)** and **DMD-Large —
-      2,416 scenes, includes Original DotCLK-Orig** consistently on every platform.
+- [x] Present **DMD-Large — 2,416 scenes, includes Original DotCLK-Orig
+      (preferred)** and **Original DotCLK-Orig — 2,324 scenes** consistently on
+      every platform.
 - [ ] Make unavailable or incompatible packs visible but disabled with a useful
       reason; never silently substitute one pack for the other.
 
@@ -71,8 +97,8 @@ they do not need to install both.
 
 - [x] Rename **Download DotClk scenes…** to **Download scenes…** in the shared
       Avalonia menu used by Windows and macOS.
-- [x] Add a two-pack selection dialog driven by the shared catalog, with
-      Original DotCLK-Orig recommended and the inclusion relationship clearly
+- [x] Add a two-library selection dialog driven by the shared catalog, with
+      DMD-Large recommended and the inclusion relationship clearly
       stated before download.
 - [x] Reuse the existing progress, cancellation, size/SHA validation, safe ZIP
       extraction, atomic installation, library selection, and rescan workflow for
@@ -80,24 +106,25 @@ they do not need to install both.
 - [x] Store the two packs in distinct managed library directories and prevent a
       second installation from creating duplicate or ambiguous library entries.
 
-### P0.3 — ESP32 web selector and API
+### P0.3 — Windows-prepared ESP32 TF card
 
-- [x] Replace the hard-coded `drwize-complete` firmware selection with a validated
-      catalog `packId` supplied to the scene-pack job.
-- [x] Add **Original DotCLK-Orig** and **DMD-Large** choices to the ESP32 web
-      interface, followed by the existing `Install`, `Update`, `Repair`, and
-      `Cancel` controls and live progress.
-- [x] Return the selected pack ID, display name, version, expected scene count,
-      and installed state through `/api/scene-pack`; reject unknown, unavailable,
-      or non-ESP32 packs.
-- [x] Preserve the current free-space checks, resumable HTTPS download, manifest
-      and SHA validation, staged extraction, custom-scene preservation, rollback,
-      atomic activation, and reboot-required behavior for either pack.
+- [x] Extend `Prepare-DmdClockSdCard.ps1` with explicit `Original` and `DmdLarge`
+      choices backed by the shared catalog, exact archive size/SHA-256 checks,
+      exact scene counts, SCN validation, and a verified local cache.
+- [x] Keep preparation idempotent: matching cards produce zero writes, damaged
+      managed files are repaired, switching libraries removes only obsolete
+      previously managed scenes, and unrelated/custom files remain untouched.
+- [x] Remove full-library download controls from the ESP32 web remote and replace
+      them with read-only installed-library status plus a link to the Windows
+      TF-card preparation article. Keep the existing API path only as an internal
+      compatibility surface for firmware 1.4.0.
+- [ ] On a physical FAT32 card, prepare and boot Original DotCLK-Orig and
+      DMD-Large, confirming exact 2,324/2,416 counts and a zero-write second run.
 
 ### P0.4 — tests and release acceptance
 
 - [x] Benchmark one ZIP download plus on-device extraction against sequential
-      single-file downloads for the same ESP32 scene pack. Run the ZIP path in
+      single-file downloads for the same ESP32 scene library. Run the ZIP path in
       QEMU, retain timestamped phase logs, and record elapsed time, transferred
       bytes, HTTPS request count, scene count, and output equivalence before
       choosing the production delivery method. The 2026-08-11 Original-pack test
@@ -119,6 +146,52 @@ they do not need to install both.
       exact scene count, and confirm recovery after an interrupted installation.
 - [ ] Do not mark Priority 0 complete until the published catalog and ZIP assets
       work from clean Windows, macOS ARM64, ESP32 QEMU, and physical ESP32 setups.
+
+### P0.5 — retain diagnosis of the retired device-side download path
+
+Hardware reproduction on 2026-08-11 used local firmware 1.4.0 on the original
+Waveshare ESP32-S3-Touch-LCD-7 (800x480, N16R8). Installing **DMD-Large** failed
+before the archive transfer began: `/api/scene-pack` reported
+`ESP_ERR_HTTP_CONNECT`, zero downloaded bytes, and 0/2,416 extracted scenes. The
+serial trace first validated a GitHub certificate, then reported SDMMC
+`0x101` (`ESP_ERR_NO_MEM`), followed by TLS public-key verification error
+`0x4290` (`MBEDTLS_ERR_RSA_PUBLIC_FAILED` plus `MBEDTLS_ERR_MPI_ALLOC_FAILED`).
+Both catalog URLs returned HTTP 200 from the workstation, making peak internal
+memory pressure during concurrent TLS, playback, and TF-card access the primary
+working diagnosis.
+
+- [ ] Add phase-boundary diagnostics for free/minimum internal heap, largest
+      internal allocation, free PSRAM, active scene/file handles, TLS buffers,
+      and SDMMC failures. Include API-visible timestamps for catalog fetch,
+      download, verification, extraction, activation, completion, and failure.
+- [ ] Quiesce scene playback and unrelated TF-card reads before opening an HTTPS
+      connection. Close the active SCN handle, release temporary playback/index
+      buffers, and render a RAM-resident installation/status screen until the
+      storage-intensive operation ends.
+- [ ] Reserve DMA-capable internal memory for SDMMC and TLS. Measure before and
+      after enabling eligible mbedTLS external-memory/PSRAM allocation, and tune
+      HTTP/TLS buffers only from recorded largest-block and low-watermark data.
+- [ ] Keep the single-ZIP delivery path: it was 75.71x faster, transferred 9.08x
+      fewer bytes, and used 2,323 fewer payload requests than per-file delivery
+      in the retained benchmark. Stream the archive directly to a TF-card staging
+      file through a small fixed buffer while calculating SHA-256 incrementally;
+      never hold the ZIP or a complete SCN in internal RAM.
+- [ ] Fully close the HTTP/TLS client and reclaim its buffers before archive
+      verification and extraction. Extract one entry at a time with bounded
+      buffers, preserve cancellation and resumability, and retain the previous
+      valid library plus unrelated custom SCNs until atomic activation succeeds.
+- [ ] Log the exact TLS/HTTP error from the primary catalog request before trying
+      the packaged fallback. Confirm that all client state is destroyed and heap
+      is recovered between attempts so the fallback cannot inherit peak pressure.
+- [ ] Consider a small number of versioned archive chunks only if the bounded
+      single-ZIP implementation still cannot meet the hardware memory/recovery
+      gates. Do not switch to 2,416 per-file HTTPS downloads as the default path.
+- [ ] On the physical original Waveshare 7, install both 2,324- and 2,416-scene
+      packs three consecutive times from clean and populated TF-card states.
+      Require zero `ESP_ERR_NO_MEM`/TLS allocation failures, exact final scene
+      counts and hashes, responsive web/display status, recorded phase durations
+      and heap low-watermarks, successful cancel/resume, power-loss rollback,
+      preservation of custom SCNs, and correct reboot-required behavior.
 
 ## End-user setup — no source code or SDK required
 
@@ -208,7 +281,7 @@ Animations are not included in either ZIP and must be obtained separately.
 Use any of these setups:
 
 - right-click DMDClock and choose **Download DotClk scenes…** to download the
-  original scene pack into `%LOCALAPPDATA%\DmdClock\Scenes\DotClk\`;
+  original scene library into `%LOCALAPPDATA%\DmdClock\Scenes\DotClk\`;
 - create a `scenes` folder beside `DmdClock.App.exe` and copy `.scn` files into it; or
 - press `Ctrl+Shift+O` and select an existing animation directory anywhere on the computer.
 
@@ -1000,7 +1073,7 @@ Detailed phases, commands, risks, and acceptance criteria:
 - [x] Publish the complete 2,416-scene cross-platform pack and expose its HTTPS
       URL, exact byte size, SHA-256, scene count, and ESP32-S3 compatibility in
       the shared schema-1 scene catalog.
-- [x] Add an ESP32 background scene-pack job with `Install`, `Update`, `Repair`,
+- [x] Add an ESP32 background scene-library job with `Install`, `Update`, `Repair`,
       progress/status APIs, cancellation, a single-operation lock, and clear
       browser feedback that never blocks the display or HTTP server task.
 - [x] Download the shared catalog and selected archive over certificate-verified
@@ -1109,7 +1182,7 @@ Completed items are retained here as the project history.
 - [x] Decide that SmartScreen and antivirus release testing is not a release gate;
       do not purchase signing, reputation, or third-party scanning services for
       this hobby project
-- [x] Add a safe in-app DotClk scene-pack downloader with progress, cancellation,
+- [x] Add a safe in-app DotClk scene-library downloader with progress, cancellation,
       atomic installation, AppData storage, automatic selection, and rescanning
 ### Next prioritized work — Priority 1 — play a selected SCN file
 

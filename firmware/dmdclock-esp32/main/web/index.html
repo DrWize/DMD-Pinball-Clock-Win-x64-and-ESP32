@@ -393,24 +393,10 @@
           <option value="30">30 seconds</option>
         </select>
       </div>
-      <p class="hint">Windows, macOS and ESP32 use the same versioned scene-pack catalog.</p>
-      <div class="row">
-        <label for="scenePackSelector">Scene pack<small>Original DotCLK-Orig is preferred. DMD-Large includes all 2,324 original scenes plus 92 additional scenes.</small></label>
-        <select id="scenePackSelector" style="width:min(260px,58vw)">
-          <option value="dotclk-original" selected>Original DotCLK-Orig · 2,324 (Preferred)</option>
-          <option value="drwize-complete">DMD-Large · 2,416</option>
-        </select>
-      </div>
-      <div class="actions">
-        <button id="installScenePack" type="button">Install selected pack</button>
-        <button id="updateScenePack" class="secondary" type="button">Update</button>
-        <button id="repairScenePack" class="secondary" type="button">Repair</button>
-        <button id="cancelScenePack" class="danger" type="button" disabled>Cancel</button>
-      </div>
-      <progress id="scenePackProgress" value="0" max="1" style="width:100%"></progress>
-      <p id="scenePackStatus" class="hint">Scene-pack installer ready.</p>
-      <p class="hint">The device downloads and verifies the shared ZIP on the TF card, preserves custom SCNs, keeps the previous library, and requests a reboot only after activation succeeds.</p>
-      <p><a href="https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scenes/catalog.json" target="_blank" rel="noopener noreferrer">Open shared scene catalog</a></p>
+      <h3>Scene library</h3>
+      <p class="hint">Prepare Original DotCLK-Orig or DMD-Large on a Windows PC, safely eject the FAT32 TF card, and insert it while this device is powered off.</p>
+      <p id="sceneLibraryStatus" class="hint">Checking the installed scene library…</p>
+      <p><a href="https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md" target="_blank" rel="noopener noreferrer">Open the Windows TF-card preparation guide</a></p>
     </section>
 
     <section class="panel">
@@ -1218,44 +1204,17 @@
         setTimeout(refresh,150);
       }catch(error){message(error.message,true)}
     }
-    async function refreshScenePack(){
+    async function refreshSceneLibrary(){
       try{
-        const status=await request("/api/scene-pack");
-        const total=Number(status.totalBytes)||Number(status.expectedScenes)||1;
-        const complete=Number(status.totalBytes)
-          ?Number(status.completedBytes)
-          :Number(status.extractedScenes);
-        $("scenePackProgress").max=Math.max(1,total);
-        $("scenePackProgress").value=Math.min(total,Math.max(0,complete));
-        if(status.running&&status.packId)$("scenePackSelector").value=status.packId;
+        const status=await request("/api/scene-library");
         const identity=status.displayName
           ?`${status.displayName}${status.version?` v${status.version}`:""}`
-          :"Scene pack";
-        $("scenePackStatus").textContent=
-          `${identity} · ${status.message}${status.expectedScenes?` · ${status.extractedScenes}/${status.expectedScenes} scenes`:""}${status.installed?" · Installed":""}`;
-        ["installScenePack","updateScenePack","repairScenePack"].forEach(id=>{$(id).disabled=status.running});
-        $("scenePackSelector").disabled=status.running;
-        $("cancelScenePack").disabled=!status.running||status.cancelRequested;
-        if(status.restartRequired){
-          $("scenePackStatus").textContent+=" · Use Reboot device below to load the new library.";
-        }
+          :"Scene library";
+        $("sceneLibraryStatus").textContent=status.installed
+          ?`${identity} · ${status.extractedScenes}/${status.expectedScenes} scenes · Installed`
+          :"No prepared scene library record was found. Use the Windows TF-card preparation guide.";
       }catch(error){
-        $("scenePackStatus").textContent=`Scene-pack status unavailable: ${error.message}`;
-      }
-    }
-    async function runScenePack(action){
-      try{
-        await request("/api/scene-pack",{
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({
-            action,
-            packId:action==="cancel"?undefined:$("scenePackSelector").value
-          })
-        });
-        await refreshScenePack();
-      }catch(error){
-        $("scenePackStatus").textContent=error.message;
+        $("sceneLibraryStatus").textContent=`Scene library status unavailable: ${error.message}`;
       }
     }
     $("brightness").addEventListener("input",()=>{$("brightnessValue").textContent=$("brightness").value});
@@ -1347,10 +1306,6 @@
     });
     $("sceneIndex").addEventListener("change",()=>selectScene(Number($("sceneIndex").value)));
     $("syncTime").addEventListener("click",()=>syncTime(false));
-    $("installScenePack").addEventListener("click",()=>runScenePack("install"));
-    $("updateScenePack").addEventListener("click",()=>runScenePack("update"));
-    $("repairScenePack").addEventListener("click",()=>runScenePack("repair"));
-    $("cancelScenePack").addEventListener("click",()=>runScenePack("cancel"));
     document.querySelectorAll("[data-action]").forEach(button=>{
       button.addEventListener("click",()=>{
         const action=button.dataset.action;
@@ -1461,8 +1416,8 @@
     $("save").addEventListener("click",saveSettings);
     refresh();
     setInterval(refresh,1000);
-    refreshScenePack();
-    setInterval(refreshScenePack,1000);
+    refreshSceneLibrary();
+    setInterval(refreshSceneLibrary,5000);
   </script>
 </body>
 </html>

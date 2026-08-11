@@ -1,11 +1,27 @@
 using System.Net;
 using System.Text;
+using DmdClock.App;
 using DmdClock.Core.Library;
 
 namespace DmdClock.Core.Tests.Library;
 
 public sealed class ScenePackCatalogClientTests
 {
+    [Fact]
+    public async Task PackagedApplication_EmbedsCompleteFallbackCatalog()
+    {
+        const string resourceName = "DmdClock.App.Assets.Scenes.catalog.json";
+        var assembly = typeof(SceneDownloadWindow).Assembly;
+        Assert.Contains(resourceName, assembly.GetManifestResourceNames());
+        await using var source = assembly.GetManifestResourceStream(resourceName);
+
+        Assert.NotNull(source);
+        var catalog = await ScenePackCatalogClient.ReadAsync(source);
+
+        Assert.Equal("DMD-Large", catalog.GetPreferredAvailablePack("windows-x64").DisplayName);
+        Assert.Equal("DMD-Large", catalog.GetRequiredAvailablePack("drwize-complete", "windows-x64").DisplayName);
+    }
+
     [Fact]
     public async Task RepositoryCatalog_MatchesRuntimeContract()
     {
@@ -21,13 +37,14 @@ public sealed class ScenePackCatalogClientTests
         Assert.Equal(2324, original.SceneCount);
         Assert.Equal("Original DotCLK-Orig", original.DisplayName);
         Assert.Equal("DotCLK-Orig", original.ManagedDirectory);
-        Assert.True(original.Preferred);
-        Assert.Equal(original, catalog.GetPreferredAvailablePack("windows-x64"));
+        Assert.False(original.Preferred);
         Assert.Equal(ScenePackDownloader.SourceUrl, original.DownloadUrl);
         Assert.Equal(ScenePackDownloader.SourceSha256, original.ArchiveSha256);
         var complete = catalog.GetRequiredAvailablePack("drwize-complete", "osx-arm64");
         Assert.Equal(2416, complete.SceneCount);
         Assert.Equal("DMD-Large", complete.DisplayName);
+        Assert.True(complete.Preferred);
+        Assert.Equal(complete, catalog.GetPreferredAvailablePack("windows-x64"));
         Assert.Contains("dotclk-original", complete.IncludesPackIds);
         Assert.Equal(17_506_516, complete.DownloadBytes);
         Assert.Equal(

@@ -32,10 +32,18 @@ public sealed class ScenePackCatalogClient
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         if (response.Content.Headers.ContentLength is > MaximumCatalogBytes)
-            throw new InvalidDataException("The scene-pack catalog exceeds the 1 MB safety limit.");
+            throw new InvalidDataException("The scene-library catalog exceeds the 1 MB safety limit.");
 
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken)
             .ConfigureAwait(false);
+        return await ReadAsync(source, cancellationToken).ConfigureAwait(false);
+    }
+
+    public static async Task<ScenePackCatalog> ReadAsync(
+        Stream source,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
         using var bounded = new MemoryStream();
         var buffer = new byte[81920];
         while (true)
@@ -43,13 +51,13 @@ public sealed class ScenePackCatalogClient
             var read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
             if (read == 0) break;
             if (bounded.Length + read > MaximumCatalogBytes)
-                throw new InvalidDataException("The scene-pack catalog exceeded the 1 MB safety limit.");
+                throw new InvalidDataException("The scene-library catalog exceeded the 1 MB safety limit.");
             await bounded.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
         }
         bounded.Position = 0;
         var catalog = await JsonSerializer.DeserializeAsync<ScenePackCatalog>(
             bounded, JsonOptions, cancellationToken).ConfigureAwait(false) ??
-            throw new InvalidDataException("The scene-pack catalog is empty.");
+            throw new InvalidDataException("The scene-library catalog is empty.");
         Validate(catalog);
         return catalog;
     }
@@ -58,14 +66,14 @@ public sealed class ScenePackCatalogClient
     {
         if (catalog.SchemaVersion != ScenePackCatalog.CurrentSchemaVersion)
             throw new InvalidDataException(
-                $"Unsupported scene-pack catalog schema {catalog.SchemaVersion}; expected {ScenePackCatalog.CurrentSchemaVersion}.");
+                $"Unsupported scene-library catalog schema {catalog.SchemaVersion}; expected {ScenePackCatalog.CurrentSchemaVersion}.");
         if (catalog.Packs is null || catalog.Packs.Count == 0)
-            throw new InvalidDataException("The scene-pack catalog does not contain any packs.");
+            throw new InvalidDataException("The scene-library catalog does not contain any libraries.");
         if (catalog.Packs.GroupBy(item => item.PackId, StringComparer.OrdinalIgnoreCase)
             .Any(group => group.Count() > 1))
-            throw new InvalidDataException("The scene-pack catalog contains duplicate pack IDs.");
+            throw new InvalidDataException("The scene-library catalog contains duplicate library IDs.");
         if (catalog.Packs.Count(item => item.Preferred && item.Available) != 1)
-            throw new InvalidDataException("The scene-pack catalog must contain exactly one preferred available pack.");
+            throw new InvalidDataException("The scene-library catalog must contain exactly one preferred available library.");
 
         foreach (var pack in catalog.Packs)
         {
@@ -85,7 +93,7 @@ public sealed class ScenePackCatalogClient
                 pack.SceneCount <= 0 ||
                 pack.SupportedPlatforms is null ||
                 pack.SupportedPlatforms.Count == 0)
-                throw new InvalidDataException($"Scene pack '{pack.PackId}' has invalid required fields.");
+                throw new InvalidDataException($"Scene library '{pack.PackId}' has invalid required fields.");
 
             if (pack.Available &&
                 (!IsHttps(pack.DownloadUrl) ||
@@ -95,20 +103,20 @@ public sealed class ScenePackCatalogClient
                  pack.ArchiveSha256?.Length != 64 ||
                  !pack.ArchiveSha256.All(Uri.IsHexDigit)))
                 throw new InvalidDataException(
-                    $"Available scene pack '{pack.PackId}' lacks a verified HTTPS archive.");
+                    $"Available scene library '{pack.PackId}' lacks a verified HTTPS archive.");
             if (!pack.Available &&
                 (pack.DownloadUrl is not null ||
                  pack.SourceRevision is not null ||
                  pack.DownloadBytes is not null ||
                  pack.ArchiveSha256 is not null))
                 throw new InvalidDataException(
-                    $"Unavailable scene pack '{pack.PackId}' must not expose archive metadata.");
+                    $"Unavailable scene library '{pack.PackId}' must not expose archive metadata.");
             if (pack.IncludesPackIds.Any(included =>
                     string.Equals(included, pack.PackId, StringComparison.OrdinalIgnoreCase) ||
                     !catalog.Packs.Any(candidate =>
                         string.Equals(candidate.PackId, included, StringComparison.OrdinalIgnoreCase))))
                 throw new InvalidDataException(
-                    $"Scene pack '{pack.PackId}' contains an invalid inclusion reference.");
+                    $"Scene library '{pack.PackId}' contains an invalid inclusion reference.");
         }
     }
 

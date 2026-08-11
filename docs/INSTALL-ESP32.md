@@ -22,7 +22,7 @@ RGB wiring, touch, or physical TF-card behavior.
 - the correct Waveshare board;
 - a data-capable USB cable connected to the port marked **UART**;
 - a FAT32 microSD/TF card with at least 256 MB free;
-- a Windows PC with PowerShell 7;
+- a Windows PC with Windows PowerShell 5.1 or PowerShell 7;
 - this repository and its workspace tools.
 
 The [latest release page][latest-release] is the canonical place for published
@@ -99,25 +99,42 @@ Do not erase the device during this cleanup flash.
 
 ## 3. Prepare the SD card
 
-Insert the FAT32 card into the PC and confirm its drive letter in File Explorer.
-The following example uses `J:`:
+Follow the complete [Windows TF-card preparation article](PREPARE-ESP32-SD-CARD.md)
+to identify and, when necessary, format the correct card safely. The preparation
+script does not format media.
+
+Insert the FAT32 card into the PC and confirm its drive letter, volume label, and
+capacity in File Explorer. The following examples use `J:`.
+
+Prepare preferred DMD-Large:
 
 ```powershell
-.\scripts\esp32\Prepare-DmdClockSdCard.ps1 J:
+.\scripts\esp32\Prepare-DmdClockSdCard.ps1 `
+  -DriveLetter J `
+  -Library DmdLarge
 ```
 
-The script verifies the target, downloads or reuses the original DotClk source,
-validates the SCN files, and creates:
+Prepare Original DotCLK-Orig instead:
+
+```powershell
+.\scripts\esp32\Prepare-DmdClockSdCard.ps1 `
+  -DriveLetter J `
+  -Library Original
+```
+
+The script verifies the target, downloads or reuses the selected version, checks
+the published size and SHA-256, validates every SCN, and creates:
 
 ```text
 J:\dmd\scenes\
-J:\dmd\config\scene-metadata.json
-J:\dmd\config\dotclk-scenes-manifest.json
+J:\dmd\config\scene-library-manifest.json
 ```
 
-It is idempotent: rerunning it repairs or refreshes DMDClock files without
-formatting the card or deleting unrelated files. Eject the card safely, insert it
-into the unpowered ESP32, and power the board again. Firmware creates
+It is idempotent: rerunning it reports matching files as unchanged and writes
+nothing. Switching libraries removes only files recorded as managed by the
+previous run. It never formats the card or deletes unrelated/custom SCNs. Eject
+the card safely, insert it into the unpowered ESP32, and power the board again.
+Firmware creates
 `J:\dmd\config\settings.json` after it mounts the card and mirrors every later web
 setting change to that file.
 
@@ -134,13 +151,11 @@ The device name is also displayed, for example `DMDClock-59D9`.
 
 ![DMDClock ESP32 web remote](screenshots/install/esp32-web-remote.png)
 
-To add scenes, choose **Original DotCLK-Orig** or **DMD-Large** in the web
-remote and select **Install selected pack**. After the download is verified,
-the ESP32 must unpack 2,324 or 2,416 individual scene files onto the TF card.
-This can take several minutes or longer on a slower card, and progress may move
-slowly during the unpacking stage. Keep the ESP32 powered, leave the TF card
-inserted, and wait until the web remote reports that installation is complete
-before rebooting or removing the card.
+To add or change the full scene library, power down the ESP32, remove the TF card,
+and use the [Windows TF-card preparation article](PREPARE-ESP32-SD-CARD.md).
+Windows and macOS keep their normal in-app **Download scenes…** workflow for
+desktop libraries. Full ESP32 library downloads are prepared on Windows to avoid
+competing for the device's display, TLS, and SDMMC memory.
 
 The remote checks GitHub once per page load and displays a link when a newer build
 exists. It never flashes firmware automatically.

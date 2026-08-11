@@ -26,7 +26,7 @@
 #include "lwip/sockets.h"
 
 static const char *TAG = "dmd_web";
-static const char *SCENE_PACK_CATALOG_URL =
+static const char *SCENE_LIBRARY_CATALOG_URL =
     "https://raw.githubusercontent.com/DrWize/"
     "DMD-Pinball-Clock-Win-x64-and-ESP32/master/scenes/catalog.json";
 static httpd_handle_t s_server;
@@ -608,8 +608,8 @@ static esp_err_t scenes_get(httpd_req_t *request)
     cJSON_AddNumberToObject(json, "sceneCount", dmd_scene_count());
     cJSON_AddStringToObject(
         json,
-        "scenePackCatalogUrl",
-        SCENE_PACK_CATALOG_URL);
+        "sceneLibraryCatalogUrl",
+        SCENE_LIBRARY_CATALOG_URL);
     cJSON *scenes = cJSON_AddArrayToObject(json, "scenes");
     for (uint16_t index = 0; index < dmd_scene_count(); index++) {
         dmd_scene_metadata_t metadata;
@@ -657,43 +657,6 @@ static esp_err_t scene_pack_get(httpd_req_t *request)
     cJSON_AddNumberToObject(json, "extractedScenes", status.extracted_scenes);
     cJSON_AddNumberToObject(json, "expectedScenes", status.expected_scenes);
     return send_json(request, json);
-}
-
-static esp_err_t scene_pack_post(httpd_req_t *request)
-{
-    cJSON *json = receive_json(request);
-    const cJSON *action = json == NULL ? NULL :
-        cJSON_GetObjectItemCaseSensitive(json, "action");
-    const cJSON *pack_id = json == NULL ? NULL :
-        cJSON_GetObjectItemCaseSensitive(json, "packId");
-    if (!cJSON_IsString(action)) {
-        cJSON_Delete(json);
-        return httpd_resp_send_err(
-            request, HTTPD_400_BAD_REQUEST,
-            "Expected install, update, repair, or cancel action");
-    }
-    bool cancel = !strcmp(action->valuestring, "cancel");
-    if (!cancel && !cJSON_IsString(pack_id)) {
-        cJSON_Delete(json);
-        return httpd_resp_send_err(
-            request, HTTPD_400_BAD_REQUEST,
-            "Expected packId dotclk-original or drwize-complete");
-    }
-    esp_err_t error = cancel
-        ? dmd_scene_pack_cancel()
-        : dmd_scene_pack_start(action->valuestring, pack_id->valuestring);
-    cJSON_Delete(json);
-    if (error != ESP_OK) {
-        return httpd_resp_send_err(
-            request,
-            error == ESP_ERR_INVALID_STATE || error == ESP_ERR_INVALID_ARG
-                ? HTTPD_400_BAD_REQUEST :
-                HTTPD_500_INTERNAL_SERVER_ERROR,
-            esp_err_to_name(error));
-    }
-    cJSON *response = cJSON_CreateObject();
-    cJSON_AddBoolToObject(response, "ok", true);
-    return send_json(request, response);
 }
 
 static void update_bool(cJSON *json, const char *name, bool *value)
@@ -1262,8 +1225,8 @@ esp_err_t dmd_web_start(void)
         {.uri = "/api-docs", .method = HTTP_GET, .handler = api_docs_get},
         {.uri = "/api/state", .method = HTTP_GET, .handler = state_get},
         {.uri = "/api/scenes", .method = HTTP_GET, .handler = scenes_get},
+        {.uri = "/api/scene-library", .method = HTTP_GET, .handler = scene_pack_get},
         {.uri = "/api/scene-pack", .method = HTTP_GET, .handler = scene_pack_get},
-        {.uri = "/api/scene-pack", .method = HTTP_POST, .handler = scene_pack_post},
         {.uri = "/api/settings", .method = HTTP_POST, .handler = settings_post},
         {.uri = "/api/time", .method = HTTP_POST, .handler = time_post},
         {.uri = "/api/action", .method = HTTP_POST, .handler = action_post},

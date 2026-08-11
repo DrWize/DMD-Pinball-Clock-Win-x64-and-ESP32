@@ -2,7 +2,7 @@
 
 DMDClock recreates the classic DotClk clock and animation display on Windows and
 the original 800x480 Waveshare ESP32-S3-Touch-LCD-7. Choose your platform below;
-no developer tools are needed for either user installation.
+the guides provide the supported installation and preparation workflows.
 
 > **Download and install:** [release page](docs/RELEASE.md) ·
 > [latest GitHub assets](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest)
@@ -40,7 +40,8 @@ The firmware currently targets only the original **Waveshare ESP32-S3-Touch-LCD-
 3. Run the doctor, then use the single installer/updater script:
    `.\scripts\esp32\Install-DmdClockEsp32.ps1`.
 4. Connect it to a 2.4 GHz Wi-Fi network and open the local web remote.
-5. Insert a FAT32 TF card, then install either scene pack from the web remote.
+5. Use the Windows preparation script to install either scene library on a FAT32
+   TF card, safely eject it, and insert it while the ESP32 is powered off.
 
 The [ESP32-S3 installation guide](docs/INSTALL-ESP32.md) gives the exact commands,
 first-boot flow, SD-card layout, recovery steps, and security notes.
@@ -65,20 +66,12 @@ first-boot flow, SD-card layout, recovery steps, and security notes.
 - local settings backup on the TF card with NVS fallback
 
 Original `.scn` animations are not included in desktop packages or production
-firmware. Windows and macOS provide **Download scenes…** in the app, while ESP32
-provides the same selector in its web remote. **Original DotCLK-Orig** contains
-2,324 scenes and is the preferred choice. **DMD-Large** contains 2,416 scenes,
-including the complete Original collection. You may also use your own compatible
-`.scn` files.
-
-### Scene-pack downloads on ESP32
-
-Both supported QEMU profiles use the same web selector and verified catalog as
-the physical ESP32. The screenshots below were captured from the live profiles.
-
-| Waveshare7 — DMD-Large installed | Landscape349 — Original DotCLK-Orig installed |
-| --- | --- |
-| ![Waveshare7 web remote with DMD-Large installed](docs/screenshots/install/esp32-scene-packs-waveshare7.png) | ![Landscape349 web remote with Original DotCLK-Orig installed](docs/screenshots/install/esp32-scene-packs-landscape349.png) |
+firmware. Windows and macOS retain **Download scenes…** in the app. For ESP32,
+use the [Windows TF-card preparation guide](docs/PREPARE-ESP32-SD-CARD.md).
+**DMD-Large** is preferred and contains 2,416 scenes, including the complete
+Original collection. **Original DotCLK-Orig** remains available separately with
+2,324 scenes.
+You may also use your own compatible `.scn` files.
 
 ## User data and privacy
 
@@ -97,6 +90,7 @@ guides explain storage, backup, and recovery in more detail.
 - [Windows installation](docs/INSTALL-WINDOWS.md)
 - [Complete Windows user setup](docs/USER-SETUP.md)
 - [ESP32-S3 installation and TF-card setup](docs/INSTALL-ESP32.md)
+- [Prepare an ESP32 TF card on Windows](docs/PREPARE-ESP32-SD-CARD.md)
 - [Settings reference](docs/SETTINGS.md)
 - [ESP32-S3 roadmap](docs/ESP32-S3-ROADMAP.md)
 

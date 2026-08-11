@@ -210,28 +210,15 @@ public sealed class SceneDownloadWindow : Window
     private async Task LoadCatalogAsync()
     {
         _status.Text = L("sceneDownloadConnecting");
+        var platform = OperatingSystem.IsMacOS() ? "osx-arm64" : "windows-x64";
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            var platform = OperatingSystem.IsMacOS() ? "osx-arm64" : "windows-x64";
-            var catalog = await new ScenePackCatalogClient(client).DownloadAsync(_cancellation.Token);
-            _packs = catalog.Packs
-                .Where(pack => pack.Available &&
-                    pack.SupportedPlatforms.Contains(platform, StringComparer.OrdinalIgnoreCase))
-                .OrderByDescending(pack => pack.Preferred)
-                .ThenBy(pack => pack.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-                .ToArray();
-            if (_packs.Count != 2)
-                throw new InvalidDataException("The shared catalog must provide both scene packs for this platform.");
-            _packSelector.ItemsSource = _packs.Select(PackLabel).ToArray();
-            var preferred = catalog.GetPreferredAvailablePack(platform);
-            _packSelector.SelectedIndex = _packs
-                .Select((pack, index) => (pack, index))
-                .Single(item => string.Equals(
-                    item.pack.PackId, preferred.PackId, StringComparison.OrdinalIgnoreCase)).index;
-            _packSelector.IsEnabled = true;
-            _source.IsEnabled = true;
-            _download.IsEnabled = true;
+            await using var bundled = typeof(SceneDownloadWindow).Assembly.GetManifestResourceStream(
+                "DmdClock.App.Assets.Scenes.catalog.json") ??
+                throw new InvalidDataException("The bundled scene-library catalog is missing.");
+            ApplyCatalog(
+                await ScenePackCatalogClient.ReadAsync(bundled, _cancellation.Token),
+                platform);
             _status.Text = L("scenePackReady");
         }
         catch (OperationCanceledException) { }
@@ -240,7 +227,48 @@ public sealed class SceneDownloadWindow : Window
             _status.Text = string.Format(
                 System.Globalization.CultureInfo.CurrentCulture,
                 L("sceneDownloadFailed"), exception.Message);
+            return;
         }
+
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            var online = await new ScenePackCatalogClient(client).DownloadAsync(_cancellation.Token);
+            ApplyCatalog(online, platform);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException)
+        {
+            // The bundled, release-matched catalog remains usable when the online
+            // catalog is older, temporarily unavailable, or incompatible.
+        }
+    }
+
+    private void ApplyCatalog(ScenePackCatalog catalog, string platform)
+    {
+        var previousPackId = SelectedPack?.PackId;
+        var packs = catalog.Packs
+            .Where(pack => pack.Available &&
+                pack.SupportedPlatforms.Contains(platform, StringComparer.OrdinalIgnoreCase))
+            .OrderByDescending(pack => pack.Preferred)
+            .ThenBy(pack => pack.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+        if (packs.Length != 2)
+            throw new InvalidDataException("The shared catalog must provide both scene libraries for this platform.");
+
+        var selectedPackId = previousPackId is not null && packs.Any(pack => string.Equals(
+                pack.PackId, previousPackId, StringComparison.OrdinalIgnoreCase))
+            ? previousPackId
+            : catalog.GetPreferredAvailablePack(platform).PackId;
+        _packs = packs;
+        _packSelector.ItemsSource = packs.Select(PackLabel).ToArray();
+        _packSelector.SelectedIndex = packs
+            .Select((pack, index) => (pack, index))
+            .Single(item => string.Equals(
+                item.pack.PackId, selectedPackId, StringComparison.OrdinalIgnoreCase)).index;
+        _packSelector.IsEnabled = true;
+        _source.IsEnabled = true;
+        _download.IsEnabled = true;
     }
 
     private ScenePackCatalogEntry? SelectedPack =>

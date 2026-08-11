@@ -74,21 +74,14 @@
 
   <section class="panel">
     <div class="endpoint"><span class="method">GET</span><h2><code>/api/scenes</code> — complete SD scene catalog</h2></div>
-    <p>Returns <code>sceneCount</code>, the shared HTTPS <code>scenePackCatalogUrl</code>, and the full <code>scenes</code> array. Each entry contains index, filename, display name, title, game, manufacturer, year and metadata-match status. This response is much larger than <code>/api/state</code>; load it once rather than polling it.</p>
+    <p>Returns <code>sceneCount</code>, the shared HTTPS <code>sceneLibraryCatalogUrl</code>, and the full <code>scenes</code> array. Each entry contains index, filename, display name, title, game, manufacturer, year and metadata-match status. This response is much larger than <code>/api/state</code>; load it once rather than polling it.</p>
     <pre>curl http://DMDClock-59D9/api/scenes</pre>
   </section>
 
   <section class="panel">
-    <div class="endpoint"><span class="method">GET</span><h2><code>/api/scene-pack</code> — installer status</h2></div>
-    <p>Returns the selected <code>packId</code>, display name, version, expected scene count, installed state, background job phase, operation, byte and scene progress, cancellation state, and whether a reboot is required.</p>
-    <pre>curl http://DMDClock-59D9/api/scene-pack</pre>
-  </section>
-
-  <section class="panel">
-    <div class="endpoint"><span class="method">POST</span><h2><code>/api/scene-pack</code> — manage selected pack</h2></div>
-    <p>Starts one non-blocking <code>install</code>, <code>update</code>, or <code>repair</code> job, or requests <code>cancel</code>. The device uses certificate-verified HTTPS, resumable TF staging, catalog size and SHA-256 checks, safe ZIP extraction, custom-scene preservation, and previous-library rollback.</p>
-    <pre>curl -X POST -H "Content-Type: application/json" -d '{"action":"install","packId":"dotclk-original"}' http://DMDClock-59D9/api/scene-pack</pre>
-    <p>Use <code>dotclk-original</code> for preferred Original DotCLK-Orig or <code>drwize-complete</code> for DMD-Large.</p>
+    <div class="endpoint"><span class="method">GET</span><h2><code>/api/scene-library</code> — installed-library status</h2></div>
+    <p>Returns the installed library ID, display name, version, expected scene count, and installed state read from the prepared TF card.</p>
+    <pre>curl http://DMDClock-59D9/api/scene-library</pre>
   </section>
 
   <section class="panel">
