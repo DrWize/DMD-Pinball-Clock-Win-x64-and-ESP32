@@ -103,8 +103,9 @@ After the board connects successfully:
 
 ```powershell
 .\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build
-.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 `
-  -FlashMode Application
+.\scripts\esp32\Invoke-Idf.ps1 `
+  -ProjectPath .\firmware\dmdclock-esp32 `
+  -p COM5 -B build-hw-esp32 app-flash
 ```
 
 The normal application flash preserves NVS, so Wi-Fi continues using the saved
@@ -192,7 +193,7 @@ verify its hashes and exact target metadata, and then offer application-only or
 complete flashing:
 
 ```powershell
-.\scripts\esp32\Install-DmdClockEsp32.ps1
+.\scripts\esp32\Flash-DmdClockEsp32.ps1
 ```
 
 Connect a data-capable USB cable to the port labeled `UART`, then discover the
@@ -205,13 +206,17 @@ port:
 After verifying the physical board model, flash an explicit port:
 
 ```powershell
-.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5
+.\scripts\esp32\Invoke-Idf.ps1 `
+  -ProjectPath .\firmware\dmdclock-esp32 `
+  -p COM5 -B build-hw-esp32 flash
 ```
 
-Add `-Monitor` to keep the serial log open after flashing:
+After flashing, start the matching serial monitor when needed:
 
 ```powershell
-.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 -Monitor
+.\scripts\esp32\Invoke-Idf.ps1 `
+  -ProjectPath .\firmware\dmdclock-esp32 `
+  -p COM5 -B build-hw-esp32 monitor
 ```
 
 Application mode writes only the application image and preserves the existing

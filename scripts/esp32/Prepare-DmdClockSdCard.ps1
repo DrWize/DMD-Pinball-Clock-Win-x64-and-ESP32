@@ -14,17 +14,26 @@ param(
 
     [switch]$RefreshSource,
 
-    [switch]$AllowFixedDrive
+    [switch]$AllowFixedDrive,
+
+    [ValidatePattern('^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')]
+    [string]$Repository = 'DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32',
+
+    [Parameter(DontShow)]
+    [switch]$OnlineSupportFiles
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$cardTemplateRoot = Join-Path $projectRoot 'firmware\dmdclock-esp32\sdcard\dmd'
-$metadataPath = Join-Path $projectRoot 'scenes\scene-metadata.json'
-$catalogPath = Join-Path $projectRoot 'scenes\catalog.json'
-$toolsProject = Join-Path $projectRoot 'tools\DmdClock.Tools\DmdClock.Tools.csproj'
+$localCardTemplateRoot = Join-Path $projectRoot 'firmware\dmdclock-esp32\sdcard\dmd'
+$localMetadataPath = Join-Path $projectRoot 'scenes\scene-metadata.json'
+$localCatalogPath = Join-Path $projectRoot 'scenes\catalog.json'
+$cardTemplateRoot = $null
+$metadataPath = $null
+$catalogPath = $null
+$rawRepositoryRoot = "https://raw.githubusercontent.com/$Repository/master"
 $preparationGuide = 'https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md'
 $minimumSafetyBytes = 64MB
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) (
@@ -116,25 +125,6 @@ function Get-CardTarget {
         Volume = $volume
         IsTest = $false
     }
-}
-
-function Get-DotnetExecutable {
-    if (-not [string]::IsNullOrWhiteSpace($env:DMD_DOTNET)) {
-        return $env:DMD_DOTNET
-    }
-
-    $workspaceDotnet = [IO.Path]::GetFullPath(
-        (Join-Path $projectRoot '..\.tools\dotnet10\dotnet.exe'))
-    if (Test-Path -LiteralPath $workspaceDotnet -PathType Leaf) {
-        return $workspaceDotnet
-    }
-
-    $command = Get-Command dotnet -ErrorAction SilentlyContinue
-    if ($null -eq $command) {
-        throw 'A .NET 10 SDK is required to validate the SCN files. Set DMD_DOTNET or install the SDK.'
-    }
-
-    return $command.Source
 }
 
 function Expand-CheckedArchive {
@@ -317,18 +307,156 @@ function Get-SceneSource {
 function Test-SceneLibrary {
     param([Parameter(Mandatory)][string]$ScenesPath)
 
-    $dotnet = Get-DotnetExecutable
-    Write-Host "Validating every SCN file..."
-    $output = @(& $dotnet run --project $toolsProject --configuration Release -- scan $ScenesPath 2>&1)
-    if ($LASTEXITCODE -ne 0) {
-        $details = ($output | Select-Object -Last 30) -join [Environment]::NewLine
-        throw "SCN validation failed with exit code $LASTEXITCODE.`n$details"
+    $files = @(Get-ChildItem -LiteralPath $ScenesPath -File -Filter '*.scn' -Recurse)
+    $rejected = [Collections.Generic.List[string]]::new()
+    $warned = 0
+    Write-Host "Validating every SCN file with the built-in validator..."
+    for ($index = 0; $index -lt $files.Count; $index++) {
+        $file = $files[$index]
+        if (($index % 100) -eq 0) {
+            Write-Progress -Activity 'Validating SCN files' `
+                -Status "$index of $($files.Count)" `
+                -PercentComplete $(if ($files.Count) { ($index * 100) / $files.Count } else { 100 })
+        }
+        $stream = $null
+        $reader = $null
+        try {
+            $stream = [IO.File]::OpenRead($file.FullName)
+            $reader = [IO.BinaryReader]::new($stream)
+            if ($stream.Length -lt 6) { throw 'header is truncated' }
+            $version = $reader.ReadUInt16()
+            $frameCount = $reader.ReadUInt16()
+            $storyboardCount = $reader.ReadUInt16()
+            if ($version -ne 1) { throw "unsupported version $version" }
+            if ($frameCount -eq 0 -or $frameCount -gt 10000) {
+                throw "invalid frame count $frameCount"
+            }
+            if ($storyboardCount -gt 10000) {
+                throw "invalid storyboard count $storyboardCount"
+            }
+
+            $hasWarning = $storyboardCount -eq 0
+            for ($storyboardIndex = 0; $storyboardIndex -lt $storyboardCount; $storyboardIndex++) {
+                $values = @()
+                for ($valueIndex = 0; $valueIndex -lt 8; $valueIndex++) {
+                    $values += $reader.ReadUInt16()
+                }
+                foreach ($flagIndex in @(1, 2, 4, 6, 7)) {
+                    if ($values[$flagIndex] -notin @(0, 1)) {
+                        throw "storyboard $storyboardIndex has invalid flag $($values[$flagIndex])"
+                    }
+                }
+                $firstFrameIsConsumed = $values[0] -gt 0 -and $values[2] -eq 0
+                $regularFrameCount = $frameCount - $(if ($firstFrameIsConsumed) { 1 } else { 0 })
+                if ($values[3] -eq 0 -and $regularFrameCount -gt 0) {
+                    $hasWarning = $true
+                }
+                if ($reader.ReadBytes(20).Count -ne 20) {
+                    throw "storyboard $storyboardIndex is truncated"
+                }
+            }
+            if ($storyboardCount -gt 1) { $hasWarning = $true }
+
+            for ($frameIndex = 0; $frameIndex -lt $frameCount; $frameIndex++) {
+                $width = $reader.ReadUInt16()
+                $height = $reader.ReadUInt16()
+                $bitsPerPixel = $reader.ReadUInt16()
+                $hasMask = $reader.ReadUInt16()
+                if ($width -ne 128 -or $height -ne 32 -or $bitsPerPixel -ne 4) {
+                    throw "frame $frameIndex has unsupported geometry ${width}x${height} at $bitsPerPixel bpp"
+                }
+                if ($hasMask -notin @(0, 1)) {
+                    throw "frame $frameIndex has invalid mask flag $hasMask"
+                }
+                $payloadBytes = 2048 + $(if ($hasMask -eq 1) { 512 } else { 0 })
+                if (($stream.Length - $stream.Position) -lt $payloadBytes) {
+                    throw "frame $frameIndex is truncated"
+                }
+                $stream.Position += $payloadBytes
+            }
+            if ($stream.Position -ne $stream.Length) {
+                throw "$($stream.Length - $stream.Position) unexpected trailing bytes"
+            }
+            if ($hasWarning) { $warned++ }
+        }
+        catch {
+            $rejected.Add("$($file.Name): $($_.Exception.Message)")
+        }
+        finally {
+            if ($null -ne $reader) { $reader.Dispose() }
+            elseif ($null -ne $stream) { $stream.Dispose() }
+        }
+    }
+    Write-Progress -Activity 'Validating SCN files' -Completed
+    Write-Host "Files: $($files.Count)"
+    Write-Host "Accepted: $($files.Count - $rejected.Count)"
+    Write-Host "Warned: $warned"
+    Write-Host "Rejected: $($rejected.Count)"
+    if ($rejected.Count -gt 0) {
+        $details = @($rejected | Select-Object -First 20) -join [Environment]::NewLine
+        throw "SCN validation rejected $($rejected.Count) file(s):`n$details"
+    }
+}
+
+function Get-SupportFile {
+    param(
+        [Parameter(Mandatory)][string]$LocalPath,
+        [Parameter(Mandatory)][string]$RepositoryPath,
+        [Parameter(Mandatory)][string]$Destination,
+        [Parameter(Mandatory)][long]$MaximumBytes
+    )
+
+    if (-not $OnlineSupportFiles -and
+        (Test-Path -LiteralPath $LocalPath -PathType Leaf)) {
+        return (Resolve-Path -LiteralPath $LocalPath).Path
     }
 
-    $summary = $output | Where-Object {
-        $_ -match '^(Files|Accepted|Warned|Rejected|Frames|Masked frames):'
+    $uri = [uri]("$rawRepositoryRoot/$RepositoryPath")
+    if ($uri.Scheme -ne 'https' -or $uri.Host -ne 'raw.githubusercontent.com') {
+        throw "Refusing support-file download from '$uri'."
     }
-    $summary | ForEach-Object { Write-Host $_ }
+    [IO.Directory]::CreateDirectory((Split-Path -Parent $Destination)) | Out-Null
+    Write-Host "Downloading support file $RepositoryPath..."
+    Invoke-WebRequest -Uri $uri -OutFile $Destination -UseBasicParsing `
+        -Headers @{ 'User-Agent' = 'DMDClock-SD-Card-Preparation' }
+    $size = (Get-Item -LiteralPath $Destination).Length
+    if ($size -le 0 -or $size -gt $MaximumBytes) {
+        throw "Downloaded support file '$RepositoryPath' has invalid size $size."
+    }
+    return $Destination
+}
+
+function Initialize-SupportFiles {
+    $supportRoot = Join-Path $temporaryRoot 'support'
+    $templateRoot = Join-Path $supportRoot 'card-template'
+    $resolvedCatalog = Get-SupportFile `
+        -LocalPath $localCatalogPath `
+        -RepositoryPath 'scenes/catalog.json' `
+        -Destination (Join-Path $supportRoot 'catalog.json') `
+        -MaximumBytes 1MB
+    $resolvedMetadata = Get-SupportFile `
+        -LocalPath $localMetadataPath `
+        -RepositoryPath 'scenes/scene-metadata.json' `
+        -Destination (Join-Path $supportRoot 'scene-metadata.json') `
+        -MaximumBytes 4MB
+    $resolvedTemplateRoot = $localCardTemplateRoot
+    if ($OnlineSupportFiles -or
+        -not (Test-Path -LiteralPath (Join-Path $localCardTemplateRoot 'manifest.json') -PathType Leaf) -or
+        -not (Test-Path -LiteralPath (Join-Path $localCardTemplateRoot 'README.md') -PathType Leaf)) {
+        $resolvedTemplateRoot = $templateRoot
+        foreach ($templateName in @('manifest.json', 'README.md')) {
+            $null = Get-SupportFile `
+                -LocalPath (Join-Path $supportRoot 'missing-local-file') `
+                -RepositoryPath "firmware/dmdclock-esp32/sdcard/dmd/$templateName" `
+                -Destination (Join-Path $templateRoot $templateName) `
+                -MaximumBytes 1MB
+        }
+    }
+    return [pscustomobject]@{
+        Catalog = $resolvedCatalog
+        Metadata = $resolvedMetadata
+        CardTemplate = $resolvedTemplateRoot
+    }
 }
 
 function Get-ManagedFile {
@@ -424,6 +552,10 @@ function Get-PreviouslyManagedScenePaths {
 
 [IO.Directory]::CreateDirectory($temporaryRoot) | Out-Null
 try {
+    $supportFiles = Initialize-SupportFiles
+    $catalogPath = $supportFiles.Catalog
+    $metadataPath = $supportFiles.Metadata
+    $cardTemplateRoot = $supportFiles.CardTemplate
     if (-not (Test-Path -LiteralPath $cardTemplateRoot -PathType Container)) {
         throw "Card template not found: $cardTemplateRoot"
     }

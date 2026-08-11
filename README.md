@@ -35,11 +35,12 @@ packages, screensaver setup, and troubleshooting.
 The firmware currently targets only the original **Waveshare ESP32-S3-Touch-LCD-7,
 800x480, N16R8**. It is not a firmware image for the later 7B board.
 
-1. Download or clone this repository on a Windows PC and open PowerShell 7
-   (`pwsh`) in the repository root.
-2. Connect the board through its `UART` USB-C port.
-3. Run the doctor, then use the single installer/updater script:
-   `.\scripts\esp32\Install-DmdClockEsp32.ps1`.
+1. Download or clone this repository on a 64-bit Windows PC and open PowerShell
+   in the repository root.
+2. Run `.\scripts\esp32\Flash-DmdClockEsp32.ps1`, select the exact board and a
+   compatible GitHub release, then follow its model-specific USB-port guidance.
+3. Select the correct COM port and type `FLASH` only after reviewing the final
+   target and version summary.
 4. Connect it to a 2.4 GHz Wi-Fi network and open the local web remote.
 5. Use the Windows preparation script to install either scene library on a FAT32
    TF card, safely eject it, and insert it while the ESP32 is powered off.

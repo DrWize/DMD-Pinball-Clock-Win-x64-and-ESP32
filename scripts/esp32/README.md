@@ -3,10 +3,11 @@
 Repository:
 [DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32).
 
-These scripts use the pinned, workspace-local ESP-IDF 5.5.2 installation under
-`E:\ai\.tools`. They do not require ESP-IDF, Python, CMake, Ninja, or the Xtensa
-compiler on the global `PATH`. Run the scripts from PowerShell 7 (`pwsh`), not
-Windows PowerShell 5.1.
+The build, QEMU, doctor, and developer scripts use the pinned, workspace-local
+ESP-IDF 5.5.2 installation under `E:\ai\.tools`; they do not require those tools
+on the global `PATH`. The user-facing `Flash-DmdClockEsp32.ps1` and
+`Prepare-DmdClockSdCard.ps1` run with Windows PowerShell 5.1 or newer and do not
+require Python, ESP-IDF, .NET, Git, CMake, Ninja, or the Xtensa compiler.
 
 ```powershell
 # Verify the local toolchain and list connected serial devices.
@@ -33,12 +34,13 @@ Windows PowerShell 5.1.
 # Build the production DMDClock firmware. This never flashes a device.
 .\scripts\esp32\Build-DmdClock.ps1
 
-# Download a published ESP32 release, verify it, and optionally flash it.
-# This is the single supported flashing entry point.
-.\scripts\esp32\Install-DmdClockEsp32.ps1
+# Select a board and published ESP32 release, verify it, and optionally flash it.
+# This is the supported end-user flashing entry point.
+.\scripts\esp32\Flash-DmdClockEsp32.ps1
 
-# Flash the current local build instead of downloading a release.
-.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 -Monitor
+# Developers can flash and monitor the current local build through ESP-IDF.
+.\scripts\esp32\Invoke-Idf.ps1 -ProjectPath .\firmware\dmdclock-esp32 `
+  -p COM5 -B build-hw-esp32 flash monitor
 
 # Package a credential-free local build for a GitHub release.
 .\scripts\esp32\Package-DmdClockEsp32.ps1
@@ -69,17 +71,20 @@ Windows PowerShell 5.1.
 
 ```
 
-`Install-DmdClockEsp32.ps1` is the only supported flashing command. Its menu can
-download a published release, use an offline release package, or use the current
-local build. It verifies target metadata and hashes, offers application-only or
-complete flashing, requires an explicit COM port, checks for an ESP32-S3 with
-16 MB flash, and never erases NVS.
+`Flash-DmdClockEsp32.ps1` is the supported end-user flashing command. Its menu
+selects the exact hardware first and then shows only compatible published
+releases. It verifies target metadata and hashes, downloads and verifies a
+portable official Espressif flashing tool, offers application-only or complete
+flashing, requires an explicit COM port, checks for an ESP32-S3 with 16 MB
+flash, and never erases NVS.
 
-The only supported display board is the original Waveshare
+The currently published hardware image supports the original Waveshare
 `ESP32-S3-Touch-LCD-7`, 800×480, with an `ESP32-S3-WROOM-1-N16R8` module. The
-later `ESP32-S3-Touch-LCD-7B`, 1024×600, is not supported. Chip detection cannot
-distinguish their LCD wiring, so the installer also requires confirmation from
-the physical board label.
+later `ESP32-S3-Touch-LCD-7B`, 1024×600, is not supported. The menu also reserves
+`ESP32-S3-Touch-LCD-3.49B`; it cannot be flashed until a matching release image
+is published and its physical revision is validated. Chip detection cannot
+distinguish display wiring, so the flasher also requires confirmation from the
+physical board label.
 
 After the clock boots, it creates `/dmd/config/settings.json` and mirrors every
 web setting change to it. Back up that file before replacing or reformatting a

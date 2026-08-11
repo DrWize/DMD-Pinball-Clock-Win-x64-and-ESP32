@@ -11,6 +11,25 @@ The firmware also defines a second development board target, a 3.49-inch
 of any published release image; it is not a supported flashing target until
 emulation-first validation completes and physical bring-up passes.
 
+The flashing menu reserves **Waveshare ESP32-S3-Touch-LCD-3.49B** so a matching
+image can be published later without changing the user workflow. Selecting it
+currently reports that no compatible release exists. Do not substitute the
+7-inch image.
+
+## Select the correct programming connector
+
+Not every USB or power connector provides a flashing UART. Check the official
+interface diagram for the exact model before selecting a COM port:
+
+| Model | Programming connection | Official links |
+| --- | --- | --- |
+| Waveshare ESP32-S3-Touch-LCD-7 | Use a data-capable cable in the **USB TO UART Type-C** port. | [Product homepage](https://www.waveshare.com/esp32-s3-touch-lcd-7.htm) · [Port diagram and documentation](https://www.waveshare.com/wiki/ESP32-S3-Touch-LCD-7) |
+| Waveshare ESP32-S3-Touch-LCD-3.49B | Use the Type-C connector identified for program flashing and log output. Confirm the PCB revision before a future physical test. | [Product homepage](https://www.waveshare.com/esp32-s3-touch-lcd-3.49.htm) · [Port diagram and documentation](https://docs.waveshare.com/ESP32-S3-Touch-LCD-3.49) |
+
+If no port is detected, the script repeats the instructions and links for the
+selected model. For the 7-inch board it also links the official
+[WCH CH343 Windows driver](https://www.wch-ic.com/downloads/CH343SER_EXE.html).
+
 The QEMU development profiles are not flash images. They emulate a classic
 ESP32 with 4 MiB PSRAM because the virtual RGB device stalls on the ESP32-S3
 machine. The supported N16R8 hardware instead has 8 MiB octal PSRAM. QEMU can
@@ -20,35 +39,51 @@ RGB wiring, touch, or physical TF-card behavior.
 ## What you need
 
 - the correct Waveshare board;
-- a data-capable USB cable connected to the port marked **UART**;
+- a data-capable USB cable connected to the model-specific programming
+  connector identified above;
 - a FAT32 microSD/TF card with at least 256 MB free;
-- a Windows PC with PowerShell 7 (`pwsh`);
-- this repository and its workspace tools.
+- a 64-bit Windows PC with Windows PowerShell 5.1 or newer;
+- this repository or a downloaded copy of the two ESP32 PowerShell scripts.
 
 The [latest release page][latest-release] is the canonical place for published
-versions. `Install-DmdClockEsp32.ps1` lists only releases containing a compatible,
-hash-verified package for the supported board.
+versions. `Flash-DmdClockEsp32.ps1` asks for the exact board first, then lists
+only releases containing a compatible, hash-verified image for that selection.
 
 ## 1. Download and flash a release
 
 From the repository root, start the single supported installer/updater:
 
 ```powershell
-.\scripts\esp32\Install-DmdClockEsp32.ps1
+.\scripts\esp32\Flash-DmdClockEsp32.ps1
 ```
 
 Its menu lets you:
 
-1. select a stable or preview release containing ESP32 firmware;
-2. download and verify its manifest, target ID, ZIP, and individual images;
-3. select an application update or complete installation;
-4. choose an explicit connected COM port;
-5. confirm that the physical board label says `7`, not `7B`; and
-6. flash only after typing `FLASH` (uppercase or lowercase is accepted).
+1. select the exact ESP32 display board;
+2. select a stable or preview release containing an image for that board;
+3. download and verify its manifest, target ID, ZIP, and individual images;
+4. select an application update or complete installation;
+5. choose an explicit connected COM port;
+6. confirm the physical board label; and
+7. flash only after typing `FLASH` (uppercase or lowercase is accepted).
+
+The script downloads a verified portable Espressif `esptool` when it is not
+already cached under `%LOCALAPPDATA%\DmdClock\tools\esptool`. Python, ESP-IDF,
+.NET, Git, and a globally installed flashing tool are not required.
 
 Important hardware, preservation, and confirmation messages are colour-coded so
 the supported `7`, unsupported `7B`, selected port/mode, and final write prompt
 are easy to distinguish.
+
+For example, a missing-port check stops before flashing and displays:
+
+```text
+[FAILED] No usable serial port was detected.
+
+Check the physical USB connection and the selected model's official port
+diagram. Open Device Manager > Ports (COM & LPT), then disconnect and reconnect
+the board to identify the correct COM port.
+```
 
 Application updates preserve the bootloader, partition table, NVS/Wi-Fi settings,
 and TF card. Complete installation writes the bootloader, partition table, and
@@ -58,7 +93,7 @@ untouched.
 Download without flashing:
 
 ```powershell
-.\scripts\esp32\Install-DmdClockEsp32.ps1 -ReleaseTag v1.3.4 -DownloadOnly
+.\scripts\esp32\Flash-DmdClockEsp32.ps1 -ReleaseTag v1.3.4 -DownloadOnly
 ```
 
 ## 2. Optional developer Wi-Fi bootstrap and local build
@@ -74,11 +109,13 @@ prompt is masked and the generated header is ignored by Git:
 
 The ESP32-S3 supports 2.4 GHz Wi-Fi, not a 5 GHz-only network.
 
-Flash that current local build through the same consolidated script:
+Developers can flash a current local build through the pinned ESP-IDF wrapper:
 
 ```powershell
 .\scripts\esp32\Doctor.ps1
-.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 -Monitor
+.\scripts\esp32\Invoke-Idf.ps1 `
+  -ProjectPath .\firmware\dmdclock-esp32 `
+  -p COM5 -B build-hw-esp32 flash monitor
 ```
 
 Replace `COM5` with the exact connected port reported by the doctor. The flash
@@ -91,8 +128,9 @@ firmware images while preserving NVS:
 
 ```powershell
 .\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build
-.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 `
-  -FlashMode Application
+.\scripts\esp32\Invoke-Idf.ps1 `
+  -ProjectPath .\firmware\dmdclock-esp32 `
+  -p COM5 -B build-hw-esp32 app-flash
 ```
 
 Do not erase the device during this cleanup flash.

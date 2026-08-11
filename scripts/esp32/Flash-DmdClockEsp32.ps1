@@ -1,4 +1,4 @@
-[CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
+[CmdletBinding()]
 param(
     [ValidatePattern('^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')]
     [string] $Repository = 'DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32',
@@ -6,9 +6,8 @@ param(
     [ValidatePattern('^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$')]
     [string] $ReleaseTag,
 
-    [switch] $LocalBuild,
-
-    [string] $ManifestPath,
+    [ValidateSet('Waveshare7', 'Waveshare349B')]
+    [string] $Board,
 
     [ValidateSet('Application', 'Full')]
     [string] $FlashMode,
@@ -18,30 +17,65 @@ param(
 
     [switch] $DownloadOnly,
 
-    [switch] $Monitor,
+    [switch] $WhatIf,
 
-    [switch] $ConfirmOriginal7,
+    [string] $ConfirmHardware,
 
     [switch] $Force
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$null = Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-$supportedTargetId = 'waveshare-esp32-s3-touch-lcd-7-800x480-n16r8'
-$supportedProduct = 'Waveshare ESP32-S3-Touch-LCD-7'
-$supportedDisplay = '800x480'
-$supportedModule = 'ESP32-S3-WROOM-1-N16R8'
 $maximumManifestBytes = 1MB
 $maximumPackageBytes = 64MB
-$repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
-$workspaceRoot = Split-Path -Parent $repoRoot
-$outputRoot = Join-Path $repoRoot 'output'
-$cacheRoot = Join-Path $outputRoot 'esp32/releases'
-$projectPath = Join-Path $repoRoot 'firmware/dmdclock-esp32'
-$buildPath = Join-Path $projectPath 'build-hw-esp32'
-$toolRoot = Join-Path $workspaceRoot '.tools/esp-idf/v5.5.2/tools'
-$python = Join-Path $toolRoot 'python/v5.5.2/venv/Scripts/python.exe'
+$maximumToolBytes = 128MB
+$localData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+$outputRoot = Join-Path $localData 'DmdClock'
+$cacheRoot = Join-Path $outputRoot 'cache\firmware'
+$toolCacheRoot = Join-Path $outputRoot 'tools\esptool'
+$esptoolRepository = 'espressif/esptool'
+$esptoolReleasesUrl = "https://github.com/$esptoolRepository/releases"
+
+$hardwareTargets = @(
+    [pscustomobject]@{
+        Key = 'Waveshare7'
+        Id = 'waveshare-esp32-s3-touch-lcd-7-800x480-n16r8'
+        Product = 'Waveshare ESP32-S3-Touch-LCD-7'
+        Display = '800x480'
+        Module = 'ESP32-S3-WROOM-1-N16R8'
+        Confirmation = '7'
+        UnsupportedConfirmation = '7B'
+        Homepage = 'https://www.waveshare.com/esp32-s3-touch-lcd-7.htm'
+        Documentation = 'https://www.waveshare.com/wiki/ESP32-S3-Touch-LCD-7'
+        Driver = 'https://www.wch-ic.com/downloads/CH343SER_EXE.html'
+        PortInstructions = @(
+            'Use a data-capable USB cable.',
+            'Connect it to the USB TO UART Type-C port.',
+            'Do not assume that every USB or power connector supports UART.'
+        )
+    },
+    [pscustomobject]@{
+        Key = 'Waveshare349B'
+        Id = 'waveshare-esp32-s3-touch-lcd-3-49b'
+        Product = 'Waveshare ESP32-S3-Touch-LCD-3.49B'
+        Display = $null
+        Module = $null
+        Confirmation = '3.49B'
+        UnsupportedConfirmation = $null
+        Homepage = 'https://www.waveshare.com/esp32-s3-touch-lcd-3.49.htm'
+        Documentation = 'https://docs.waveshare.com/ESP32-S3-Touch-LCD-3.49'
+        Driver = $null
+        PortInstructions = @(
+            'Use a data-capable USB cable.',
+            'Use the Type-C connector identified by Waveshare for program flashing and log output.',
+            'Check the official interface diagram; not every connector provides a flashing UART.'
+        )
+    }
+)
+$selectedTarget = $null
+$esptool = $null
 
 function Read-HighlightedConfirmation {
     param(
@@ -61,11 +95,26 @@ function Show-SupportedHardwareBanner {
     Write-Host ''
     Write-Host 'DMDClock ESP32-S3 installer/updater' -ForegroundColor Cyan
     Write-Host '----------------------------------' -ForegroundColor DarkCyan
-    Write-Host 'SUPPORTED:     Waveshare ESP32-S3-Touch-LCD-7, 800x480, N16R8' `
-        -ForegroundColor Green
-    Write-Host 'NOT SUPPORTED: Waveshare ESP32-S3-Touch-LCD-7B, 1024x600' `
+    Write-Host 'Select the exact physical board before choosing a firmware version.'
+    Write-Host 'Waveshare ESP32-S3-Touch-LCD-7B (1024x600) is not supported.' `
         -ForegroundColor Red
-    Write-Host 'The 7 and 7B use different display timing and GPIO mappings.'
+}
+
+function Select-HardwareTarget {
+    if ($Board) {
+        return @($hardwareTargets | Where-Object { $_.Key -eq $Board })[0]
+    }
+
+    Write-Host ''
+    Write-Host 'Select your hardware:'
+    for ($index = 0; $index -lt $hardwareTargets.Count; $index++) {
+        Write-Host ("  [{0}] {1}" -f ($index + 1), $hardwareTargets[$index].Product)
+    }
+    Write-Host ("  [{0}] Exit" -f ($hardwareTargets.Count + 1))
+    $choice = Read-MenuChoice -Prompt 'Select hardware' -Minimum 1 `
+        -Maximum ($hardwareTargets.Count + 1)
+    if ($choice -eq $hardwareTargets.Count + 1) { return $null }
+    return $hardwareTargets[$choice - 1]
 }
 
 function Assert-WithinDirectory {
@@ -125,20 +174,38 @@ function Get-GitHubHeaders {
 }
 
 function Get-CompatibleReleases {
+    param([Parameter(Mandatory)] $Target)
+
     $uri = "https://api.github.com/repos/$Repository/releases?per_page=30"
-    Write-Host "Checking GitHub releases for $Repository..."
-    $response = Invoke-RestMethod -Uri $uri -Headers (Get-GitHubHeaders)
+    Write-Host "Checking GitHub releases for $($Target.Product)..."
+    try {
+        $response = Invoke-RestMethod -Uri $uri -Headers (Get-GitHubHeaders)
+    }
+    catch {
+        throw "GitHub could not be reached. Check the internet connection and retry. Releases: https://github.com/$Repository/releases"
+    }
     $releases = @($response)
     $compatible = @()
     foreach ($release in $releases) {
         if ($release.draft) { continue }
         $manifestAssets = @($release.assets | Where-Object {
-            $_.name -match '(?i)^DMDClock-.+-esp32-manifest\.json$'
+            $_.name -match '(?i)^DMDClock-.+-esp32(?:-[A-Za-z0-9_.-]+)?-manifest\.json$' -and
+            [long]$_.size -gt 0 -and [long]$_.size -le $maximumManifestBytes
         })
-        if ($manifestAssets.Count -eq 1) {
+        foreach ($manifestAsset in $manifestAssets) {
+            try {
+                $manifest = Invoke-RestMethod -Uri $manifestAsset.browser_download_url `
+                    -Headers (Get-GitHubHeaders)
+            }
+            catch {
+                Write-Warning "Ignoring unreadable manifest '$($manifestAsset.name)' in release '$($release.tag_name)'."
+                continue
+            }
+            if ([string]$manifest.target.id -ne $Target.Id) { continue }
             $compatible += [pscustomobject]@{
                 Release = $release
-                ManifestAsset = $manifestAssets[0]
+                ManifestAsset = $manifestAsset
+                Manifest = $manifest
             }
         }
     }
@@ -146,21 +213,23 @@ function Get-CompatibleReleases {
 }
 
 function Select-CompatibleRelease {
-    $releases = @(Get-CompatibleReleases)
+    param([Parameter(Mandatory)] $Target)
+
+    $releases = @(Get-CompatibleReleases -Target $Target)
     if ($ReleaseTag) {
         $selected = @($releases | Where-Object { $_.Release.tag_name -eq $ReleaseTag })
         if ($selected.Count -ne 1) {
-            throw "Release '$ReleaseTag' has no compatible ESP32 package. Only packages for the original 7-inch 800x480 N16R8 board are accepted."
+            throw "Release '$ReleaseTag' has no compatible image for $($Target.Product). See https://github.com/$Repository/releases."
         }
         return $selected[0]
     }
 
     if ($releases.Count -eq 0) {
-        throw "No published release contains a compatible ESP32 firmware package. See https://github.com/$Repository/releases."
+        throw "No published release currently contains an image for $($Target.Product). See $($Target.Homepage) and https://github.com/$Repository/releases."
     }
 
     Write-Host ''
-    Write-Host 'Available ESP32 releases:'
+    Write-Host "Available firmware for $($Target.Product):"
     for ($index = 0; $index -lt $releases.Count; $index++) {
         $release = $releases[$index].Release
         $channel = if ($release.prerelease) { 'Preview' } else { 'Stable' }
@@ -188,7 +257,8 @@ function Save-RemoteFile {
     $temporary = "$Destination.partial-$([Guid]::NewGuid().ToString('N'))"
     Assert-WithinDirectory -Path $temporary -Directory $outputRoot
     try {
-        Invoke-WebRequest -Uri $Uri -Headers (Get-GitHubHeaders) -OutFile $temporary
+        Invoke-WebRequest -Uri $Uri -Headers (Get-GitHubHeaders) -OutFile $temporary `
+            -UseBasicParsing
         $size = (Get-Item -LiteralPath $temporary).Length
         if ($size -le 0 -or $size -gt $MaximumBytes) {
             throw "Downloaded file size $size is outside the accepted range 1-$MaximumBytes bytes."
@@ -229,7 +299,10 @@ function Assert-Sha256 {
 }
 
 function Assert-CompatibleManifest {
-    param([Parameter(Mandatory)] $Manifest)
+    param(
+        [Parameter(Mandatory)] $Manifest,
+        [Parameter(Mandatory)] $Target
+    )
 
     if ([int]$Manifest.schemaVersion -ne 1) {
         throw "Unsupported ESP32 manifest schema '$($Manifest.schemaVersion)'."
@@ -238,13 +311,17 @@ function Assert-CompatibleManifest {
         [string]$Manifest.releaseTag -ne "v$($Manifest.version)") {
         throw 'The firmware version or release tag is invalid.'
     }
-    if ([string]$Manifest.target.id -ne $supportedTargetId -or
-        [string]$Manifest.target.product -ne $supportedProduct -or
-        [string]$Manifest.target.display -ne $supportedDisplay -or
-        [string]$Manifest.target.module -ne $supportedModule -or
+    if ([string]$Manifest.target.id -ne $Target.Id -or
+        [string]$Manifest.target.product -ne $Target.Product -or
         [string]$Manifest.target.chip -ne 'esp32s3' -or
         [string]$Manifest.target.flashSize -ne '16MB') {
-        throw 'Firmware target mismatch. This installer supports only the original Waveshare ESP32-S3-Touch-LCD-7, 800x480, N16R8. The 7B is not supported.'
+        throw "Firmware target mismatch. The selected hardware is $($Target.Product)."
+    }
+    if ($Target.Display -and [string]$Manifest.target.display -ne $Target.Display) {
+        throw "Firmware display mismatch. Expected $($Target.Display)."
+    }
+    if ($Target.Module -and [string]$Manifest.target.module -ne $Target.Module) {
+        throw "Firmware module mismatch. Expected $($Target.Module)."
     }
     if ([string]$Manifest.package.asset -notmatch '^[A-Za-z0-9_.-]+\.zip$' -or
         [long]$Manifest.package.size -le 0 -or
@@ -369,7 +446,7 @@ function Get-ReleasePackage {
     $release = $Selection.Release
     $manifestAsset = $Selection.ManifestAsset
     $safeTag = ([string]$release.tag_name) -replace '[^A-Za-z0-9_.-]', '_'
-    $releaseCache = Join-Path $cacheRoot $safeTag
+    $releaseCache = Join-Path (Join-Path $cacheRoot $safeTag) $selectedTarget.Id
     Assert-WithinDirectory -Path $releaseCache -Directory $outputRoot
     New-Item -ItemType Directory -Force -Path $releaseCache | Out-Null
     $manifestFile = Join-Path $releaseCache $manifestAsset.name
@@ -378,7 +455,7 @@ function Get-ReleasePackage {
     Save-RemoteFile -Uri $manifestAsset.browser_download_url `
         -Destination $manifestFile -MaximumBytes $maximumManifestBytes
     $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
-    Assert-CompatibleManifest -Manifest $manifest
+    Assert-CompatibleManifest -Manifest $manifest -Target $selectedTarget
     if ([string]$manifest.releaseTag -ne [string]$release.tag_name) {
         throw "Manifest release '$($manifest.releaseTag)' does not match '$($release.tag_name)'."
     }
@@ -424,99 +501,6 @@ function Get-ReleasePackage {
     }
 }
 
-function Get-OfflinePackage {
-    $resolvedManifest = (Resolve-Path -LiteralPath $ManifestPath).Path
-    if ((Get-Item -LiteralPath $resolvedManifest).Length -gt $maximumManifestBytes) {
-        throw 'Offline manifest is larger than the accepted limit.'
-    }
-    $manifest = Get-Content -LiteralPath $resolvedManifest -Raw | ConvertFrom-Json
-    Assert-CompatibleManifest -Manifest $manifest
-    $archivePath = Join-Path (Split-Path -Parent $resolvedManifest) ([string]$manifest.package.asset)
-    if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
-        throw "Offline package is missing: $archivePath"
-    }
-    if ((Get-Item -LiteralPath $archivePath).Length -ne [long]$manifest.package.size) {
-        throw 'Offline package size does not match the manifest.'
-    }
-    Assert-Sha256 -Path $archivePath -ExpectedHash ([string]$manifest.package.sha256)
-
-    $offlineCache = Join-Path $cacheRoot (
-        'offline-' + ([string]$manifest.package.sha256).Substring(0, 12).ToLowerInvariant())
-    Expand-VerifiedPackage -ArchivePath $archivePath -Destination $offlineCache -Manifest $manifest
-    return [pscustomobject]@{
-        Source = "Offline package $resolvedManifest"
-        Version = [string]$manifest.version
-        Manifest = $manifest
-        Root = $offlineCache
-        Cache = $offlineCache
-        IsLocal = $false
-    }
-}
-
-function Get-LocalBuildPackage {
-    $flasherArgsPath = Join-Path $buildPath 'flasher_args.json'
-    if (-not (Test-Path -LiteralPath $flasherArgsPath -PathType Leaf)) {
-        throw "No local firmware build exists. Run .\scripts\esp32\Build-DmdClock.ps1 first."
-    }
-    $flasher = Get-Content -LiteralPath $flasherArgsPath -Raw | ConvertFrom-Json
-    if ([string]$flasher.extra_esptool_args.chip -ne 'esp32s3' -or
-        [string]$flasher.flash_settings.flash_size -ne '16MB') {
-        throw 'The local build does not target the supported ESP32-S3 with 16 MB flash.'
-    }
-
-    [xml]$properties = Get-Content -LiteralPath (Join-Path $repoRoot 'Directory.Build.props') -Raw
-    $version = [string]$properties.Project.PropertyGroup.VersionPrefix
-    $fullFiles = @()
-    foreach ($property in $flasher.flash_files.PSObject.Properties) {
-        $relativePath = [string]$property.Value
-        Assert-SafeRelativePath -RelativePath $relativePath
-        $filePath = Join-Path $buildPath $relativePath
-        if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) {
-            throw "Local build is missing '$relativePath'."
-        }
-        $fullFiles += [pscustomobject]@{
-            offset = [string]$property.Name
-            path = $relativePath
-            sha256 = (Get-FileHash -LiteralPath $filePath -Algorithm SHA256).Hash.ToLowerInvariant()
-        }
-    }
-    $applicationFiles = @($fullFiles | Where-Object { $_.path -eq [string]$flasher.app.file })
-    if ($applicationFiles.Count -ne 1) {
-        throw 'Unable to identify the application image in the local build.'
-    }
-
-    $manifest = [pscustomobject]@{
-        schemaVersion = 1
-        releaseTag = 'local'
-        version = $version
-        target = [pscustomobject]@{
-            id = $supportedTargetId
-            product = $supportedProduct
-            display = $supportedDisplay
-            module = $supportedModule
-            chip = 'esp32s3'
-            flashSize = '16MB'
-        }
-        flash = [pscustomobject]@{
-            settings = [pscustomobject]@{
-                mode = [string]$flasher.flash_settings.flash_mode
-                frequency = [string]$flasher.flash_settings.flash_freq
-                size = [string]$flasher.flash_settings.flash_size
-            }
-            application = [pscustomobject]@{ files = $applicationFiles; preservesNvs = $true }
-            full = [pscustomobject]@{ files = $fullFiles; preservesNvs = $true }
-        }
-    }
-    return [pscustomobject]@{
-        Source = 'Current local build'
-        Version = $version
-        Manifest = $manifest
-        Root = $buildPath
-        Cache = $null
-        IsLocal = $true
-    }
-}
-
 function Get-ConnectedPorts {
     $found = @{}
     Get-CimInstance Win32_SerialPort -ErrorAction SilentlyContinue | ForEach-Object {
@@ -548,12 +532,14 @@ function Select-SerialPort {
     if ($Port) {
         if ($Port -notin @($ports.Port)) {
             $available = if ($ports.Count) { $ports.Port -join ', ' } else { 'none' }
+            Show-PortHelp -Target $selectedTarget
             throw "Serial port '$Port' is not connected. Available ports: $available."
         }
         return $Port
     }
     if ($ports.Count -eq 0) {
-        throw 'No serial ports are connected. Connect the board through its UART/data USB port.'
+        Show-PortHelp -Target $selectedTarget
+        throw 'No serial port was detected.'
     }
     Write-Host ''
     Write-Host 'Connected serial ports:'
@@ -565,13 +551,165 @@ function Select-SerialPort {
     return $ports[$choice - 1].Port
 }
 
+function Show-PortHelp {
+    param([Parameter(Mandatory)] $Target)
+
+    Write-Host ''
+    Write-Host '[FAILED] No usable serial port was detected.' -ForegroundColor Red
+    Write-Host ''
+    Write-Host "Selected hardware: $($Target.Product)"
+    Write-Host 'Check the physical USB connection:'
+    for ($index = 0; $index -lt $Target.PortInstructions.Count; $index++) {
+        Write-Host ("  {0}. {1}" -f ($index + 1), $Target.PortInstructions[$index])
+    }
+    Write-Host ("  {0}. Open Device Manager > Ports (COM & LPT)." -f ($Target.PortInstructions.Count + 1))
+    Write-Host ("  {0}. Disconnect and reconnect the board to identify the correct port." -f ($Target.PortInstructions.Count + 2))
+    Write-Host ''
+    Write-Host "Official product homepage: $($Target.Homepage)" -ForegroundColor Cyan
+    Write-Host "Port diagram and documentation: $($Target.Documentation)" -ForegroundColor Cyan
+    if ($Target.Driver) {
+        Write-Host "If no CH343 port appears, install the official driver: $($Target.Driver)" `
+            -ForegroundColor Cyan
+    }
+}
+
+function Expand-SafeArchive {
+    param(
+        [Parameter(Mandatory)] [string] $ArchivePath,
+        [Parameter(Mandatory)] [string] $Destination
+    )
+
+    $staging = "$Destination.staging-$([Guid]::NewGuid().ToString('N'))"
+    Assert-WithinDirectory -Path $Destination -Directory $outputRoot
+    Assert-WithinDirectory -Path $staging -Directory $outputRoot
+    New-Item -ItemType Directory -Force -Path $staging | Out-Null
+    try {
+        $archive = [IO.Compression.ZipFile]::OpenRead($ArchivePath)
+        try {
+            foreach ($entry in $archive.Entries) {
+                if ([string]::IsNullOrEmpty($entry.FullName)) { continue }
+                Assert-SafeRelativePath -RelativePath $entry.FullName
+                $entryDestination = [IO.Path]::GetFullPath((Join-Path $staging $entry.FullName))
+                Assert-WithinDirectory -Path $entryDestination -Directory $staging
+            }
+        }
+        finally {
+            $archive.Dispose()
+        }
+        [IO.Compression.ZipFile]::ExtractToDirectory($ArchivePath, $staging)
+        if (Test-Path -LiteralPath $Destination) {
+            Remove-Item -LiteralPath $Destination -Recurse -Force
+        }
+        Move-Item -LiteralPath $staging -Destination $Destination
+    }
+    finally {
+        if (Test-Path -LiteralPath $staging) {
+            Remove-Item -LiteralPath $staging -Recurse -Force
+        }
+    }
+}
+
+function Get-PortableEsptool {
+    Write-Host ''
+    Write-Host 'Checking the portable Espressif flashing tool...'
+    $uri = "https://api.github.com/repos/$esptoolRepository/releases?per_page=20"
+    try {
+        $response = Invoke-RestMethod -Uri $uri -Headers (Get-GitHubHeaders)
+        $releases = @($response)
+    }
+    catch {
+        throw "Unable to check official esptool releases. See $esptoolReleasesUrl"
+    }
+    $candidates = @()
+    foreach ($release in $releases) {
+        if ($release.draft -or $release.prerelease -or
+            [string]$release.tag_name -notmatch '^v5\.') { continue }
+        $assets = @($release.assets | Where-Object {
+            [string]$_.name -match '^esptool-v[0-9.]+-windows-amd64\.zip$'
+        })
+        if ($assets.Count -eq 1) {
+            $candidates += [pscustomobject]@{ Release = $release; Asset = $assets[0] }
+        }
+    }
+    if ($candidates.Count -eq 0) {
+        throw "No supported official Windows x64 esptool v5 package was found. See $esptoolReleasesUrl"
+    }
+
+    $selection = $candidates[0]
+    $asset = $selection.Asset
+    $digest = [string]$asset.digest
+    if ($digest -notmatch '^sha256:([A-Fa-f0-9]{64})$') {
+        throw "The official esptool asset has no usable GitHub SHA-256 digest. See $esptoolReleasesUrl"
+    }
+    $expectedHash = $Matches[1]
+    if ([long]$asset.size -le 0 -or [long]$asset.size -gt $maximumToolBytes) {
+        throw 'The official esptool archive size is outside the accepted range.'
+    }
+
+    $safeVersion = ([string]$selection.Release.tag_name) -replace '[^A-Za-z0-9_.-]', '_'
+    $versionRoot = Join-Path $toolCacheRoot $safeVersion
+    $archivePath = Join-Path $versionRoot ([string]$asset.name)
+    $packagePath = Join-Path $versionRoot 'package'
+    New-Item -ItemType Directory -Force -Path $versionRoot | Out-Null
+
+    $archiveIsValid = $false
+    if (Test-Path -LiteralPath $archivePath -PathType Leaf) {
+        try {
+            if ((Get-Item -LiteralPath $archivePath).Length -ne [long]$asset.size) {
+                throw 'Cached size mismatch.'
+            }
+            Assert-Sha256 -Path $archivePath -ExpectedHash $expectedHash
+            $archiveIsValid = $true
+        }
+        catch {
+            Remove-Item -LiteralPath $archivePath -Force
+        }
+    }
+    if (-not $archiveIsValid) {
+        Write-Host "Downloading official esptool $($selection.Release.tag_name)..."
+        Save-RemoteFile -Uri $asset.browser_download_url -Destination $archivePath `
+            -MaximumBytes $maximumToolBytes
+        if ((Get-Item -LiteralPath $archivePath).Length -ne [long]$asset.size) {
+            throw 'Downloaded esptool size does not match GitHub metadata.'
+        }
+        Assert-Sha256 -Path $archivePath -ExpectedHash $expectedHash
+    }
+
+    if (-not (Test-Path -LiteralPath $packagePath -PathType Container)) {
+        Expand-SafeArchive -ArchivePath $archivePath -Destination $packagePath
+    }
+    $executables = @(Get-ChildItem -LiteralPath $packagePath -Filter 'esptool.exe' -File -Recurse)
+    if ($executables.Count -ne 1) {
+        if (Test-Path -LiteralPath $packagePath) {
+            Remove-Item -LiteralPath $packagePath -Recurse -Force
+        }
+        Expand-SafeArchive -ArchivePath $archivePath -Destination $packagePath
+        $executables = @(Get-ChildItem -LiteralPath $packagePath -Filter 'esptool.exe' -File -Recurse)
+    }
+    if ($executables.Count -ne 1) {
+        throw "The official esptool archive does not contain exactly one esptool.exe. See $esptoolReleasesUrl"
+    }
+
+    $versionOutput = @(& $executables[0].FullName version 2>&1)
+    if ($LASTEXITCODE -ne 0 -or
+        ($versionOutput | Out-String) -notmatch [Regex]::Escape(
+            ([string]$selection.Release.tag_name).TrimStart('v'))) {
+        throw "The portable esptool executable could not be verified. Antivirus software may have blocked it. See $esptoolReleasesUrl"
+    }
+    Write-Host "[OK] esptool $($selection.Release.tag_name)" -ForegroundColor Green
+    return [pscustomobject]@{
+        Path = $executables[0].FullName
+        Version = [string]$selection.Release.tag_name
+    }
+}
+
 function Invoke-EsptoolChecked {
     param([Parameter(Mandatory)] [string[]] $Arguments)
 
-    if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
-        throw "ESP-IDF Python/esptool was not found. Run .\scripts\esp32\Doctor.ps1. Expected: $python"
+    if ($null -eq $esptool -or -not (Test-Path -LiteralPath $esptool.Path -PathType Leaf)) {
+        throw "The portable esptool executable is unavailable. See $esptoolReleasesUrl"
     }
-    $output = @(& $python -m esptool @Arguments 2>&1)
+    $output = @(& $esptool.Path @Arguments 2>&1)
     $exitCode = $LASTEXITCODE
     $output | Write-Host
     if ($exitCode -ne 0) {
@@ -583,33 +721,36 @@ function Invoke-EsptoolChecked {
 function Assert-ConnectedHardware {
     param([Parameter(Mandatory)] [string] $SelectedPort)
 
-    if (-not $ConfirmOriginal7) {
-        Write-Host ''
-        Write-Warning 'Look at the board label before continuing.'
-        $confirmation = Read-HighlightedConfirmation `
+    Write-Host ''
+    Write-Warning 'Look at the model and revision printed on the physical board.'
+    $confirmation = if ($ConfirmHardware) {
+        $ConfirmHardware.Trim()
+    } else {
+        Read-HighlightedConfirmation `
             -Prefix 'Type ' `
-            -Token '7' `
-            -Suffix ' to confirm the original 800x480 model (typing 7B cancels)' `
+            -Token $selectedTarget.Confirmation `
+            -Suffix " to confirm $($selectedTarget.Product)" `
             -Color Green
-        if ($confirmation -ieq '7B') {
-            throw 'Cancelled: the Waveshare 7B is not supported and must not be flashed with this firmware.'
-        }
-        if ($confirmation -ne '7') {
-            throw 'Hardware confirmation was not accepted.'
-        }
+    }
+    if ($selectedTarget.UnsupportedConfirmation -and
+        $confirmation -ieq $selectedTarget.UnsupportedConfirmation) {
+        throw "Cancelled: '$confirmation' is not the selected or supported board."
+    }
+    if ($confirmation -ine $selectedTarget.Confirmation) {
+        throw 'Hardware confirmation was not accepted.'
     }
 
     Write-Host "Checking the device on $SelectedPort..."
-    $chipOutput = Invoke-EsptoolChecked -Arguments @('--chip', 'esp32s3', '--port', $SelectedPort, 'chip_id')
+    $chipOutput = Invoke-EsptoolChecked -Arguments @('--chip', 'esp32s3', '--port', $SelectedPort, 'chip-id')
     if ($chipOutput -notmatch '(?i)ESP32-S3') {
         throw 'The connected chip is not an ESP32-S3.'
     }
-    $flashOutput = Invoke-EsptoolChecked -Arguments @('--chip', 'esp32s3', '--port', $SelectedPort, 'flash_id')
+    $flashOutput = Invoke-EsptoolChecked -Arguments @('--chip', 'esp32s3', '--port', $SelectedPort, 'flash-id')
     if ($flashOutput -notmatch '(?i)(Detected flash size:\s*16MB|flash size.*16\s*MB)') {
         throw 'The connected device did not report the required 16 MB flash. Refusing to continue.'
     }
     Write-Host '[OK] ESP32-S3 with 16 MB flash detected.' -ForegroundColor Green
-    Write-Warning 'Chip detection cannot distinguish the 800x480 model from the incompatible 7B; the board-label confirmation remains required.'
+    Write-Warning 'Chip detection cannot distinguish display models or PCB revisions; the board-label confirmation remains required.'
 }
 
 function Get-SelectedFlashFiles {
@@ -650,13 +791,20 @@ function Invoke-FirmwareFlash {
     Write-Host 'Flash summary:'
     Write-Host "  Source:   $($Package.Source)"
     Write-Host "  Version:  $($Package.Version)" -ForegroundColor Cyan
-    Write-Host "  Target:   $supportedProduct ($supportedDisplay, N16R8)"
+    Write-Host "  Target:   $($selectedTarget.Product)"
     Write-Host "  Port:     $SelectedPort" -ForegroundColor Cyan
     Write-Host "  Mode:     $Mode" -ForegroundColor Yellow
     Write-Host '  NVS:      preserved (no erase command is used)' -ForegroundColor Green
     Write-Host '  TF card:  untouched' -ForegroundColor Green
     foreach ($file in $files) {
         Write-Host "  $($file.Offset)  $($file.RelativePath)"
+    }
+
+    if ($WhatIf) {
+        Write-Host ''
+        Write-Host '[WHATIF] All downloads, hashes, and hardware checks passed; flash was skipped.' `
+            -ForegroundColor Yellow
+        return
     }
 
     if (-not $Force) {
@@ -672,22 +820,16 @@ function Invoke-FirmwareFlash {
         }
     }
 
-    if (-not $PSCmdlet.ShouldProcess(
-        "$SelectedPort ($supportedProduct, $supportedDisplay)",
-        "Flash DMDClock $($Package.Version) in $Mode mode")) {
-        return
-    }
-
     $arguments = @(
         '--chip', 'esp32s3',
         '--port', $SelectedPort,
         '--baud', '460800',
-        '--before', 'default_reset',
-        '--after', 'hard_reset',
-        'write_flash',
-        '--flash_mode', [string]$settings.mode,
-        '--flash_freq', [string]$settings.frequency,
-        '--flash_size', [string]$settings.size
+        '--before', 'default-reset',
+        '--after', 'hard-reset',
+        'write-flash',
+        '--flash-mode', [string]$settings.mode,
+        '--flash-freq', [string]$settings.frequency,
+        '--flash-size', [string]$settings.size
     )
     foreach ($file in $files) {
         $arguments += @($file.Offset, $file.Path)
@@ -697,61 +839,33 @@ function Invoke-FirmwareFlash {
     Write-Host '[DONE] Firmware written and verified by esptool; the board was reset.' `
         -ForegroundColor Green
 
-    if ($Monitor) {
-        if (-not $Package.IsLocal) {
-            Write-Warning 'Serial symbol monitoring is available only for the matching local build. The release flash itself completed successfully.'
-        } else {
-            $monitorArguments = @('-p', $SelectedPort, 'monitor')
-            & (Join-Path $PSScriptRoot 'Invoke-Idf.ps1') `
-                -ProjectPath $projectPath @monitorArguments
-        }
-    }
 }
 
 Show-SupportedHardwareBanner
 
-$sourceCount = @($LocalBuild.IsPresent, -not [string]::IsNullOrWhiteSpace($ManifestPath)) |
-    Where-Object { $_ } | Measure-Object | Select-Object -ExpandProperty Count
-if ($sourceCount -gt 1 -or ($ReleaseTag -and $sourceCount -gt 0)) {
-    throw 'Choose exactly one source: -ReleaseTag, -LocalBuild, or -ManifestPath.'
+if ($env:OS -ne 'Windows_NT') {
+    throw "This flashing script supports Windows only. See https://github.com/$Repository/releases."
 }
+if (-not [Environment]::Is64BitOperatingSystem) {
+    throw "The portable Espressif flashing tool requires 64-bit Windows. See $esptoolReleasesUrl"
+}
+if ($PSVersionTable.PSVersion -lt [Version]'5.1') {
+    throw 'Windows PowerShell 5.1 or newer is required. See https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows'
+}
+Write-Host "[OK] 64-bit Windows" -ForegroundColor Green
+Write-Host "[OK] PowerShell $($PSVersionTable.PSVersion)" -ForegroundColor Green
+New-Item -ItemType Directory -Force -Path $cacheRoot, $toolCacheRoot | Out-Null
 
-$sourceMode = if ($LocalBuild) {
-    'Local'
-} elseif ($ManifestPath) {
-    'Offline'
-} elseif ($ReleaseTag) {
-    'Release'
-} else {
-    Write-Host ''
-    Write-Host 'Firmware source:'
-    Write-Host '  [1] Download a published release'
-    Write-Host '  [2] Use the current local build'
-    Write-Host '  [3] Use an offline release manifest and package'
-    Write-Host '  [4] Exit'
-    switch (Read-MenuChoice -Prompt 'Select source' -Minimum 1 -Maximum 4 -Default 1) {
-        1 { 'Release' }
-        2 { 'Local' }
-        3 { 'Offline' }
-        4 { return }
-    }
-}
-
-if ($sourceMode -eq 'Offline' -and -not $ManifestPath) {
-    $ManifestPath = (Read-Host 'Path to the downloaded ESP32 manifest').Trim('"')
-}
-
-$package = switch ($sourceMode) {
-    'Local' { Get-LocalBuildPackage }
-    'Offline' { Get-OfflinePackage }
-    'Release' { Get-ReleasePackage -Selection (Select-CompatibleRelease) }
-}
+$selectedTarget = Select-HardwareTarget
+if ($null -eq $selectedTarget) { return }
+$package = Get-ReleasePackage -Selection (
+    Select-CompatibleRelease -Target $selectedTarget)
 
 Write-Host ''
 Write-Host '[OK] Firmware package verified' -ForegroundColor Green
 Write-Host "  Source:  $($package.Source)"
 Write-Host "  Version: $($package.Version)"
-Write-Host "  Target:  $supportedProduct ($supportedDisplay, $supportedModule)"
+Write-Host "  Target:  $($selectedTarget.Product)"
 if ($package.Cache) {
     Write-Host "  Cache:   $($package.Cache)"
 }
@@ -780,5 +894,6 @@ if (-not $FlashMode) {
 }
 
 $selectedPort = Select-SerialPort
+$esptool = Get-PortableEsptool
 Assert-ConnectedHardware -SelectedPort $selectedPort
 Invoke-FirmwareFlash -Package $package -Mode $FlashMode -SelectedPort $selectedPort

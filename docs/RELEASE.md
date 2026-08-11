@@ -33,12 +33,13 @@ upgrades, portable use, and troubleshooting.
 > Supported hardware: only the original 800×480
 > `ESP32-S3-Touch-LCD-7` with an N16R8 module. Do not flash the 1024×600 `7B`.
 
-1. Download or clone this repository on Windows and open PowerShell 7 (`pwsh`)
-   in its root.
-2. Connect the board through its **UART** USB-C port.
-3. Run `.\scripts\esp32\Doctor.ps1` and note the exact COM port.
-4. Run `.\scripts\esp32\Install-DmdClockEsp32.ps1`.
-5. Select a compatible release, choose the COM port and flash mode, verify the
+1. Download or clone this repository on 64-bit Windows and open PowerShell in
+   its root.
+2. Run `.\scripts\esp32\Flash-DmdClockEsp32.ps1` and select the exact board.
+3. Follow the displayed link to the selected model's official homepage and
+   verify which physical USB connector provides program flashing/UART.
+4. Select a compatible release and the correct COM port.
+5. Choose the flash mode, verify the
    physical board label, then type `FLASH` at the final confirmation.
 
 The installer downloads and verifies the release manifest, target ID, firmware

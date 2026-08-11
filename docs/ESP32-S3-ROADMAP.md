@@ -569,7 +569,7 @@ DMD-Pinball-Clock-Win-x64-and-ESP32/
 │     ├─ Generate-Shared.ps1
 │     ├─ Test-Firmware.ps1
 │     ├─ Build-DmdClock.ps1
-│     ├─ Install-DmdClockEsp32.ps1
+│     ├─ Flash-DmdClockEsp32.ps1
 │     └─ Package-DmdClockEsp32.ps1
 └─ output/
    └─ esp32/
@@ -647,9 +647,12 @@ The intended entry points are:
 # Compile locally for the fixed Waveshare target.
 .\scripts\esp32\Build-DmdClock.ps1
 
-# Download a release and optionally flash, or flash the current local build.
-.\scripts\esp32\Install-DmdClockEsp32.ps1
-.\scripts\esp32\Install-DmdClockEsp32.ps1 -LocalBuild -Port COM5 -Monitor
+# Select a board and published release, then optionally flash it.
+.\scripts\esp32\Flash-DmdClockEsp32.ps1
+
+# Developers flash the current local build through the pinned ESP-IDF wrapper.
+.\scripts\esp32\Invoke-Idf.ps1 -ProjectPath .\firmware\dmdclock-esp32 `
+  -p COM5 -B build-hw-esp32 flash monitor
 
 # Produce the USB install/update ZIP, manifest, and checksum artifacts.
 .\scripts\esp32\Package-DmdClockEsp32.ps1
