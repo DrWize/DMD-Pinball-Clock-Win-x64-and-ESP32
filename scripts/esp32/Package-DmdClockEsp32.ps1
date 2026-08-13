@@ -3,7 +3,12 @@ param(
     [ValidatePattern('^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$')]
     [string] $Version,
 
-    [switch] $SkipBuild
+    [ValidateSet('Waveshare7', 'Waveshare349B')]
+    [string] $Board = 'Waveshare7',
+
+    [switch] $SkipBuild,
+
+    [switch] $CleanOutput
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,7 +17,30 @@ Set-StrictMode -Version Latest
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $outputRoot = Join-Path $repoRoot 'output'
 $projectPath = Join-Path $repoRoot 'firmware/dmdclock-esp32'
-$buildPath = Join-Path $projectPath 'build-hw-esp32'
+$target = if ($Board -eq 'Waveshare349B') {
+    [ordered]@{
+        BuildDir = 'build-hw-349b'
+        Id = 'waveshare-esp32-s3-touch-lcd-3-49b-v2-640x172-n16r8'
+        Slug = 'waveshare-esp32-s3-touch-lcd-3-49b-v2-640x172-n16r8'
+        Product = 'Waveshare ESP32-S3-Touch-LCD-3.49B'
+        Display = '640x172'
+        SupportedBoard = '3.49B V2 / Rev1.1'
+        UnsupportedBoards = @('ESP32-S3-Touch-LCD-3.49B V1')
+        TouchEnabled = $true
+    }
+} else {
+    [ordered]@{
+        BuildDir = 'build-hw-esp32'
+        Id = 'waveshare-esp32-s3-touch-lcd-7-800x480-n16r8'
+        Slug = 'waveshare-esp32-s3-touch-lcd-7-800x480-n16r8'
+        Product = 'Waveshare ESP32-S3-Touch-LCD-7'
+        Display = '800x480'
+        SupportedBoard = '7'
+        UnsupportedBoards = @('ESP32-S3-Touch-LCD-7B', '1024x600')
+        TouchEnabled = $true
+    }
+}
+$buildPath = Join-Path $projectPath $target.BuildDir
 $workspaceRoot = Split-Path -Parent $repoRoot
 while ($workspaceRoot -and
     -not (Test-Path -LiteralPath (Join-Path $workspaceRoot '.tools') -PathType Container)) {
@@ -23,7 +51,7 @@ while ($workspaceRoot -and
 $toolRoot = Join-Path $workspaceRoot '.tools/esp-idf/v5.5.2/tools'
 $python = Join-Path $toolRoot 'python/v5.5.2/venv/Scripts/python.exe'
 $bootstrapHeader = Join-Path $projectPath 'main/dmd_bootstrap_wifi.h'
-$targetSlug = 'esp32-s3-touch-lcd-7-800x480-n16r8'
+$targetSlug = $target.Slug
 $buildNumber = (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmssfff')
 $sourceRevision = (& git -C $repoRoot rev-parse --short=12 HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($sourceRevision)) {
@@ -40,8 +68,8 @@ if (-not $Version) {
 
 $artifactStem = "DMDClock-$Version-$targetSlug"
 $zipName = "$artifactStem.zip"
-$manifestName = "DMDClock-$Version-esp32-manifest.json"
-$checksumsName = "DMDClock-$Version-esp32-SHA256SUMS.txt"
+$manifestName = "DMDClock-$Version-esp32-$targetSlug-manifest.json"
+$checksumsName = "DMDClock-$Version-esp32-$targetSlug-SHA256SUMS.txt"
 $currentDirectory = Join-Path $outputRoot 'current/esp32-release'
 $stagingDirectory = Join-Path $outputRoot ".staging/$buildNumber-esp32-release"
 $firmwareDirectory = Join-Path $stagingDirectory 'firmware'
@@ -89,7 +117,7 @@ if (Test-Path -LiteralPath $bootstrapHeader -PathType Leaf) {
 }
 
 if (-not $SkipBuild) {
-    & (Join-Path $PSScriptRoot 'Build-DmdClock.ps1') -Version $Version
+    & (Join-Path $PSScriptRoot 'Build-DmdClock.ps1') -Board $Board -Version $Version
     if ($LASTEXITCODE -ne 0) {
         throw "Firmware build failed with exit code $LASTEXITCODE."
     }
@@ -143,7 +171,7 @@ try {
         buildId = "$Version+$buildNumber.esp32.$sourceRevision"
         sourceRevision = $sourceRevision
         builtAt = (Get-Date).ToUniversalTime().ToString('o')
-        target = 'waveshare-esp32-s3-touch-lcd-7-800x480-n16r8'
+        target = $target.Id
         bootstrapWifiIncluded = $false
     } | ConvertTo-Json
     [IO.File]::WriteAllText(
@@ -170,14 +198,15 @@ try {
         sourceRevision = $sourceRevision
         createdAt = (Get-Date).ToUniversalTime().ToString('o')
         target = [ordered]@{
-            id = 'waveshare-esp32-s3-touch-lcd-7-800x480-n16r8'
-            product = 'Waveshare ESP32-S3-Touch-LCD-7'
-            display = '800x480'
+            id = $target.Id
+            product = $target.Product
+            display = $target.Display
             module = 'ESP32-S3-WROOM-1-N16R8'
             chip = 'esp32s3'
             flashSize = '16MB'
-            supportedBoard = '7'
-            unsupportedBoards = @('ESP32-S3-Touch-LCD-7B', '1024x600')
+            supportedBoard = $target.SupportedBoard
+            unsupportedBoards = $target.UnsupportedBoards
+            touchEnabled = $target.TouchEnabled
         }
         package = [ordered]@{
             asset = $zipName
@@ -203,27 +232,36 @@ try {
         }
     } | ConvertTo-Json -Depth 8
 
-    if (Test-Path -LiteralPath $currentDirectory) {
+    if ($CleanOutput -and (Test-Path -LiteralPath $currentDirectory)) {
         Remove-Item -LiteralPath $currentDirectory -Recurse -Force
     }
     New-Item -ItemType Directory -Force -Path $currentDirectory | Out-Null
     $zipPath = Join-Path $currentDirectory $zipName
-    Move-Item -LiteralPath $stagingZip -Destination $zipPath
     $manifestPath = Join-Path $currentDirectory $manifestName
+    $checksumsPath = Join-Path $currentDirectory $checksumsName
+    foreach ($path in @($zipPath, $manifestPath, $checksumsPath)) {
+        if (Test-Path -LiteralPath $path) {
+            Remove-Item -LiteralPath $path -Force
+        }
+    }
+    Move-Item -LiteralPath $stagingZip -Destination $zipPath
     [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
 
     $checksumLines = @($zipName, $manifestName) | ForEach-Object {
         $hash = (Get-FileHash -LiteralPath (Join-Path $currentDirectory $_) -Algorithm SHA256).Hash.ToLowerInvariant()
         "$hash  $_"
     }
-    Set-Content -LiteralPath (Join-Path $currentDirectory $checksumsName) `
+    Set-Content -LiteralPath $checksumsPath `
         -Value $checksumLines -Encoding ascii
 
     Write-Host "ESP32 release package: $zipPath"
     Write-Host "ESP32 release manifest: $manifestPath"
-    Write-Host "ESP32 checksums: $(Join-Path $currentDirectory $checksumsName)"
-    Write-Host 'Supported hardware: Waveshare ESP32-S3-Touch-LCD-7, 800x480, N16R8 only.'
-    Write-Warning 'The ESP32-S3-Touch-LCD-7B (1024x600) is not supported.'
+    Write-Host "ESP32 checksums: $checksumsPath"
+    Write-Host "Supported hardware: $($target.Product), $($target.Display), N16R8 only."
+    if (-not $target.TouchEnabled) {
+        Write-Warning 'Physical touch is disabled in this preview firmware.'
+    }
+    Write-Warning "Unsupported hardware: $($target.UnsupportedBoards -join ', ')."
 }
 finally {
     if (Test-Path -LiteralPath $stagingDirectory) {

@@ -14,7 +14,9 @@ param(
 
     [switch]$Draft,
 
-    [switch]$IncludeEsp32
+    [switch]$IncludeEsp32,
+
+    [switch]$Esp32Only
 )
 
 $ErrorActionPreference = 'Stop'
@@ -75,31 +77,38 @@ try {
         throw 'GitHub CLI is not authenticated. Run gh auth login first.'
     }
 
-    Assert-File $releaseManifestPath
-    $releaseManifest = Get-Content -LiteralPath $releaseManifestPath -Raw | ConvertFrom-Json
-    $installer = Resolve-ManifestArtifact $releaseManifest 'installer'
-    $portableZip = Resolve-ManifestArtifact $releaseManifest 'portable'
-    $standaloneZip = Resolve-ManifestArtifact $releaseManifest 'standalone'
-    $installerInfoPath = Resolve-ManifestArtifact $releaseManifest 'installerInfo'
-
-    foreach ($path in @(
-        $portableZip,
-        $standaloneZip,
-        $installer,
-        $installerInfoPath,
-        $portableInfoPath,
-        $standaloneInfoPath
-    )) {
-        Assert-File $path
+    if ($Esp32Only -and -not $IncludeEsp32) {
+        throw '-Esp32Only requires -IncludeEsp32.'
     }
 
-    $portableInfo = Get-Content -LiteralPath $portableInfoPath -Raw | ConvertFrom-Json
-    $standaloneInfo = Get-Content -LiteralPath $standaloneInfoPath -Raw | ConvertFrom-Json
-    $installerInfo = Get-Content -LiteralPath $installerInfoPath -Raw | ConvertFrom-Json
+    $desktopAssetPaths = @()
+    $releaseBuildId = 'ESP32-only'
+    if (-not $Esp32Only) {
+        Assert-File $releaseManifestPath
+        $releaseManifest = Get-Content -LiteralPath $releaseManifestPath -Raw | ConvertFrom-Json
+        $installer = Resolve-ManifestArtifact $releaseManifest 'installer'
+        $portableZip = Resolve-ManifestArtifact $releaseManifest 'portable'
+        $standaloneZip = Resolve-ManifestArtifact $releaseManifest 'standalone'
+        $installerInfoPath = Resolve-ManifestArtifact $releaseManifest 'installerInfo'
 
-    if ($portableInfo.buildId -ne $standaloneInfo.buildId -or
-        $portableInfo.buildId -ne $installerInfo.applicationBuildId -or
-        $portableInfo.buildId -ne $releaseManifest.buildId) {
+        foreach ($path in @(
+            $portableZip,
+            $standaloneZip,
+            $installer,
+            $installerInfoPath,
+            $portableInfoPath,
+            $standaloneInfoPath
+        )) {
+            Assert-File $path
+        }
+
+        $portableInfo = Get-Content -LiteralPath $portableInfoPath -Raw | ConvertFrom-Json
+        $standaloneInfo = Get-Content -LiteralPath $standaloneInfoPath -Raw | ConvertFrom-Json
+        $installerInfo = Get-Content -LiteralPath $installerInfoPath -Raw | ConvertFrom-Json
+
+        if ($portableInfo.buildId -ne $standaloneInfo.buildId -or
+            $portableInfo.buildId -ne $installerInfo.applicationBuildId -or
+            $portableInfo.buildId -ne $releaseManifest.buildId) {
         throw @"
 Release artifacts do not come from the same application build:
 Portable:   $($portableInfo.buildId)
@@ -107,22 +116,27 @@ Standalone: $($standaloneInfo.buildId)
 Installer:  $($installerInfo.applicationBuildId)
 Manifest:   $($releaseManifest.buildId)
 "@
-    }
-    $actualInstallerHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash
-    if ($actualInstallerHash -ne $installerInfo.installerSha256) {
+        }
+        $actualInstallerHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash
+        if ($actualInstallerHash -ne $installerInfo.installerSha256) {
         throw @"
 Installer checksum does not match installer-build-info.json:
 Recorded: $($installerInfo.installerSha256)
 Actual:   $actualInstallerHash
 "@
-    }
+        }
 
-    if ($installerInfo.appVersion -notmatch '^\d+\.\d+\.\d+$') {
-        throw "Invalid installer application version: $($installerInfo.appVersion)"
-    }
+        if ($installerInfo.appVersion -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Invalid installer application version: $($installerInfo.appVersion)"
+        }
 
-    if ([string]::IsNullOrWhiteSpace($Tag)) {
-        $Tag = "v$($installerInfo.appVersion)"
+        if ([string]::IsNullOrWhiteSpace($Tag)) {
+            $Tag = "v$($installerInfo.appVersion)"
+        }
+        $desktopAssetPaths = @($installer, $portableZip, $standaloneZip, $installerInfoPath)
+        $releaseBuildId = [string]$portableInfo.buildId
+    } elseif ([string]::IsNullOrWhiteSpace($Tag)) {
+        throw '-Esp32Only requires an explicit -Tag.'
     }
     if ($Tag -notmatch '^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
         throw "Tag must use a semantic version such as v1.0.0 or v1.1.0-beta.1: $Tag"
@@ -155,61 +169,72 @@ Actual:   $actualInstallerHash
             throw "ESP32 release directory is missing: $esp32ReleaseDirectory"
         }
         $esp32ManifestFiles = @(Get-ChildItem -LiteralPath $esp32ReleaseDirectory `
-            -Filter 'DMDClock-*-esp32-manifest.json' -File)
-        if ($esp32ManifestFiles.Count -ne 1) {
-            throw 'The ESP32 release directory must contain exactly one ESP32 manifest.'
+            -Filter 'DMDClock-*-esp32*-manifest.json' -File)
+        $allowedEsp32Targets = @(
+            'waveshare-esp32-s3-touch-lcd-7-800x480-n16r8',
+            'waveshare-esp32-s3-touch-lcd-3-49b-v2-640x172-n16r8'
+        )
+        if ($esp32ManifestFiles.Count -ne $allowedEsp32Targets.Count) {
+            throw "The ESP32 release directory must contain one manifest for each supported target ($($allowedEsp32Targets.Count) total)."
         }
-        $esp32ManifestPath = $esp32ManifestFiles[0].FullName
-        $esp32Manifest = Get-Content -LiteralPath $esp32ManifestPath -Raw | ConvertFrom-Json
-        if ([int]$esp32Manifest.schemaVersion -ne 1 -or
-            [string]$esp32Manifest.releaseTag -ne $Tag -or
-            [string]$esp32Manifest.sourceRevision -notmatch '^[0-9A-Fa-f]{12}$' -or
-            [string]$esp32Manifest.target.id -ne
-                'waveshare-esp32-s3-touch-lcd-7-800x480-n16r8') {
-            throw 'The ESP32 manifest schema, release tag, source revision, or hardware target does not match this release.'
-        }
-        if (-not $localCommit.StartsWith(
-            [string]$esp32Manifest.sourceRevision,
-            [StringComparison]::OrdinalIgnoreCase)) {
-            throw @"
-ESP32 package source revision does not match the release commit:
-Package: $($esp32Manifest.sourceRevision)
-Release: $localCommit
-"@
-        }
+        $seenEsp32Targets = @{}
+        foreach ($esp32ManifestFile in $esp32ManifestFiles) {
+            $esp32ManifestPath = $esp32ManifestFile.FullName
+            $esp32Manifest = Get-Content -LiteralPath $esp32ManifestPath -Raw | ConvertFrom-Json
+            $esp32TargetId = [string]$esp32Manifest.target.id
+            if ([int]$esp32Manifest.schemaVersion -ne 1 -or
+                [string]$esp32Manifest.releaseTag -ne $Tag -or
+                [string]$esp32Manifest.sourceRevision -notmatch '^[0-9A-Fa-f]{12}$' -or
+                $esp32TargetId -notin $allowedEsp32Targets -or
+                [bool]$esp32Manifest.target.touchEnabled -ne $true) {
+                throw "ESP32 manifest '$($esp32ManifestFile.Name)' has an invalid schema, tag, revision, target, or touch status."
+            }
+            if ($seenEsp32Targets.ContainsKey($esp32TargetId)) {
+                throw "Duplicate ESP32 release manifest for target '$esp32TargetId'."
+            }
+            $seenEsp32Targets[$esp32TargetId] = $true
+            if (-not $localCommit.StartsWith(
+                [string]$esp32Manifest.sourceRevision,
+                [StringComparison]::OrdinalIgnoreCase)) {
+                throw "ESP32 package '$esp32TargetId' was not built from release commit $localCommit."
+            }
 
-        $esp32PackagePath = Join-Path $esp32ReleaseDirectory `
-            ([string]$esp32Manifest.package.asset)
-        $expectedEsp32ManifestName = "DMDClock-$($esp32Manifest.version)-esp32-manifest.json"
-        $expectedEsp32PackageName = "DMDClock-$($esp32Manifest.version)-esp32-s3-touch-lcd-7-800x480-n16r8.zip"
-        if ((Split-Path -Leaf $esp32ManifestPath) -cne $expectedEsp32ManifestName -or
-            [string]$esp32Manifest.package.asset -cne $expectedEsp32PackageName) {
-            throw 'The ESP32 manifest or package filename is not canonical for its version.'
+            $esp32TargetSlug = $esp32TargetId
+            $expectedEsp32ManifestName = "DMDClock-$($esp32Manifest.version)-esp32-$esp32TargetSlug-manifest.json"
+            $expectedEsp32PackageName = "DMDClock-$($esp32Manifest.version)-$esp32TargetSlug.zip"
+            $esp32ChecksumsName = "DMDClock-$($esp32Manifest.version)-esp32-$esp32TargetSlug-SHA256SUMS.txt"
+            $esp32PackagePath = Join-Path $esp32ReleaseDirectory ([string]$esp32Manifest.package.asset)
+            $esp32ChecksumsPath = Join-Path $esp32ReleaseDirectory $esp32ChecksumsName
+            if ((Split-Path -Leaf $esp32ManifestPath) -cne $expectedEsp32ManifestName -or
+                [string]$esp32Manifest.package.asset -cne $expectedEsp32PackageName) {
+                throw "ESP32 manifest or package filename is not canonical for target '$esp32TargetId'."
+            }
+            foreach ($path in @($esp32ManifestPath, $esp32PackagePath, $esp32ChecksumsPath)) {
+                Assert-File $path
+            }
+            if ((Get-Item -LiteralPath $esp32PackagePath).Length -ne [long]$esp32Manifest.package.size) {
+                throw "ESP32 package size does not match the manifest for '$esp32TargetId'."
+            }
+            $esp32PackageHash = (Get-FileHash -LiteralPath $esp32PackagePath -Algorithm SHA256).Hash
+            if ($esp32PackageHash -ne [string]$esp32Manifest.package.sha256) {
+                throw "ESP32 package checksum does not match the manifest for '$esp32TargetId'."
+            }
+            $esp32ChecksumLines = @(Get-Content -LiteralPath $esp32ChecksumsPath)
+            foreach ($path in @($esp32PackagePath, $esp32ManifestPath)) {
+                $expectedLine = '{0}  {1}' -f (
+                    (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()),
+                    (Split-Path -Leaf $path)
+                if ($expectedLine -cnotin $esp32ChecksumLines) {
+                    throw "ESP32 checksum list does not contain the expected entry for '$(Split-Path -Leaf $path)'."
+                }
+            }
+            $esp32AssetPaths += @($esp32PackagePath, $esp32ManifestPath, $esp32ChecksumsPath)
         }
-        $esp32ChecksumsPath = Join-Path $esp32ReleaseDirectory `
-            "DMDClock-$($esp32Manifest.version)-esp32-SHA256SUMS.txt"
-        foreach ($path in @($esp32ManifestPath, $esp32PackagePath, $esp32ChecksumsPath)) {
-            Assert-File $path
-        }
-        if ((Get-Item -LiteralPath $esp32PackagePath).Length -ne
-            [long]$esp32Manifest.package.size) {
-            throw 'ESP32 package size does not match its manifest.'
-        }
-        $esp32PackageHash = (Get-FileHash -LiteralPath $esp32PackagePath `
-            -Algorithm SHA256).Hash
-        if ($esp32PackageHash -ne [string]$esp32Manifest.package.sha256) {
-            throw 'ESP32 package checksum does not match its manifest.'
-        }
-        $esp32ChecksumLines = @(Get-Content -LiteralPath $esp32ChecksumsPath)
-        foreach ($path in @($esp32PackagePath, $esp32ManifestPath)) {
-            $expectedLine = '{0}  {1}' -f (
-                (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()),
-                (Split-Path -Leaf $path)
-            if ($expectedLine -cnotin $esp32ChecksumLines) {
-                throw "ESP32 checksum list does not contain the expected entry for '$(Split-Path -Leaf $path)'."
+        foreach ($esp32TargetId in $allowedEsp32Targets) {
+            if (-not $seenEsp32Targets.ContainsKey($esp32TargetId)) {
+                throw "Missing ESP32 release manifest for supported target '$esp32TargetId'."
             }
         }
-        $esp32AssetPaths = @($esp32PackagePath, $esp32ManifestPath, $esp32ChecksumsPath)
     }
 
     & gh release view $Tag --repo $Repository *> $null
@@ -226,12 +251,7 @@ Release: $localCommit
         Assert-File $NotesPath
     }
 
-    $assetPaths = @(
-        $installer,
-        $portableZip,
-        $standaloneZip,
-        $installerInfoPath
-    ) + $esp32AssetPaths
+    $assetPaths = $desktopAssetPaths + $esp32AssetPaths
     $hashLines = foreach ($assetPath in $assetPaths) {
         $hash = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash
         "$hash  $(Split-Path -Leaf $assetPath)"
@@ -240,10 +260,11 @@ Release: $localCommit
     Write-Host "Repository: $Repository"
     Write-Host "Target:     $Target ($localCommit)"
     Write-Host "Tag:        $Tag"
-    Write-Host "Build:      $($portableInfo.buildId)"
+    Write-Host "Build:      $releaseBuildId"
     Write-Host "Prerelease: $($Prerelease.IsPresent)"
     Write-Host "Draft:      $($Draft.IsPresent)"
     Write-Host "ESP32:      $($IncludeEsp32.IsPresent)"
+    Write-Host "ESP32 only: $($Esp32Only.IsPresent)"
     $hashLines | ForEach-Object { Write-Host $_ }
 
     if (-not $PSCmdlet.ShouldProcess(
@@ -257,11 +278,8 @@ Release: $localCommit
     Set-Content -LiteralPath $releaseChecksums -Value $hashLines -Encoding ascii
 
     $arguments = @(
-        'release', 'create', $Tag,
-        $installer,
-        $portableZip,
-        $standaloneZip,
-        $installerInfoPath,
+        'release', 'create', $Tag
+    ) + $desktopAssetPaths + @(
         $releaseChecksums
     ) + $esp32AssetPaths + @(
         '--repo', $Repository,

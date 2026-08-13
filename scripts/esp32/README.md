@@ -34,19 +34,23 @@ require Python, ESP-IDF, .NET, Git, CMake, Ninja, or the Xtensa compiler.
 # Build the production DMDClock firmware. This never flashes a device.
 .\scripts\esp32\Build-DmdClock.ps1
 
+# Build the isolated 640x172 Waveshare 3.49B V2 development target.
+.\scripts\esp32\Build-DmdClock.ps1 -Board Waveshare349B
+
 # Select a board and published ESP32 release, verify it, and optionally flash it.
 # This is the supported end-user flashing entry point.
 .\scripts\esp32\Flash-DmdClockEsp32.ps1
 
-# Developers can flash and monitor the current local build through ESP-IDF.
+# Developers can flash and monitor the original Waveshare 7 local build through ESP-IDF.
 .\scripts\esp32\Invoke-Idf.ps1 -ProjectPath .\firmware\dmdclock-esp32 `
   -p COM5 -B build-hw-esp32 flash monitor
 
-# Package a credential-free local build for a GitHub release.
-.\scripts\esp32\Package-DmdClockEsp32.ps1
+# Package both credential-free targets into one release directory.
+.\scripts\esp32\Package-DmdClockEsp32.ps1 -Board Waveshare7 -CleanOutput
+.\scripts\esp32\Package-DmdClockEsp32.ps1 -Board Waveshare349B
 
-# Include the verified ESP32 artifacts when previewing the combined release.
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.3.2 -IncludeEsp32 -WhatIf
+# Include both verified ESP32 targets when previewing the combined release.
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.5.0 -IncludeEsp32 -WhatIf
 
 # Generate a one-time, ignored first-flash Wi-Fi header and build with it.
 # The password is entered through a masked SecureString prompt.
@@ -78,13 +82,14 @@ portable official Espressif flashing tool, offers application-only or complete
 flashing, requires an explicit COM port, checks for an ESP32-S3 with 16 MB
 flash, and never erases NVS.
 
-The currently published hardware image supports the original Waveshare
-`ESP32-S3-Touch-LCD-7`, 800×480, with an `ESP32-S3-WROOM-1-N16R8` module. The
-later `ESP32-S3-Touch-LCD-7B`, 1024×600, is not supported. The menu also reserves
-`ESP32-S3-Touch-LCD-3.49B`; it cannot be flashed until a matching release image
-is published and its physical revision is validated. Chip detection cannot
-distinguish display wiring, so the flasher also requires confirmation from the
-physical board label.
+Published DMDClock images support the original Waveshare
+`ESP32-S3-Touch-LCD-7`, 800×480, and the
+`ESP32-S3-Touch-LCD-3.49B` V2 / Rev1.1, 640×172. Both require an
+`ESP32-S3-WROOM-1-N16R8` module and have active touch controls. The 7B and
+3.49B V1 remain blocked. Factory recovery requires the exact PCB revision plus
+final `FLASH` confirmation and replaces internal-flash settings.
+Chip detection cannot distinguish display wiring or revisions, so physical
+board-label confirmation remains mandatory.
 
 After the clock boots, it creates `/dmd/config/settings.json` and mirrors every
 web setting change to it. Back up that file before replacing or reformatting a
@@ -118,16 +123,58 @@ its child process environment; it does not copy DLLs into Windows.
 
 `Run-DmdClockQemuModel.ps1` launches two board profiles: `Waveshare7`
 (800×480, DMD 6×) and `Landscape349` (640×172, DMD 5×). The smaller
-`Landscape349` profile is also the geometry-validation target; on it the
-information text renders at the very bottom of the panel (`INFO_TEXT_Y =
-LCD_HEIGHT - 19`) with a translucent black backing strip, below the touch
-buttons and over the DMD. `Waveshare7` uses
+`Landscape349` profile is also the geometry-validation target. Its compact
+controls and information row are temporary overlays, leaving the complete
+640×160 DMD unobstructed when the controls are hidden. `Waveshare7` uses
 `dmdclock-qemu-sd-waveshare7.img`, web port 8080, and monitor port 4444.
 `Landscape349` uses `dmdclock-qemu-sd-landscape349.img`, web port 8081, and
 monitor port 4445. These separate resources allow both profiles to run at the
 same time. Override them with `-SdImage`, `-WebPort`, or `-MonitorPort`. If the
 model's default image does not exist and no explicit image is supplied, QEMU
 boots with the deterministic 11-scene embedded fallback.
+
+After a model is running, validate its actual framebuffer and record PPM/hash
+evidence:
+
+```powershell
+.\scripts\esp32\Test-DmdClockQemuDisplay.ps1 `
+  -Model Landscape349 `
+  -QemuUrl http://127.0.0.1:8081 `
+  -MonitorPort 4445
+```
+
+The gate waits until the network startup view has ended, verifies `/api/state`,
+captures the HMP framebuffer, checks the exact model resolution and P6 payload,
+rejects a blank frame, and writes JSON evidence under
+`output\esp32\reports\qemu-display`.
+
+`Test-DmdClockPhysical349B.ps1` builds and runs the separate Waveshare 3.49B V2
+panel diagnostic. It verifies the connected ESP32-S3, 8 MB PSRAM, 16 MB flash,
+and generated image hashes before requesting `FLASH`, then validates serial
+progress through red, green, blue, black, white, and grid stages. Use a
+one-minute smoke test first and `-DurationMinutes 20` for the P5 soak gate.
+Visual orientation, RGB order, tearing, and corruption still require observing
+the physical LCD. On V2, GPIO42 is an active-low brightness input: low is full
+brightness and high blanks the backlight.
+
+`Test-DmdClockPhysical349BApp.ps1` builds and flashes the isolated production
+DMDClock target after validating the V2 board and image geometry. It records
+boot, native SDMMC, scene-index, panel-init, and ready-state evidence, rejects
+watchdog/crash/persistence failures, and leaves the P6 visual checklist explicit:
+
+```powershell
+.\scripts\esp32\Test-DmdClockPhysical349BApp.ps1 -Port COM5 `
+  -BoardRevision V2 -ConfirmHardware 3.49B -DurationMinutes 1
+```
+
+The P7 image enables AXS15231B touch on the 3.49B V2. Its final landscape
+orientation and all eight visible menu controls passed the physical P7 gate.
+
+`Test-DmdClockQemuAcceptance.ps1` exercises the broader QEMU behavior matrix:
+clock, static/animated SCNs, all four color families, brightness, QR/touch
+overlays, random automatic playback, and active schedule-off evaluation. It
+records per-case framebuffer/hash evidence under
+`output\esp32\reports\qemu-acceptance` and restores the original settings.
 
 `New-DmdClockQemuSdImage.ps1` creates a power-of-two 512 MiB FAT32 superfloppy
 with its boot sector at LBA 0, which is the layout accepted by QEMU's ESP32

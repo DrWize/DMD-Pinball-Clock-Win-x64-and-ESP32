@@ -1,7 +1,7 @@
 # DMDClock for Windows and ESP32-S3
 
 DMDClock recreates the classic DotClk clock and animation display on Windows and
-the original 800x480 Waveshare ESP32-S3-Touch-LCD-7. Choose your platform below;
+supported Waveshare ESP32-S3 displays. Choose your platform below;
 the guides provide the supported installation and preparation workflows.
 
 ![DMDClock scene playback](docs/screenshots/setup/scene-playback.png)
@@ -32,8 +32,9 @@ packages, screensaver setup, and troubleshooting.
 
 ### ESP32-S3 installation
 
-The firmware currently targets only the original **Waveshare ESP32-S3-Touch-LCD-7,
-800x480, N16R8**. It is not a firmware image for the later 7B board.
+Firmware `v1.5.0` supports the original **Waveshare ESP32-S3-Touch-LCD-7,
+800x480, N16R8** and **Waveshare ESP32-S3-Touch-LCD-3.49B V2 / Rev1.1,
+640x172, N16R8**. The 7B and 3.49B V1 use incompatible hardware and are blocked.
 
 From an empty folder, download the two standalone Windows PowerShell scripts:
 
@@ -85,7 +86,7 @@ metadata, while each platform provides controls suited to its display.
 
 ### ESP32-S3
 
-- native ESP-IDF firmware for the supported 800x480 Waveshare board
+- native ESP-IDF firmware for the supported 800x480 and 640x172 Waveshare boards
 - clock, date, SCN playback from TF card, touch controls, and web remote
 - Basic, Gradient, Raster, and Plasma themes
 - Wi-Fi/NTP, MQTT and Home Assistant discovery, diagnostics, and recovery access point

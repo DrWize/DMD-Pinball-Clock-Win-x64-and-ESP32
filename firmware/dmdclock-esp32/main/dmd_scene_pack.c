@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "cJSON.h"
+#include "dmd_geometry.h"
 #include "dmd_storage.h"
 #include "esp_check.h"
 #include "esp_crt_bundle.h"
@@ -53,8 +54,8 @@
 #define SCN_HEADER_SIZE 6
 #define SCN_STORYBOARD_SIZE 36
 #define SCN_FRAME_HEADER_SIZE 8
-#define SCN_PACKED_PIXEL_SIZE (128U * 32U / 2U)
-#define SCN_MASK_SIZE (128U * 32U / 8U)
+#define SCN_PACKED_PIXEL_SIZE (DMD_PIXEL_COUNT / 2U)
+#define SCN_MASK_SIZE (DMD_PIXEL_COUNT / 8U)
 #define SCN_MAX_FRAMES 512
 
 typedef struct {

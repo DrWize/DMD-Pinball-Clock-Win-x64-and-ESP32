@@ -9,13 +9,16 @@
 #include "dmd_actions.h"
 #include "dmd_board.h"
 #include "dmd_color.h"
+#include "dmd_controls.h"
+#include "dmd_geometry.h"
+#include "dmd_layout.h"
 #include "dmd_network.h"
+#include "dmd_panel.h"
 #include "dmd_playback_log.h"
 #include "dmd_plasma.h"
 #include "dmd_scene.h"
 #include "dmd_settings.h"
 #include "esp_check.h"
-#include "esp_lcd_panel_ops.h"
 #include "esp_random.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -26,53 +29,8 @@
 #include "qrcode.h"
 #include "sdkconfig.h"
 
-#if CONFIG_DMD_QEMU
-#include "esp_lcd_qemu_rgb.h"
-#else
-#include "driver/gpio.h"
-#include "esp_lcd_panel_rgb.h"
-#endif
-
-#ifndef CONFIG_DMD_DISPLAY_WIDTH
-#define CONFIG_DMD_DISPLAY_WIDTH 800
-#endif
-#ifndef CONFIG_DMD_DISPLAY_HEIGHT
-#define CONFIG_DMD_DISPLAY_HEIGHT 480
-#endif
-#ifndef CONFIG_DMD_DMD_SCALE
-#define CONFIG_DMD_DMD_SCALE 6
-#endif
-#define LCD_WIDTH CONFIG_DMD_DISPLAY_WIDTH
-#define LCD_HEIGHT CONFIG_DMD_DISPLAY_HEIGHT
-#define DMD_SCALE CONFIG_DMD_DMD_SCALE
-#define LCD_PIXEL_CLOCK_HZ (16 * 1000 * 1000)
 #define TOUCH_SCHEDULE_OVERRIDE_US (INT64_C(60) * 60 * 1000000)
 
-#define DMD_WIDTH 128
-#define DMD_HEIGHT 32
-#define DMD_PIXEL_SIZE 4
-#define DMD_VIEW_WIDTH (DMD_WIDTH * DMD_SCALE)
-#define DMD_VIEW_HEIGHT (DMD_HEIGHT * DMD_SCALE)
-#define DMD_VIEW_X ((LCD_WIDTH - DMD_VIEW_WIDTH) / 2)
-#define DMD_VIEW_Y ((LCD_HEIGHT - DMD_VIEW_HEIGHT) / 2)
-
-#define CHROME_MARGIN 10
-#define TOP_BUTTON_HEIGHT 46
-#define BOTTOM_BUTTON_HEIGHT 56
-#define TOP_BUTTON_COUNT 3
-#define BOTTOM_BUTTON_COUNT 5
-#define TOP_BUTTON_Y CHROME_MARGIN
-#define BOTTOM_BUTTON_Y (LCD_HEIGHT - BOTTOM_BUTTON_HEIGHT - 24)
-#define TOP_BUTTON_WIDTH ((LCD_WIDTH - 4 * CHROME_MARGIN) / TOP_BUTTON_COUNT)
-#define BOTTOM_BUTTON_WIDTH \
-    ((LCD_WIDTH - (BOTTOM_BUTTON_COUNT + 1) * CHROME_MARGIN) / BOTTOM_BUTTON_COUNT)
-#define INFO_TEXT_SCALE 2
-#define INFO_TEXT_HEIGHT (7 * INFO_TEXT_SCALE)
-#define INFO_BOTTOM_MARGIN 5
-#define INFO_TEXT_Y (LCD_HEIGHT - INFO_TEXT_HEIGHT - INFO_BOTTOM_MARGIN)
-#define INFO_BACKING_PAD 3
-#define INFO_BACKING_Y (INFO_TEXT_Y - INFO_BACKING_PAD)
-#define INFO_BACKING_HEIGHT (INFO_TEXT_HEIGHT + 2 * INFO_BACKING_PAD)
 #define CONTROL_VISIBLE_US (8LL * 1000 * 1000)
 #define CONTROL_FADE_US (1LL * 1000 * 1000)
 #define STARTUP_NETWORK_STATUS_US (20LL * 1000 * 1000)
@@ -82,12 +40,7 @@
 #define SETUP_QR_VISIBLE_US (60LL * 1000 * 1000)
 
 static const char *TAG = "dmd_display";
-static esp_lcd_panel_handle_t s_panel;
 static uint16_t *s_framebuffer;
-#if !CONFIG_DMD_QEMU
-static uint16_t *s_framebuffers[2];
-static TaskHandle_t s_display_task;
-#endif
 static uint8_t s_dmd[DMD_WIDTH * DMD_HEIGHT];
 static uint8_t s_clock_dmd[DMD_WIDTH * DMD_HEIGHT];
 static uint8_t s_scene_mask[DMD_WIDTH * DMD_HEIGHT];
@@ -99,6 +52,7 @@ static dmd_display_state_t s_state;
 static uint32_t s_command_revision;
 static uint32_t s_touch_test_request_revision;
 static uint32_t s_setup_qr_request_revision;
+static uint32_t s_show_clock_request_revision;
 static bool s_command_play_scene;
 static uint16_t s_command_scene_index;
 static int64_t s_controls_last_interaction_at;
@@ -373,23 +327,6 @@ static void draw_lcd_text(
     }
 }
 
-static int top_button_x(int index)
-{
-    return CHROME_MARGIN + index * (TOP_BUTTON_WIDTH + CHROME_MARGIN);
-}
-
-static int bottom_button_x(int index)
-{
-    return CHROME_MARGIN + index * (BOTTOM_BUTTON_WIDTH + CHROME_MARGIN);
-}
-
-static int top_button_width(int index)
-{
-    return index + 1 >= TOP_BUTTON_COUNT
-        ? LCD_WIDTH - top_button_x(index) - CHROME_MARGIN
-        : TOP_BUTTON_WIDTH;
-}
-
 static void draw_button_at(
     int x,
     int y,
@@ -419,9 +356,9 @@ static void draw_button(
 {
     draw_button_at(
         x,
-        BOTTOM_BUTTON_Y,
+        DMD_BOTTOM_BUTTON_Y,
         width,
-        BOTTOM_BUTTON_HEIGHT,
+        DMD_BOTTOM_BUTTON_HEIGHT,
         label,
         accent,
         opacity);
@@ -724,7 +661,8 @@ static void draw_screen_chrome(
     dmd_rgb_t rgb = settings_color_at(settings, 64, 16);
     uint16_t accent = rgb565(rgb.red, rgb.green, rgb.blue);
 
-    if (settings->show_information) {
+    if (settings->show_information &&
+        (!DMD_CHROME_TEMPORARY_ONLY || controls_opacity_value > 0)) {
         dmd_rgb_t information_rgb;
         if (settings->information_color_mode ==
             DMD_INFORMATION_COLOR_THEME) {
@@ -778,17 +716,17 @@ static void draw_screen_chrome(
         if (source[0] != '\0') {
             draw_rect_blend(
                 10,
-                INFO_BACKING_Y,
+                DMD_INFO_BACKING_Y,
                 LCD_WIDTH - 20,
-                INFO_BACKING_HEIGHT,
+                DMD_INFO_BACKING_HEIGHT,
                 rgb565(0, 0, 0),
                 153);
             uppercase_copy(info, sizeof(info), source);
             draw_lcd_text_fit(
                 info,
                 20,
-                INFO_TEXT_Y,
-                INFO_TEXT_SCALE,
+                DMD_INFO_TEXT_Y,
+                DMD_INFO_TEXT_SCALE,
                 LCD_WIDTH - 40,
                 information_color);
         }
@@ -796,50 +734,50 @@ static void draw_screen_chrome(
 
     if (controls_opacity_value > 0) {
         draw_button_at(
-            top_button_x(0),
-            TOP_BUTTON_Y,
-            top_button_width(0),
-            TOP_BUTTON_HEIGHT,
+            dmd_controls_top_button_x(0),
+            DMD_TOP_BUTTON_Y,
+            dmd_controls_top_button_width(0),
+            DMD_TOP_BUTTON_HEIGHT,
             "NEXT PINBALL",
             accent,
             controls_opacity_value);
         draw_button_at(
-            top_button_x(1),
-            TOP_BUTTON_Y,
-            top_button_width(1),
-            TOP_BUTTON_HEIGHT,
+            dmd_controls_top_button_x(1),
+            DMD_TOP_BUTTON_Y,
+            dmd_controls_top_button_width(1),
+            DMD_TOP_BUTTON_HEIGHT,
             "NEXT SCENE",
             accent,
             controls_opacity_value);
         draw_button_at(
-            top_button_x(2),
-            TOP_BUTTON_Y,
-            top_button_width(2),
-            TOP_BUTTON_HEIGHT,
+            dmd_controls_top_button_x(2),
+            DMD_TOP_BUTTON_Y,
+            dmd_controls_top_button_width(2),
+            DMD_TOP_BUTTON_HEIGHT,
             settings->random_playback ? "RANDOM ON" : "RANDOM OFF",
             accent,
             controls_opacity_value);
         draw_button(
-            bottom_button_x(0),
-            BOTTOM_BUTTON_WIDTH,
+            dmd_controls_bottom_button_x(0),
+            DMD_BOTTOM_BUTTON_WIDTH,
             "THEME",
             accent,
             controls_opacity_value);
         draw_button(
-            bottom_button_x(1),
-            BOTTOM_BUTTON_WIDTH,
+            dmd_controls_bottom_button_x(1),
+            DMD_BOTTOM_BUTTON_WIDTH,
             "COLOUR",
             accent,
             controls_opacity_value);
         draw_button(
-            bottom_button_x(2),
-            BOTTOM_BUTTON_WIDTH,
+            dmd_controls_bottom_button_x(2),
+            DMD_BOTTOM_BUTTON_WIDTH,
             settings->show_information ? "INFO ON" : "INFO OFF",
             accent,
             controls_opacity_value);
         draw_button(
-            bottom_button_x(3),
-            BOTTOM_BUTTON_WIDTH,
+            dmd_controls_bottom_button_x(3),
+            DMD_BOTTOM_BUTTON_WIDTH,
             settings->glow_strength > 0 ? "GLOW ON" : "GLOW OFF",
             accent,
             controls_opacity_value);
@@ -860,8 +798,8 @@ static void draw_screen_chrome(
             }
         }
         draw_button(
-            bottom_button_x(4),
-            BOTTOM_BUTTON_WIDTH,
+            dmd_controls_bottom_button_x(4),
+            DMD_BOTTOM_BUTTON_WIDTH,
             ntp_label,
             accent,
             controls_opacity_value);
@@ -1108,46 +1046,10 @@ static void paint_dmd(
 
 static void refresh_display(void)
 {
-#if CONFIG_DMD_QEMU
-    ESP_ERROR_CHECK(esp_lcd_rgb_qemu_refresh(s_panel));
-#else
-    ulTaskNotifyValueClear(NULL, ULONG_MAX);
-    ESP_ERROR_CHECK(
-        esp_lcd_panel_draw_bitmap(
-            s_panel,
-            0,
-            0,
-            LCD_WIDTH,
-            LCD_HEIGHT,
-            s_framebuffer));
-    if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100)) == 0) {
-        ESP_LOGW(TAG, "Timed out waiting for RGB frame-buffer handoff");
-    }
-    s_framebuffer =
-        s_framebuffer == s_framebuffers[0]
-            ? s_framebuffers[1]
-            : s_framebuffers[0];
-#endif
+    ESP_ERROR_CHECK(dmd_panel_present());
+    s_framebuffer = dmd_panel_begin_frame();
+    ESP_ERROR_CHECK(s_framebuffer != NULL ? ESP_OK : ESP_ERR_INVALID_STATE);
 }
-
-#if !CONFIG_DMD_QEMU
-static bool IRAM_ATTR frame_buffer_complete(
-    esp_lcd_panel_handle_t panel,
-    const esp_lcd_rgb_panel_event_data_t *event,
-    void *context)
-{
-    (void)panel;
-    (void)event;
-    (void)context;
-    TaskHandle_t display_task = s_display_task;
-    if (display_task == NULL) {
-        return false;
-    }
-    BaseType_t higher_priority_task_woken = pdFALSE;
-    vTaskNotifyGiveFromISR(display_task, &higher_priority_task_woken);
-    return higher_priority_task_woken == pdTRUE;
-}
-#endif
 
 esp_err_t dmd_display_init(void)
 {
@@ -1156,101 +1058,27 @@ esp_err_t dmd_display_init(void)
         ESP_ERR_INVALID_STATE,
         TAG,
         "Plasma reference-vector self-test failed");
-#if CONFIG_DMD_QEMU
-    ESP_LOGI(
+    ESP_RETURN_ON_FALSE(
+        dmd_controls_layout_self_test(),
+        ESP_ERR_INVALID_STATE,
         TAG,
-        "Initializing QEMU %dx%d virtual RGB panel",
-        LCD_WIDTH,
-        LCD_HEIGHT);
-    const esp_lcd_rgb_qemu_config_t qemu_config = {
-        .width = LCD_WIDTH,
-        .height = LCD_HEIGHT,
-        .bpp = RGB_QEMU_BPP_16,
-    };
+        "Display control-layout self-test failed");
+    ESP_RETURN_ON_ERROR(dmd_panel_init(), TAG, "initialize panel backend");
+    ESP_RETURN_ON_FALSE(
+        dmd_panel_width() == LCD_WIDTH && dmd_panel_height() == LCD_HEIGHT,
+        ESP_ERR_INVALID_SIZE,
+        TAG,
+        "panel dimensions do not match the board contract");
+    s_framebuffer = dmd_panel_begin_frame();
+    ESP_RETURN_ON_FALSE(
+        s_framebuffer != NULL,
+        ESP_ERR_INVALID_STATE,
+        TAG,
+        "panel backend returned no framebuffer");
     ESP_RETURN_ON_ERROR(
-        esp_lcd_new_rgb_qemu(&qemu_config, &s_panel),
+        dmd_panel_set_backlight(true),
         TAG,
-        "create QEMU panel");
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_init(s_panel), TAG, "initialize QEMU panel");
-    ESP_RETURN_ON_ERROR(
-        esp_lcd_rgb_qemu_get_frame_buffer(s_panel, (void **)&s_framebuffer),
-        TAG,
-        "get QEMU framebuffer");
-#else
-    ESP_LOGI(
-        TAG,
-        "Initializing %dx%d RGB panel",
-        LCD_WIDTH,
-        LCD_HEIGHT);
-    const esp_lcd_rgb_panel_config_t panel_config = {
-        .clk_src = LCD_CLK_SRC_DEFAULT,
-        .timings = {
-            .pclk_hz = LCD_PIXEL_CLOCK_HZ,
-            .h_res = LCD_WIDTH,
-            .v_res = LCD_HEIGHT,
-            .hsync_pulse_width = 4,
-            .hsync_back_porch = 8,
-            .hsync_front_porch = 8,
-            .vsync_pulse_width = 4,
-            .vsync_back_porch = 8,
-            .vsync_front_porch = 8,
-            .flags.pclk_active_neg = 1,
-        },
-        .data_width = 16,
-        .bits_per_pixel = 16,
-        .num_fbs = 2,
-        .bounce_buffer_size_px = LCD_WIDTH * 20,
-        .sram_trans_align = 4,
-        .psram_trans_align = 64,
-        .hsync_gpio_num = GPIO_NUM_46,
-        .vsync_gpio_num = GPIO_NUM_3,
-        .de_gpio_num = GPIO_NUM_5,
-        .pclk_gpio_num = GPIO_NUM_7,
-        .disp_gpio_num = GPIO_NUM_NC,
-        .data_gpio_nums = {
-            GPIO_NUM_14, GPIO_NUM_38, GPIO_NUM_18, GPIO_NUM_17,
-            GPIO_NUM_10, GPIO_NUM_39, GPIO_NUM_0, GPIO_NUM_45,
-            GPIO_NUM_48, GPIO_NUM_47, GPIO_NUM_21, GPIO_NUM_1,
-            GPIO_NUM_2, GPIO_NUM_42, GPIO_NUM_41, GPIO_NUM_40,
-        },
-        .flags.fb_in_psram = 1,
-    };
-
-    ESP_RETURN_ON_ERROR(
-        esp_lcd_new_rgb_panel(&panel_config, &s_panel),
-        TAG,
-        "create panel");
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(s_panel), TAG, "reset panel");
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_init(s_panel), TAG, "initialize panel");
-    const esp_lcd_rgb_panel_event_callbacks_t callbacks = {
-        .on_frame_buf_complete = frame_buffer_complete,
-    };
-    ESP_RETURN_ON_ERROR(
-        esp_lcd_rgb_panel_register_event_callbacks(
-            s_panel,
-            &callbacks,
-            NULL),
-        TAG,
-        "register frame-buffer callback");
-    ESP_RETURN_ON_ERROR(
-        esp_lcd_rgb_panel_get_frame_buffer(
-            s_panel,
-            2,
-            (void **)&s_framebuffers[0],
-            (void **)&s_framebuffers[1]),
-        TAG,
-        "get framebuffers");
-    memset(
-        s_framebuffers[0],
-        0,
-        LCD_WIDTH * LCD_HEIGHT * sizeof(uint16_t));
-    memset(
-        s_framebuffers[1],
-        0,
-        LCD_WIDTH * LCD_HEIGHT * sizeof(uint16_t));
-    s_framebuffer = s_framebuffers[1];
-
-#endif
+        "enable panel backlight");
     s_state_lock = xSemaphoreCreateMutex();
     if (s_state_lock == NULL) {
         return ESP_ERR_NO_MEM;
@@ -1283,6 +1111,7 @@ void dmd_display_show_clock(void)
     xSemaphoreTake(s_state_lock, portMAX_DELAY);
     s_command_play_scene = false;
     s_command_revision++;
+    s_show_clock_request_revision++;
     xSemaphoreGive(s_state_lock);
 }
 
@@ -1414,27 +1243,9 @@ static bool handle_touch(
         return true;
     }
 
-    int top_zone_bottom = TOP_BUTTON_Y + TOP_BUTTON_HEIGHT + CHROME_MARGIN;
-    int bottom_zone_top = BOTTOM_BUTTON_Y - CHROME_MARGIN;
-    if (y < top_zone_bottom) {
-        dmd_action_execute(
-            x < top_button_x(0) + TOP_BUTTON_WIDTH + CHROME_MARGIN / 2
-                ? DMD_ACTION_PINBALL_NEXT
-                : (x < top_button_x(1) + TOP_BUTTON_WIDTH + CHROME_MARGIN / 2
-                    ? DMD_ACTION_SCENE_NEXT
-                    : DMD_ACTION_TOGGLE_RANDOM));
-    } else if (y < bottom_zone_top) {
-        return true;
-    } else if (x < bottom_button_x(0) + BOTTOM_BUTTON_WIDTH + CHROME_MARGIN / 2) {
-        dmd_action_execute(DMD_ACTION_COLOR_FAMILY_NEXT);
-    } else if (x < bottom_button_x(1) + BOTTOM_BUTTON_WIDTH + CHROME_MARGIN / 2) {
-        dmd_action_execute(DMD_ACTION_COLOR_THEME_NEXT);
-    } else if (x < bottom_button_x(2) + BOTTOM_BUTTON_WIDTH + CHROME_MARGIN / 2) {
-        dmd_action_execute(DMD_ACTION_TOGGLE_INFORMATION);
-    } else if (x < bottom_button_x(3) + BOTTOM_BUTTON_WIDTH + CHROME_MARGIN / 2) {
-        dmd_action_execute(DMD_ACTION_TOGGLE_GLOW);
-    } else {
-        dmd_action_execute(DMD_ACTION_SYNC_NTP);
+    dmd_action_t action;
+    if (dmd_controls_action_at(x, y, &action)) {
+        dmd_action_execute(action);
     }
     return true;
 }
@@ -1442,9 +1253,6 @@ static bool handle_touch(
 void dmd_display_task(void *context)
 {
     (void)context;
-#if !CONFIG_DMD_QEMU
-    s_display_task = xTaskGetCurrentTaskHandle();
-#endif
     dmd_settings_t settings;
     dmd_settings_get(&settings);
 
@@ -1459,6 +1267,7 @@ void dmd_display_task(void *context)
     dmd_color_preset_t previous_color_preset = settings.color_preset;
     dmd_plasma_palette_t previous_plasma_palette = settings.plasma_palette;
     bool previous_playback_log_enabled = settings.playback_log_enabled;
+    bool previous_show_information = settings.show_information;
     uint32_t handled_command_revision = 0;
     time_t previous_second = 0;
     time_t previous_reboot_minute = -1;
@@ -1482,6 +1291,7 @@ void dmd_display_task(void *context)
     bool touch_test_start_events_captured = false;
     uint32_t handled_touch_test_request_revision = 0;
     uint32_t handled_setup_qr_request_revision = 0;
+    uint32_t handled_show_clock_request_revision = 0;
     bool previous_setup_qr_visible = false;
     bool previous_station_connected = false;
     char previous_station_ip[16] = "";
@@ -1545,6 +1355,12 @@ void dmd_display_task(void *context)
             force_render = true;
         }
         monotonic_now = esp_timer_get_time();
+        if (previous_revision != 0 &&
+            settings.revision != previous_revision &&
+            settings.show_information != previous_show_information) {
+            s_controls_last_interaction_at = monotonic_now;
+            force_render = true;
+        }
         xSemaphoreTake(s_state_lock, portMAX_DELAY);
         if (s_touch_test_request_revision !=
             handled_touch_test_request_revision) {
@@ -1571,6 +1387,16 @@ void dmd_display_task(void *context)
                     ? startup_network_status_until
                     : monotonic_now) +
                 SETUP_QR_VISIBLE_US;
+            force_render = true;
+        }
+        if (s_show_clock_request_revision !=
+            handled_show_clock_request_revision) {
+            handled_show_clock_request_revision =
+                s_show_clock_request_revision;
+            touch_test_started_at = 0;
+            touch_test_until = 0;
+            touch_test_result_until = 0;
+            setup_qr_until = 0;
             force_render = true;
         }
         xSemaphoreGive(s_state_lock);
@@ -1876,6 +1702,7 @@ void dmd_display_task(void *context)
         previous_schedule_override_active =
             schedule_override_active;
         previous_revision = settings.revision;
+        previous_show_information = settings.show_information;
         previous_controls_opacity = current_controls_opacity;
         previous_startup_network_status_visible =
             startup_network_status_visible;

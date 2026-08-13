@@ -21,3 +21,4 @@ bool dmd_board_read_touch(uint16_t *x, uint16_t *y);
 bool dmd_board_touch_available(void);
 void dmd_board_get_touch_diagnostics(dmd_touch_diagnostics_t *diagnostics);
 esp_err_t dmd_board_set_sd_enabled(bool enabled);
+esp_err_t dmd_board_set_backlight(bool enabled);

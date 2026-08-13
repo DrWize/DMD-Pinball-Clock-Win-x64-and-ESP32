@@ -35,6 +35,16 @@ void app_main(void)
     ESP_ERROR_CHECK(dmd_diagnostics_init());
     dmd_settings_t settings;
     dmd_settings_get(&settings);
+    ESP_LOGI(
+        TAG,
+        "Startup display settings: display_on=%d brightness=%u schedule_enabled=%d "
+        "play_scene=%d automatic_cycle=%d scene_index=%u",
+        settings.display_on,
+        settings.brightness,
+        settings.screen_schedule_enabled,
+        settings.play_scene,
+        settings.automatic_cycle,
+        settings.scene_index);
     if (settings.scene_index >= dmd_scene_count()) {
         settings.scene_index = 0;
         ESP_ERROR_CHECK(dmd_settings_update(&settings));
@@ -57,5 +67,8 @@ void app_main(void)
         1);
     ESP_ERROR_CHECK(created == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
 
-    ESP_LOGI(TAG, "DMDClock ready: connect to the displayed DMDClock Wi-Fi network");
+    ESP_LOGI(
+        TAG,
+        "DMDClock ready: touch=%s; connect to the displayed DMDClock Wi-Fi network",
+        dmd_board_touch_available() ? "available" : "unavailable");
 }

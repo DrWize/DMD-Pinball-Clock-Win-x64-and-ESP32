@@ -6,9 +6,10 @@ archive so decisions and implementation history are not lost.
 
 ## Project goal and scope
 
-DMDClock is a standalone Windows clock and animation player for the classic DotClk
-format. It renders a 128×32, four-bit monochrome DMD on a normal monitor and does
-not require a Raspberry Pi, Teensy, ESP32, or physical DMD.
+DMDClock is a clock and animation player for the classic DotClk format. Windows
+and macOS render the DMD on a normal monitor, while the ESP-IDF firmware drives
+supported ESP32-S3 LCD targets. Every platform shares the same logical 128×32,
+four-bit monochrome DMD contract.
 
 Active development is limited to:
 
@@ -17,13 +18,13 @@ Active development is limited to:
 - clocks, dates, DotClk/OpenType fonts, and classic DMD themes;
 - library indexing, metadata, selection, controls, and Windows packaging.
 
-Audio is outside scope. Serum, cRom, full RGB, larger displays, DMD Extensions,
-Raspberry Pi, ESP32-S3, and physical-output support are deferred until the classic
-Windows application is release-ready.
+Audio is outside scope. Serum, cRom, full RGB, larger logical DMD formats, DMD
+Extensions, Raspberry Pi, and unsupported physical-output targets remain
+deferred.
 
 ## Current baseline
 
-### Tomorrow — 2026-08-12 repository integration and cleanup
+### Repository integration and cleanup — reviewed 2026-08-12
 
 - [x] For the next release, make **DMD-Large** the preferred/default scene library
       on Windows, macOS, and ESP32 while keeping **Original DotCLK-Orig** as an
@@ -891,6 +892,23 @@ Detailed phases, commands, risks, and acceptance criteria:
 
 ## Backlog after the active priorities
 
+### Documentation maintenance
+
+- [ ] Make this file a prioritized backlog rather than a combined installer,
+      contributor runbook, roadmap, and completed-work archive; replace moved
+      material with links to the owning documents.
+- [ ] Remove the stale statement that ESP32-S3 work is deferred and reconcile
+      the project scope with the two supported embedded hardware tracks.
+- [ ] Keep end-user procedures in `docs/USER-SETUP.md` and
+      `docs/INSTALL-ESP32.md`, developer commands in `docs/DEVELOPMENT.md` and
+      the relevant firmware/script READMEs, and avoid duplicating full command
+      sequences here.
+- [ ] Move the large completed-work history into a dated archive or changelog so
+      active priorities remain scannable.
+- [ ] Trim `docs/ESP32-S3-ROADMAP.md` to shared long-term architecture and
+      backlog; keep board-specific status and physical evidence in each board's
+      dedicated plan and hardware contract.
+
 ### Clock and automatic display
 
 - [ ] Multiple clock layouts with optional seconds/date
@@ -915,6 +933,14 @@ Detailed phases, commands, risks, and acceptance criteria:
 - [ ] Selectable dot shape, spacing, and glow strength
 - [ ] Per-manufacturer or per-game color palettes
 - [ ] Pixel-perfect integer scaling when the available display size permits it
+
+### Waveshare ESP32-S3-Touch-LCD-3.49B — 640×172 landscape
+
+- [ ] Complete the dedicated emulation-first P0–P9 port plan in
+      [WAVESHARE-ESP32-S3-TOUCH-LCD-3.49B-TODO.md](docs/WAVESHARE-ESP32-S3-TOUCH-LCD-3.49B-TODO.md).
+      Keep 128×32 as the only logical DMD format, share scenes and application
+      logic with Waveshare 7, and require `Landscape349` QEMU acceptance before
+      physical 3.49B flashing.
 
 ### ESP32-S3 web management
 

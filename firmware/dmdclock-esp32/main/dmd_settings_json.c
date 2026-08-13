@@ -493,10 +493,19 @@ esp_err_t dmd_settings_json_save(const dmd_settings_t *settings)
         return ESP_FAIL;
     }
     if (rename(SETTINGS_TEMP_PATH, SETTINGS_PATH) != 0) {
-        ESP_LOGE("dmd_settings_json", "rename to %s failed errno=%d", SETTINGS_PATH, errno);
+        int rename_errno = errno;
+        if (rename_errno == EEXIST) {
+            ESP_LOGI("dmd_settings_json", "Replacing existing %s", SETTINGS_PATH);
+        } else {
+            ESP_LOGE(
+                "dmd_settings_json",
+                "rename to %s failed errno=%d",
+                SETTINGS_PATH,
+                rename_errno);
+        }
         remove(SETTINGS_PATH);
         if (rename(SETTINGS_TEMP_PATH, SETTINGS_PATH) != 0) {
-            ESP_LOGE("dmd_settings_json", "rename retry failed");
+            ESP_LOGE("dmd_settings_json", "rename retry failed errno=%d", errno);
             remove(SETTINGS_TEMP_PATH);
             return ESP_FAIL;
         }

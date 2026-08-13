@@ -13,6 +13,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
 #include "sdkconfig.h"
 
 #define SCN_HEADER_SIZE 6
@@ -218,7 +219,8 @@ static esp_err_t parse_scene(uint16_t index)
         uint16_t height = read_u16(offset + 2);
         uint16_t bpp = read_u16(offset + 4);
         uint16_t has_mask = read_u16(offset + 6);
-        if (width != 128 || height != 32 || bpp != 4 || has_mask > 1) {
+        if (width != DMD_WIDTH || height != DMD_HEIGHT ||
+            bpp != DMD_PIXEL_SIZE || has_mask > 1) {
             ESP_LOGE(
                 TAG,
                 "%s frame %u unsupported: %ux%u %ubpp mask=%u",
@@ -373,6 +375,9 @@ esp_err_t dmd_scene_init(void)
             s_scenes[index].file_name,
             &s_metadata[index]);
         s_scenes[index].display_name = s_metadata[index].display_name;
+        if ((index & 0x1fU) == 0x1fU) {
+            vTaskDelay(1);
+        }
     }
     dmd_scene_metadata_free(catalog);
 

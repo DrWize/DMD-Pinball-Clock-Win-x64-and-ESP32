@@ -28,10 +28,17 @@ Prefer a ZIP instead?
 See [Install DMDClock on Windows](INSTALL-WINDOWS.md) for screensaver setup,
 upgrades, portable use, and troubleshooting.
 
-## Waveshare ESP32-S3-Touch-LCD-7
+## Waveshare ESP32-S3 displays
 
-> Supported hardware: only the original 800×480
-> `ESP32-S3-Touch-LCD-7` with an N16R8 module. Do not flash the 1024×600 `7B`.
+Supported release targets:
+
+| Board | Display | Required revision |
+| --- | ---: | --- |
+| Waveshare ESP32-S3-Touch-LCD-7 | 800×480 | Original 7, N16R8 |
+| Waveshare ESP32-S3-Touch-LCD-3.49B | 640×172 | V2 / Rev1.1, N16R8 |
+
+Do not flash the 1024×600 7B or the incompatible 3.49B V1. The flasher requires
+the exact board and, for 3.49B, the PCB revision before it offers firmware.
 
 1. Download or clone this repository on 64-bit Windows and open PowerShell in
    its root.

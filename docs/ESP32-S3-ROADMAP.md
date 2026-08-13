@@ -18,82 +18,23 @@ The embedded firmware is not a build of the Avalonia application. It is an
 ESP-IDF C/C++ implementation that consumes the same generated color data, format
 fixtures, and behavioral test vectors as the .NET implementation.
 
-## New board target candidate
+## Second board target — Waveshare 3.49B
 
-A future port for the
-**ESP32-S3 High-Performance Development Board With 3.49" IPS Capacitive Touch Display**
-(172×640 pixel, ESP32-S3R8) should be tracked as a separate board variant from
-the existing Waveshare 800×480 target. The hardware is still ESP32-S3 family, but
-it requires its own panel timing, display geometry, touch mapping, and likely a
-new board identifier and packaging artifacts.
+The **Waveshare ESP32-S3-Touch-LCD-3.49B**, used as a 640×172 landscape display,
+is tracked as a separate first-class hardware target. Its complete ordered plan
+and acceptance criteria are maintained in the dedicated
+[Waveshare ESP32-S3-Touch-LCD-3.49B TODO](WAVESHARE-ESP32-S3-TOUCH-LCD-3.49B-TODO.md).
 
-Planned work for this variant:
+The port keeps 128×32 as the only logical DMD format. Waveshare 7 renders it at
+6× on 800×480; Waveshare 3.49B renders it at 5× on 640×172. Both targets share
+the same scenes and DMDClock application logic.
 
-- [ ] Confirm the exact panel controller, touch controller, and board pin mapping.
-- [ ] Add a dedicated board configuration for the 172×640 display resolution.
-- [ ] Adapt the framebuffer layout, DMD centering/scaling, and touch coordinate
-      mapping for the new aspect ratio.
-- [ ] Validate backlight, power sequencing, and reset behavior for the new board.
-- [ ] Create a separate firmware target identifier and packaging outputs from the
-      Waveshare 800×480 build.
-- [ ] Document build and flashing steps for this board as a first-class variant.
-
-This work should not replace the existing Waveshare 800×480 release path; it
-should be treated as a second supported target once the first board is stable and
-verified.
-
-## P — emulation-first validation for a new display target
-
-Use the existing QEMU profile as the first validation gate for the new board
-variant before any hardware flash or board bring-up work. The goal is to prove
-that the firmware can adapt to the new geometry, UI layout, and rendering rules
-without depending on the physical panel.
-
-### P0 — introduce a configurable display geometry
-
-- [x] Replace the hard-coded 800×480 assumptions in the renderer with board-level
-      display configuration values.
-- [x] Make the framebuffer width/height, DMD placement, and safe drawing bounds
-      driven by configuration rather than fixed constants.
-- [x] Add a simple build-time or runtime switch for selecting a test display size
-      such as 172×640 for emulation.
-
-### P1 — validate layout and rendering in QEMU
-
-- [x] Build and run the QEMU firmware profile with the new display geometry.
-- [x] Verify that the centered DMD, clock, overlays, and touch UI remain visible
-      and correctly bounded at the new aspect ratio.
-- [ ] Check whether text, QR rendering, and diagnostics panels need different
-      placement rules for the narrower display.
-- [x] Capture screenshots or logs from QEMU to compare layout quality across the
-      old and new resolutions.
-
-### P2 — validate behavior under the new aspect ratio
-
-- [ ] Verify that scene playback, theme rendering, and plasma output still look
-      sensible on the new display shape.
-- [ ] Confirm that touch input and web controls still map to the correct regions
-      after layout changes.
-- [ ] Add or update any emulation-only test vectors that exercise the new
-      resolution.
-
-### P3 — gate hardware bring-up on emulation success
-
-- [ ] Only move to real hardware bring-up once the emulation build proves the new
-      layout and rendering contract.
-- [ ] Document the QEMU test checklist as the required prerequisite for the next
-      physical-board port.
-
-This phase is intentionally emulation-first: it reduces the risk of spending time
-on board-level wiring and timing work before the firmware logic has proven it can
-render correctly at the target shape.
-
-The model runner now keeps separate builds, writable SD images, web ports, and
-HMP ports for Waveshare7 and Landscape349. Both have run concurrently with
-2,416-scene images and successful settings persistence. QEMU uses the classic
-ESP32 machine with 4 MiB quad PSRAM, not the physical ESP32-S3 N16R8's 8 MiB
-octal PSRAM, so these results remain an emulation gate rather than hardware
-qualification.
+The existing `Landscape349` QEMU profile is the mandatory validation gate before
+physical work. It has separate build, writable SD, web, and HMP resources and has
+run concurrently with `Waveshare7` using 2,416-scene images and persistent
+settings. QEMU uses a classic ESP32 with 4 MiB quad PSRAM, so this remains
+rendering and memory-pressure evidence rather than physical ESP32-S3, panel, or
+touch qualification.
 
 ## Goals
 

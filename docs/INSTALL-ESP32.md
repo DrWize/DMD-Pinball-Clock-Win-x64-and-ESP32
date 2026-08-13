@@ -1,20 +1,14 @@
 # Install DMDClock on the ESP32-S3 and SD card
 
-This guide and every published DMDClock ESP32 image support only the original
-Waveshare `ESP32-S3-Touch-LCD-7`, `ESP32-S3-WROOM-1-N16R8`, with an 800×480
-display. The 1024×600 `ESP32-S3-Touch-LCD-7B` is not supported and must not be
-flashed with these packages.
+Published DMDClock firmware supports two explicit N16R8 targets: the original
+800×480 Waveshare `ESP32-S3-Touch-LCD-7` and the 640×172 Waveshare
+`ESP32-S3-Touch-LCD-3.49B` **V2 / Rev1.1**. The 1024×600 7B and 3.49B V1 are
+incompatible and must not be flashed with these packages.
 
-The firmware also defines a second development board target, a 3.49-inch
-`640×172` landscape panel (`DMD_BOARD_3_49_LANDSCAPE`), selectable through the
-`DMD_BOARD` Kconfig choice. It is validated in QEMU only so far and is not part
-of any published release image; it is not a supported flashing target until
-emulation-first validation completes and physical bring-up passes.
-
-The flashing menu reserves **Waveshare ESP32-S3-Touch-LCD-3.49B** so a matching
-image can be published later without changing the user workflow. Selecting it
-currently reports that no compatible release exists. Do not substitute the
-7-inch image.
+The flashing menu filters release manifests by exact target. For 3.49B it also
+requires an explicit V2 revision confirmation. Hash-verified official factory
+recovery remains available for both 3.49B revisions, but the recovery image must
+match the PCB revision and is separate from DMDClock firmware.
 
 ## Select the correct programming connector
 
@@ -24,7 +18,7 @@ interface diagram for the exact model before selecting a COM port:
 | Model | Programming connection | Official links |
 | --- | --- | --- |
 | Waveshare ESP32-S3-Touch-LCD-7 | Use a data-capable cable in the **USB TO UART Type-C** port. | [Product homepage](https://www.waveshare.com/esp32-s3-touch-lcd-7.htm) · [Port diagram and documentation](https://www.waveshare.com/wiki/ESP32-S3-Touch-LCD-7) |
-| Waveshare ESP32-S3-Touch-LCD-3.49B | Use the Type-C connector identified for program flashing and log output. Confirm the PCB revision before a future physical test. | [Product homepage](https://www.waveshare.com/esp32-s3-touch-lcd-3.49.htm) · [Port diagram and documentation](https://docs.waveshare.com/ESP32-S3-Touch-LCD-3.49) |
+| Waveshare ESP32-S3-Touch-LCD-3.49B | Use the Type-C connector identified for program flashing and log output. Confirm V2 / Rev1.1 before flashing DMDClock. | [Product homepage](https://www.waveshare.com/esp32-s3-touch-lcd-3.49.htm) · [Port diagram and documentation](https://docs.waveshare.com/ESP32-S3-Touch-LCD-3.49) |
 
 If no port is detected, the script repeats the instructions and links for the
 selected model. For the 7-inch board it also links the official
@@ -129,6 +123,21 @@ Download without flashing:
 ```powershell
 .\Flash-DmdClockEsp32.ps1 -ReleaseTag v1.3.4 -DownloadOnly
 ```
+
+### 3.49B V2 factory qualification
+
+The 3.49B path restores official Waveshare factory firmware so the physical
+LCD, touch, and SD hardware can be qualified before DMDClock support is enabled.
+Preview every check without writing:
+
+```powershell
+.\Flash-DmdClockEsp32.ps1 -Board Waveshare349B -FactoryRecovery `
+  -BoardRevision V2 -Port COM5 -ConfirmHardware 3.49B -WhatIf
+```
+
+Remove only `-WhatIf` to perform the recovery. The script still requires a final
+case-insensitive `FLASH` confirmation and does not accept `-Force` in factory
+recovery mode.
 
 ![DMDClock ESP32 web remote after installation](screenshots/install/esp32-web-remote.png)
 

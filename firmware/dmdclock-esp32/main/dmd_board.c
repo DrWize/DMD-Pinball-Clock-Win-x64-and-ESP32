@@ -52,6 +52,202 @@ esp_err_t dmd_board_set_sd_enabled(bool enabled)
     return ESP_ERR_NOT_SUPPORTED;
 }
 
+esp_err_t dmd_board_set_backlight(bool enabled)
+{
+    (void)enabled;
+    return ESP_OK;
+}
+
+#elif CONFIG_DMD_BOARD_3_49_LANDSCAPE
+
+#include "driver/i2c_master.h"
+#include "esp_lcd_axs15231b.h"
+#include "esp_lcd_io_i2c.h"
+#include "esp_lcd_touch.h"
+
+#define TOUCH_I2C_PORT I2C_NUM_1
+#define TOUCH_I2C_SDA GPIO_NUM_17
+#define TOUCH_I2C_SCL GPIO_NUM_18
+#define TOUCH_I2C_FREQUENCY_HZ 300000
+#define TOUCH_NATIVE_WIDTH 640
+#define TOUCH_NATIVE_HEIGHT 172
+#define TOUCH_RELEASE_GAP_US (150LL * 1000)
+
+static i2c_master_bus_handle_t s_touch_bus;
+static esp_lcd_panel_io_handle_t s_touch_io;
+static esp_lcd_touch_handle_t s_touch;
+static bool s_touch_available;
+static bool s_touch_down;
+static int64_t s_touch_last_sample_at;
+static dmd_touch_diagnostics_t s_touch_diagnostics = {
+    .interrupt_level = -1,
+};
+
+static esp_err_t initialize_touch(void)
+{
+    const i2c_master_bus_config_t bus_config = {
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .i2c_port = TOUCH_I2C_PORT,
+        .sda_io_num = TOUCH_I2C_SDA,
+        .scl_io_num = TOUCH_I2C_SCL,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true,
+    };
+    ESP_RETURN_ON_ERROR(
+        i2c_new_master_bus(&bus_config, &s_touch_bus),
+        TAG,
+        "create touch I2C bus");
+    ESP_RETURN_ON_ERROR(
+        i2c_master_probe(
+            s_touch_bus,
+            ESP_LCD_TOUCH_IO_I2C_AXS15231B_ADDRESS,
+            100),
+        TAG,
+        "detect AXS15231B touch controller");
+
+    esp_lcd_panel_io_i2c_config_t io_config =
+        ESP_LCD_TOUCH_IO_I2C_AXS15231B_CONFIG();
+    io_config.scl_speed_hz = TOUCH_I2C_FREQUENCY_HZ;
+    ESP_RETURN_ON_ERROR(
+        esp_lcd_new_panel_io_i2c(s_touch_bus, &io_config, &s_touch_io),
+        TAG,
+        "create AXS15231B touch IO");
+
+    const esp_lcd_touch_config_t touch_config = {
+        .x_max = TOUCH_NATIVE_WIDTH,
+        .y_max = TOUCH_NATIVE_HEIGHT,
+        .rst_gpio_num = GPIO_NUM_NC,
+        .int_gpio_num = GPIO_NUM_NC,
+        .levels = {
+            .reset = 0,
+            .interrupt = 0,
+        },
+        .flags = {
+            .swap_xy = 0,
+            .mirror_x = 0,
+            .mirror_y = 0,
+        },
+    };
+    ESP_RETURN_ON_ERROR(
+        esp_lcd_touch_new_i2c_axs15231b(
+            s_touch_io,
+            &touch_config,
+            &s_touch),
+        TAG,
+        "initialize AXS15231B touch controller");
+    s_touch_available = true;
+    ESP_LOGI(
+        TAG,
+        "AXS15231B touch ready at 0x%02x on I2C%d (SDA %d, SCL %d)",
+        ESP_LCD_TOUCH_IO_I2C_AXS15231B_ADDRESS,
+        TOUCH_I2C_PORT,
+        TOUCH_I2C_SDA,
+        TOUCH_I2C_SCL);
+    return ESP_OK;
+}
+
+esp_err_t dmd_board_init(void)
+{
+    ESP_LOGI(TAG, "Waveshare 3.49B V2 board initialized");
+    esp_err_t touch_error = initialize_touch();
+    if (touch_error != ESP_OK) {
+        ESP_LOGW(
+            TAG,
+            "Waveshare 3.49B V2 touch controls disabled: %s",
+            esp_err_to_name(touch_error));
+    }
+    return ESP_OK;
+}
+
+bool dmd_board_read_touch(uint16_t *x, uint16_t *y)
+{
+    if (!s_touch_available || x == NULL || y == NULL) {
+        return false;
+    }
+
+    esp_err_t error = esp_lcd_touch_read_data(s_touch);
+    if (error != ESP_OK) {
+        s_touch_diagnostics.read_error_count++;
+        return false;
+    }
+
+    esp_lcd_touch_point_data_t point = {0};
+    uint8_t point_count = 0;
+    error = esp_lcd_touch_get_data(s_touch, &point, &point_count, 1);
+    if (error != ESP_OK) {
+        s_touch_diagnostics.read_error_count++;
+        return false;
+    }
+    s_touch_diagnostics.last_status = point_count;
+    if (point_count == 0) {
+        if (s_touch_down &&
+            esp_timer_get_time() - s_touch_last_sample_at >=
+                TOUCH_RELEASE_GAP_US) {
+            s_touch_down = false;
+        }
+        return false;
+    }
+    s_touch_last_sample_at = esp_timer_get_time();
+    if (s_touch_down) {
+        return false;
+    }
+    s_touch_down = true;
+
+    uint16_t raw_x = point.x;
+    uint16_t raw_y = point.y;
+    if (raw_x > TOUCH_NATIVE_WIDTH || raw_y > TOUCH_NATIVE_HEIGHT) {
+        ESP_LOGW(TAG, "Ignoring out-of-range touch coordinate %u,%u", raw_x, raw_y);
+        return false;
+    }
+    if (raw_x >= TOUCH_NATIVE_WIDTH) {
+        raw_x = TOUCH_NATIVE_WIDTH - 1;
+    }
+    if (raw_y >= TOUCH_NATIVE_HEIGHT) {
+        raw_y = TOUCH_NATIVE_HEIGHT - 1;
+    }
+
+    *x = raw_x;
+    *y = raw_y;
+    s_touch_diagnostics.event_count++;
+    s_touch_diagnostics.last_x = *x;
+    s_touch_diagnostics.last_y = *y;
+    s_touch_diagnostics.last_event_ms =
+        (uint32_t)(esp_timer_get_time() / 1000);
+    ESP_LOGI(
+        TAG,
+        "Touch raw %u,%u -> landscape %u,%u",
+        point.x,
+        point.y,
+        *x,
+        *y);
+    return true;
+}
+
+bool dmd_board_touch_available(void)
+{
+    return s_touch_available;
+}
+
+void dmd_board_get_touch_diagnostics(dmd_touch_diagnostics_t *diagnostics)
+{
+    if (diagnostics != NULL) {
+        *diagnostics = s_touch_diagnostics;
+        diagnostics->available = s_touch_available;
+    }
+}
+
+esp_err_t dmd_board_set_sd_enabled(bool enabled)
+{
+    (void)enabled;
+    return ESP_OK;
+}
+
+esp_err_t dmd_board_set_backlight(bool enabled)
+{
+    (void)enabled;
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
 #else
 
 #include "driver/gpio.h"
@@ -290,6 +486,14 @@ esp_err_t dmd_board_set_sd_enabled(bool enabled)
         enabled
             ? (uint8_t)(s_ch422_state & ~(1U << 4))
             : (uint8_t)(s_ch422_state | (1U << 4)));
+}
+
+esp_err_t dmd_board_set_backlight(bool enabled)
+{
+    return write_ch422(
+        enabled
+            ? (uint8_t)(s_ch422_state | (1U << 2))
+            : (uint8_t)(s_ch422_state & ~(1U << 2)));
 }
 
 #endif

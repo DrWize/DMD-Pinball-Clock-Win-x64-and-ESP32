@@ -5,9 +5,10 @@
 #include <stdint.h>
 
 #include "esp_err.h"
+#include "dmd_geometry.h"
 #include "dmd_scene_metadata.h"
 
-#define DMD_SCENE_PIXEL_COUNT (128 * 32)
+#define DMD_SCENE_PIXEL_COUNT DMD_PIXEL_COUNT
 #define DMD_QEMU_SCENE_COUNT 11
 #define DMD_SCENE_MAX_COUNT 4096
 #define DMD_SCENE_FILE_NAME_MAX 64

@@ -6,12 +6,11 @@ Source, documentation, and releases:
 Run the repository's ESP32 scripts from PowerShell 7 (`pwsh`). Windows
 PowerShell 5.1 is not supported by the current toolchain scripts.
 
-This firmware targets the original Waveshare
-`ESP32-S3-Touch-LCD-7`:
+This firmware targets the original Waveshare `ESP32-S3-Touch-LCD-7` and the
+Waveshare `ESP32-S3-Touch-LCD-3.49B` V2 / Rev1.1:
 
-- fixed 800×480 RGB panel timing and pin mapping from the official Waveshare
-  ESP-IDF example;
-- centered 128×32 DMD rendered at an exact 6× scale;
+- board-specific panel timing and pin mapping behind a shared display backend;
+- the same 128×32 DMD rendered at 6× on 800×480 or 5× on 640×172;
 - eight fixed Basic colours, eight horizontal Gradients, and sixteen vertical
   C64-inspired Raster themes on black, plus a persistent Custom option in every
   colour family;
@@ -33,7 +32,7 @@ This firmware targets the original Waveshare
 - an always-available `DMDClock-xxxx` access point and embedded web remote with
   default-on LAN source-address filtering;
 - browser time fallback plus automatic and manual NTP synchronization;
-- GT911 touch buttons for next pinball, next scene, colour family, next theme,
+- GT911 or AXS15231B touch buttons for next pinball, next scene, colour family, next theme,
   information, glow, and NTP check, plus an on-demand guided touch test;
 - optional bounded `/dmd/logs/playback.log` recording of timestamped scene and
   theme events;
@@ -52,14 +51,16 @@ It does not yet include OTA, web authentication, HTTPS, MQTT TLS, temporary-text
 notifications, or the complete planned Home Assistant entity set.
 Proprietary scene files are not embedded in production firmware or tracked by Git.
 
-## Fixed hardware target
+## Fixed hardware targets
 
-Do not flash this build onto the 1024×600 `ESP32-S3-Touch-LCD-7B`. The RGB timing
-and GPIO map target only the original 800×480 board. Before flashing, confirm the
-labels:
+Do not flash these builds onto the 1024×600 `ESP32-S3-Touch-LCD-7B` or the
+incompatible 3.49B V1. Before flashing, confirm one of these exact targets:
 
 ```text
 ESP32-S3-Touch-LCD-7
+ESP32-S3-WROOM-1-N16R8
+
+ESP32-S3-Touch-LCD-3.49B V2 / Rev1.1
 ESP32-S3-WROOM-1-N16R8
 ```
 
@@ -160,12 +161,12 @@ PSRAM at 80 MHz and 16 MiB flash. The populated 2,416-scene images boot within
 the stricter QEMU PSRAM limit, but emulator results do not validate ESP32-S3
 instruction timing, RGB wiring, touch, or physical-card behavior.
 
-On the short 640×172 panel the chrome (information text and touch buttons)
-overlapped the DMD, so `paint_dmd` draws the DMD cells first and the chrome on
-top, and the information text renders at the lowest part of the screen
-(`INFO_TEXT_Y = LCD_HEIGHT - 19`, y153 on 640×172 and y461 on 800×480) with a
-translucent black backing strip for legibility. The QEMU HMP monitors listen on
-TCP 4444 and 4445 and support `screendump` screenshots.
+On the short 640×172 profile, the complete 640×160 DMD is centered at y6. Its
+compact controls and information row are temporary overlays; once hidden, no
+chrome obstructs the DMD. Waveshare7 retains its existing permanent chrome.
+The QEMU HMP monitors listen on TCP 4444 and 4445 and support `screendump`
+screenshots. `Test-DmdClockQemuDisplay.ps1` uses that interface to validate the
+exact framebuffer dimensions and nonblank rendered bounds.
 
 Open `http://localhost:8080/` for Waveshare7 or `http://localhost:8081/` for
 Landscape349. The virtual display is useful for validating the shared SCN

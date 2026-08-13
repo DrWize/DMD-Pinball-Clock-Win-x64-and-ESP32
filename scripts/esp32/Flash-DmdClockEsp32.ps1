@@ -12,6 +12,11 @@ param(
     [ValidateSet('Application', 'Full')]
     [string] $FlashMode,
 
+    [switch] $FactoryRecovery,
+
+    [ValidateSet('V1', 'V2')]
+    [string] $BoardRevision,
+
     [ValidatePattern('^COM\d+$')]
     [string] $Port,
 
@@ -47,6 +52,9 @@ $hardwareTargets = @(
         Module = 'ESP32-S3-WROOM-1-N16R8'
         Confirmation = '7'
         UnsupportedConfirmation = '7B'
+        RequiredFirmwareRevision = $null
+        SupportedBoard = '7'
+        TouchEnabled = $true
         Homepage = 'https://www.waveshare.com/esp32-s3-touch-lcd-7.htm'
         Documentation = 'https://www.waveshare.com/wiki/ESP32-S3-Touch-LCD-7'
         Driver = 'https://www.wch-ic.com/downloads/CH343SER_EXE.html'
@@ -58,12 +66,15 @@ $hardwareTargets = @(
     },
     [pscustomobject]@{
         Key = 'Waveshare349B'
-        Id = 'waveshare-esp32-s3-touch-lcd-3-49b'
+        Id = 'waveshare-esp32-s3-touch-lcd-3-49b-v2-640x172-n16r8'
         Product = 'Waveshare ESP32-S3-Touch-LCD-3.49B'
-        Display = $null
-        Module = $null
+        Display = '640x172'
+        Module = 'ESP32-S3-WROOM-1-N16R8'
         Confirmation = '3.49B'
         UnsupportedConfirmation = $null
+        RequiredFirmwareRevision = 'V2'
+        SupportedBoard = '3.49B V2 / Rev1.1'
+        TouchEnabled = $true
         Homepage = 'https://www.waveshare.com/esp32-s3-touch-lcd-3.49.htm'
         Documentation = 'https://docs.waveshare.com/ESP32-S3-Touch-LCD-3.49'
         Driver = $null
@@ -76,6 +87,25 @@ $hardwareTargets = @(
 )
 $selectedTarget = $null
 $esptool = $null
+
+$factoryRecoveryImages = @{
+    V1 = [pscustomobject]@{
+        Revision = 'V1'
+        Repository = 'waveshareteam/ESP32-S3-Touch-LCD-3.49'
+        Commit = 'def6edd0b6e1925ed09702eed01a2f181afdf8c1'
+        FileName = 'ESP32-S3-Touch-LCD-3.49-FactoryProgram.bin'
+        Size = 2813728
+        Sha256 = '921C41A413E75DCE5F0DA4954023864C21E159B16BF3B36311823ACD9B96E4DC'
+    }
+    V2 = [pscustomobject]@{
+        Revision = 'V2'
+        Repository = 'waveshareteam/ESP32-S3-Touch-LCD-3.49-V2'
+        Commit = '1c157e6e8e68b89fd4dc400f46bf1724cb64a57e'
+        FileName = 'ESP32-S3-Touch-LCD-3.49-V2.bin'
+        Size = 2813008
+        Sha256 = '1D1F84C766E720F344FAF59D1E6C95846DF1A26DA4C1E6D6094F9095F6B68312'
+    }
+}
 
 function Read-HighlightedConfirmation {
     param(
@@ -250,7 +280,12 @@ function Save-RemoteFile {
     if ($Uri.Scheme -ne 'https') {
         throw "Refusing non-HTTPS download: $Uri"
     }
-    if ($Uri.Host -notin @('github.com', 'api.github.com', 'objects.githubusercontent.com')) {
+    if ($Uri.Host -notin @(
+        'github.com',
+        'api.github.com',
+        'objects.githubusercontent.com',
+        'raw.githubusercontent.com'
+    )) {
         throw "Refusing download from an unexpected host: $($Uri.Host)"
     }
 
@@ -322,6 +357,10 @@ function Assert-CompatibleManifest {
     }
     if ($Target.Module -and [string]$Manifest.target.module -ne $Target.Module) {
         throw "Firmware module mismatch. Expected $($Target.Module)."
+    }
+    if ([string]$Manifest.target.supportedBoard -ne $Target.SupportedBoard -or
+        [bool]$Manifest.target.touchEnabled -ne $Target.TouchEnabled) {
+        throw "Firmware board revision or touch capability does not match $($Target.Product)."
     }
     if ([string]$Manifest.package.asset -notmatch '^[A-Za-z0-9_.-]+\.zip$' -or
         [long]$Manifest.package.size -le 0 -or
@@ -551,6 +590,71 @@ function Select-SerialPort {
     return $ports[$choice - 1].Port
 }
 
+function Select-FactoryRecoveryRevision {
+    if ($BoardRevision) {
+        return $BoardRevision
+    }
+
+    Write-Host ''
+    Write-Host '3.49B hardware revision:'
+    Write-Host '  [1] V1'
+    Write-Host '  [2] V2 (Rev1.1 PCB / V2 case sticker)' -ForegroundColor Green
+    Write-Host '  [3] Exit' -ForegroundColor DarkGray
+    switch (Read-MenuChoice -Prompt 'Select the exact physical revision' -Minimum 1 -Maximum 3) {
+        1 { return 'V1' }
+        2 { return 'V2' }
+        3 { return $null }
+    }
+}
+
+function Get-FactoryRecoveryPackage {
+    param([Parameter(Mandatory)] [string] $Revision)
+
+    $image = $factoryRecoveryImages[$Revision]
+    if ($null -eq $image) {
+        throw "No factory recovery definition exists for revision '$Revision'."
+    }
+
+    $destination = Join-Path (Join-Path $cacheRoot 'factory-recovery') $Revision
+    Assert-WithinDirectory -Path $destination -Directory $outputRoot
+    New-Item -ItemType Directory -Force -Path $destination | Out-Null
+    $imagePath = Join-Path $destination $image.FileName
+    $reuseImage = Test-Path -LiteralPath $imagePath -PathType Leaf
+    if ($reuseImage) {
+        try {
+            if ((Get-Item -LiteralPath $imagePath).Length -ne [long]$image.Size) {
+                throw 'Cached factory image size mismatch.'
+            }
+            Assert-Sha256 -Path $imagePath -ExpectedHash $image.Sha256
+            Write-Host "Using verified cached factory image: $imagePath"
+        }
+        catch {
+            Remove-Item -LiteralPath $imagePath -Force
+            $reuseImage = $false
+        }
+    }
+
+    if (-not $reuseImage) {
+        $uri = "https://raw.githubusercontent.com/$($image.Repository)/$($image.Commit)/Firmware/$($image.FileName)"
+        Write-Host "Downloading official Waveshare 3.49B $Revision factory image..."
+        Save-RemoteFile -Uri $uri -Destination $imagePath -MaximumBytes 16MB
+        if ((Get-Item -LiteralPath $imagePath).Length -ne [long]$image.Size) {
+            Remove-Item -LiteralPath $imagePath -Force
+            throw "Factory image size mismatch. Expected $($image.Size) bytes."
+        }
+        Assert-Sha256 -Path $imagePath -ExpectedHash $image.Sha256
+    }
+
+    return [pscustomobject]@{
+        Source = "Official Waveshare factory image at commit $($image.Commit)"
+        Revision = $Revision
+        ImagePath = $imagePath
+        FileName = $image.FileName
+        Sha256 = $image.Sha256
+        Cache = $destination
+    }
+}
+
 function Show-PortHelp {
     param([Parameter(Mandatory)] $Target)
 
@@ -753,6 +857,49 @@ function Assert-ConnectedHardware {
     Write-Warning 'Chip detection cannot distinguish display models or PCB revisions; the board-label confirmation remains required.'
 }
 
+function Assert-FactoryRecoveryRevision {
+    param([Parameter(Mandatory)] [string] $Revision)
+
+    Write-Host ''
+    Write-Warning 'Factory images for 3.49B V1 and V2 are not interchangeable.'
+    $confirmation = if ($BoardRevision) {
+        $BoardRevision
+    } else {
+        Read-HighlightedConfirmation `
+            -Prefix 'Type ' `
+            -Token $Revision `
+            -Suffix " to confirm the physical 3.49B $Revision marking" `
+            -Color Green
+    }
+    if ($confirmation -ine $Revision) {
+        throw 'PCB revision confirmation was not accepted.'
+    }
+}
+
+function Assert-DmdFirmwareRevision {
+    param([Parameter(Mandatory)] $Target)
+
+    if ([string]::IsNullOrWhiteSpace($Target.RequiredFirmwareRevision)) {
+        return
+    }
+
+    $requiredRevision = [string]$Target.RequiredFirmwareRevision
+    Write-Host ''
+    Write-Warning 'DMDClock firmware for 3.49B V1 and V2 is not interchangeable.'
+    $confirmation = if ($BoardRevision) {
+        $BoardRevision
+    } else {
+        Read-HighlightedConfirmation `
+            -Prefix 'Type ' `
+            -Token $requiredRevision `
+            -Suffix " to confirm the physical 3.49B $requiredRevision / Rev1.1 marking" `
+            -Color Green
+    }
+    if ($confirmation -ine $requiredRevision) {
+        throw "This DMDClock image supports only 3.49B $requiredRevision / Rev1.1."
+    }
+}
+
 function Get-SelectedFlashFiles {
     param(
         [Parameter(Mandatory)] $Package,
@@ -841,6 +988,57 @@ function Invoke-FirmwareFlash {
 
 }
 
+function Invoke-FactoryRecoveryFlash {
+    param(
+        [Parameter(Mandatory)] $Package,
+        [Parameter(Mandatory)] [string] $SelectedPort
+    )
+
+    Write-Host ''
+    Write-Host 'Factory recovery summary:'
+    Write-Host "  Source:   $($Package.Source)"
+    Write-Host "  Target:   $($selectedTarget.Product) $($Package.Revision)"
+    Write-Host "  Port:     $SelectedPort" -ForegroundColor Cyan
+    Write-Host '  Offset:   0x0'
+    Write-Host "  Image:    $($Package.FileName)"
+    Write-Host "  SHA-256:  $($Package.Sha256)"
+    Write-Warning 'Factory recovery replaces the current internal-flash contents, including stored settings.'
+    Write-Host '  TF card:  untouched' -ForegroundColor Green
+
+    if ($WhatIf) {
+        Write-Host ''
+        Write-Host '[WHATIF] Image, hash, revision, and hardware checks passed; factory recovery was skipped.' `
+            -ForegroundColor Yellow
+        return
+    }
+
+    $confirmation = Read-HighlightedConfirmation `
+        -Prefix 'Type ' `
+        -Token 'FLASH' `
+        -Suffix ' (uppercase or lowercase) to restore the official factory image' `
+        -Color Yellow
+    if ($confirmation -ine 'FLASH') {
+        Write-Host 'Factory recovery cancelled. The verified image remains cached.' `
+            -ForegroundColor Yellow
+        return
+    }
+
+    $arguments = @(
+        '--chip', 'esp32s3',
+        '--port', $SelectedPort,
+        '--baud', '460800',
+        '--before', 'default-reset',
+        '--after', 'hard-reset',
+        'write-flash',
+        '0x0', $Package.ImagePath
+    )
+    $null = Invoke-EsptoolChecked -Arguments $arguments
+    Write-Host ''
+    Write-Host '[DONE] Official factory image written and verified; the board was reset.' `
+        -ForegroundColor Green
+    Write-Host 'Exercise the LCD, touch, and SD-card tests before installing custom firmware.'
+}
+
 Show-SupportedHardwareBanner
 
 if ($env:OS -ne 'Windows_NT') {
@@ -858,6 +1056,39 @@ New-Item -ItemType Directory -Force -Path $cacheRoot, $toolCacheRoot | Out-Null
 
 $selectedTarget = Select-HardwareTarget
 if ($null -eq $selectedTarget) { return }
+
+if ($FactoryRecovery) {
+    if ($selectedTarget.Key -ne 'Waveshare349B') {
+        throw 'Factory recovery mode is only supported for Waveshare ESP32-S3-Touch-LCD-3.49B.'
+    }
+    if ($ReleaseTag -or $FlashMode) {
+        throw 'Do not combine -FactoryRecovery with -ReleaseTag or -FlashMode.'
+    }
+    if ($Force) {
+        throw 'Factory recovery requires the final FLASH confirmation; -Force is not accepted.'
+    }
+
+    $revision = Select-FactoryRecoveryRevision
+    if ($null -eq $revision) { return }
+    $package = Get-FactoryRecoveryPackage -Revision $revision
+    Write-Host ''
+    Write-Host '[OK] Official factory recovery image verified' -ForegroundColor Green
+    Write-Host "  Source:   $($package.Source)"
+    Write-Host "  Revision: $($package.Revision)"
+    Write-Host "  Cache:    $($package.Cache)"
+    if ($DownloadOnly) {
+        Write-Host 'Download-only mode selected; nothing was flashed.'
+        return
+    }
+
+    $selectedPort = Select-SerialPort
+    $esptool = Get-PortableEsptool
+    Assert-ConnectedHardware -SelectedPort $selectedPort
+    Assert-FactoryRecoveryRevision -Revision $revision
+    Invoke-FactoryRecoveryFlash -Package $package -SelectedPort $selectedPort
+    return
+}
+
 $package = Get-ReleasePackage -Selection (
     Select-CompatibleRelease -Target $selectedTarget)
 
@@ -896,4 +1127,5 @@ if (-not $FlashMode) {
 $selectedPort = Select-SerialPort
 $esptool = Get-PortableEsptool
 Assert-ConnectedHardware -SelectedPort $selectedPort
+Assert-DmdFirmwareRevision -Target $selectedTarget
 Invoke-FirmwareFlash -Package $package -Mode $FlashMode -SelectedPort $selectedPort
