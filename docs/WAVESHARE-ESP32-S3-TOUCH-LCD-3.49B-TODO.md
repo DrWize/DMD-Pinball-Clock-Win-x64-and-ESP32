@@ -33,7 +33,7 @@ timing, pins, touch controller, PSRAM mode, or physical stability.
       allowing a Waveshare 7 image to be substituted.
 - [x] Qualify the exact physical Waveshare 3.49B as V2 / Rev1.1 and prove its
       matching factory-recovery image.
-- [ ] Publish the validated board-specific DMDClock firmware image in v1.5.0.
+- [x] Publish the validated board-specific DMDClock firmware image in v1.5.0.
 
 The completed baseline above is infrastructure evidence only. It does not mark
 the ordered port gates below as accepted.
@@ -47,7 +47,7 @@ the ordered port gates below as accepted.
 | P6 | In progress | Run the explicit synthetic 128x32 pattern and close the representative physical-to-QEMU comparison. Animation, clock, static SCN, colors, and the web-triggered information row are accepted. |
 | P7 | Complete | Corrected touch coordinates and all eight visible controls passed physical button-map capture. |
 | P8 | Not started | Run the complete regression matrix on both physical board targets. |
-| P9 | In progress | Produce, validate, publish, and download-check both separate recoverable release packages. |
+| P9 | Complete | Both target-specific packages were published in v1.5.0 and passed the flasher's download-only verification path. |
 
 ## P0 — freeze the display contract
 
