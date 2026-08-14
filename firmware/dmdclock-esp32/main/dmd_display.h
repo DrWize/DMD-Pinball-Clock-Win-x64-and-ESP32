@@ -17,6 +17,13 @@ typedef struct {
     uint32_t display_frames_rendered;
     uint32_t schedule_override_seconds_remaining;
     bool touch_test_running;
+    bool orientation_sensor_available;
+    bool orientation_sensor_healthy;
+    uint16_t effective_rotation;
+    float acceleration_x;
+    float acceleration_y;
+    float acceleration_z;
+    uint32_t orientation_read_error_count;
 } dmd_display_state_t;
 
 esp_err_t dmd_display_init(void);

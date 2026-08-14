@@ -13,6 +13,7 @@
 #include "dmd_diagnostics.h"
 #include "dmd_mqtt.h"
 #include "dmd_network.h"
+#include "dmd_panel.h"
 #include "dmd_playback_log.h"
 #include "dmd_scene.h"
 #include "dmd_scene_pack.h"
@@ -300,6 +301,29 @@ static esp_err_t state_get(httpd_req_t *request)
         DMD_RASTER_CUSTOM_COLOR_COUNT);
     cJSON_AddBoolToObject(json, "use24Hour", settings.use_24_hour);
     cJSON_AddBoolToObject(json, "showSeconds", settings.show_seconds);
+    cJSON_AddStringToObject(
+        json,
+        "clockFont",
+        dmd_font_name(settings.clock_font));
+    cJSON_AddStringToObject(
+        json,
+        "clockFontName",
+        dmd_font_display_name(settings.clock_font));
+    cJSON_AddStringToObject(
+        json,
+        "orientationMode",
+        settings.orientation_mode == DMD_ORIENTATION_AUTO ? "auto" : "fixed");
+    cJSON_AddNumberToObject(json, "fixedRotation", settings.fixed_rotation);
+    cJSON_AddNumberToObject(json, "effectiveRotation", display.effective_rotation);
+    cJSON_AddBoolToObject(
+        json, "orientationSensorAvailable", display.orientation_sensor_available);
+    cJSON_AddBoolToObject(
+        json, "orientationSensorHealthy", display.orientation_sensor_healthy);
+    cJSON_AddNumberToObject(json, "accelerationX", display.acceleration_x);
+    cJSON_AddNumberToObject(json, "accelerationY", display.acceleration_y);
+    cJSON_AddNumberToObject(json, "accelerationZ", display.acceleration_z);
+    cJSON_AddNumberToObject(
+        json, "orientationReadErrorCount", display.orientation_read_error_count);
     cJSON_AddBoolToObject(json, "displayOn", settings.display_on);
     cJSON_AddBoolToObject(
         json,
@@ -871,6 +895,17 @@ static esp_err_t settings_post(httpd_req_t *request)
     }
     update_bool(json, "use24Hour", &updated.use_24_hour);
     update_bool(json, "showSeconds", &updated.show_seconds);
+    cJSON *clock_font =
+        cJSON_GetObjectItemCaseSensitive(json, "clockFont");
+    if (clock_font != NULL &&
+        (!cJSON_IsString(clock_font) ||
+         !dmd_font_from_name(clock_font->valuestring, &updated.clock_font))) {
+        cJSON_Delete(json);
+        return httpd_resp_send_err(
+            request,
+            HTTPD_400_BAD_REQUEST,
+            "Unknown clock font");
+    }
     update_bool(json, "displayOn", &updated.display_on);
     update_bool(json, "lanOnlyWeb", &updated.lan_only_web);
     update_bool(
@@ -1020,8 +1055,8 @@ static esp_err_t settings_post(httpd_req_t *request)
         cJSON_GetObjectItemCaseSensitive(json, "clockDisplaySeconds");
     if (cJSON_IsNumber(clock_seconds)) {
         updated.clock_display_seconds =
-            clock_seconds->valueint < 5 ? 5 :
-            (clock_seconds->valueint > 3600 ? 3600 : clock_seconds->valueint);
+            clock_seconds->valueint < 1 ? 1 :
+            (clock_seconds->valueint > 600 ? 600 : clock_seconds->valueint);
     }
     cJSON *gap_seconds =
         cJSON_GetObjectItemCaseSensitive(json, "animationGapSeconds");
@@ -1163,6 +1198,56 @@ static esp_err_t settings_post(httpd_req_t *request)
     return send_json(request, response);
 }
 
+static esp_err_t orientation_post(httpd_req_t *request)
+{
+    cJSON *json = receive_json(request);
+    if (json == NULL) {
+        return httpd_resp_send_err(
+            request, HTTPD_400_BAD_REQUEST, "Expected a JSON object");
+    }
+    cJSON *mode = cJSON_GetObjectItemCaseSensitive(json, "mode");
+    cJSON *rotation = cJSON_GetObjectItemCaseSensitive(json, "rotation");
+    dmd_settings_t updated;
+    dmd_settings_get(&updated);
+    if (!cJSON_IsString(mode)) {
+        cJSON_Delete(json);
+        return httpd_resp_send_err(
+            request, HTTPD_400_BAD_REQUEST, "mode must be auto or fixed");
+    }
+    if (strcmp(mode->valuestring, "auto") == 0) {
+        if (!dmd_panel_orientation_sensor_available()) {
+            cJSON_Delete(json);
+            return httpd_resp_send_err(
+                request, HTTPD_400_BAD_REQUEST,
+                "Automatic orientation is not available on this board");
+        }
+        updated.orientation_mode = DMD_ORIENTATION_AUTO;
+    } else if (strcmp(mode->valuestring, "fixed") == 0 &&
+               cJSON_IsNumber(rotation) &&
+               (rotation->valueint == 0 || rotation->valueint == 180)) {
+        updated.orientation_mode = DMD_ORIENTATION_FIXED;
+        updated.fixed_rotation = (uint16_t)rotation->valueint;
+    } else {
+        cJSON_Delete(json);
+        return httpd_resp_send_err(
+            request, HTTPD_400_BAD_REQUEST,
+            "fixed mode requires rotation 0 or 180");
+    }
+    cJSON_Delete(json);
+    esp_err_t error = dmd_settings_update(&updated);
+    if (error != ESP_OK) {
+        return httpd_resp_send_err(
+            request, HTTPD_500_INTERNAL_SERVER_ERROR, esp_err_to_name(error));
+    }
+    cJSON *response = cJSON_CreateObject();
+    cJSON_AddBoolToObject(response, "ok", true);
+    cJSON_AddStringToObject(
+        response, "mode",
+        updated.orientation_mode == DMD_ORIENTATION_AUTO ? "auto" : "fixed");
+    cJSON_AddNumberToObject(response, "rotation", updated.fixed_rotation);
+    return send_json(request, response);
+}
+
 static esp_err_t time_post(httpd_req_t *request)
 {
     cJSON *json = receive_json(request);
@@ -1280,7 +1365,7 @@ static esp_err_t favicon_get(httpd_req_t *request)
 esp_err_t dmd_web_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 11;
+    config.max_uri_handlers = 12;
     config.stack_size = 6144;
     config.lru_purge_enable = true;
     config.open_fn = web_client_open;
@@ -1298,6 +1383,7 @@ esp_err_t dmd_web_start(void)
         {.uri = "/api/scene-library", .method = HTTP_GET, .handler = scene_pack_get},
         {.uri = "/api/scene-pack", .method = HTTP_GET, .handler = scene_pack_get},
         {.uri = "/api/settings", .method = HTTP_POST, .handler = settings_post},
+        {.uri = "/api/orientation", .method = HTTP_POST, .handler = orientation_post},
         {.uri = "/api/time", .method = HTTP_POST, .handler = time_post},
         {.uri = "/api/action", .method = HTTP_POST, .handler = action_post},
         {.uri = "/favicon.ico", .method = HTTP_GET, .handler = favicon_get},

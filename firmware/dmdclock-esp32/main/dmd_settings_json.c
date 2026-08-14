@@ -205,6 +205,15 @@ static cJSON *settings_to_json(const dmd_settings_t *settings)
         DMD_RASTER_CUSTOM_COLOR_COUNT);
     cJSON_AddBoolToObject(json, "use24Hour", settings->use_24_hour);
     cJSON_AddBoolToObject(json, "showSeconds", settings->show_seconds);
+    cJSON_AddStringToObject(
+        json,
+        "clockFont",
+        dmd_font_name(settings->clock_font));
+    cJSON_AddStringToObject(
+        json,
+        "orientationMode",
+        settings->orientation_mode == DMD_ORIENTATION_AUTO ? "auto" : "fixed");
+    cJSON_AddNumberToObject(json, "fixedRotation", settings->fixed_rotation);
     cJSON_AddBoolToObject(json, "displayOn", settings->display_on);
     cJSON_AddBoolToObject(json, "playScene", settings->play_scene);
     cJSON_AddNumberToObject(json, "sceneIndex", settings->scene_index);
@@ -370,6 +379,22 @@ esp_err_t dmd_settings_json_load(dmd_settings_t *settings)
         DMD_RASTER_CUSTOM_COLOR_COUNT);
     load_bool(json, "use24Hour", &settings->use_24_hour);
     load_bool(json, "showSeconds", &settings->show_seconds);
+    cJSON *clock_font = cJSON_GetObjectItemCaseSensitive(json, "clockFont");
+    dmd_font_id_t parsed_font;
+    if (cJSON_IsString(clock_font) &&
+        dmd_font_from_name(clock_font->valuestring, &parsed_font)) {
+        settings->clock_font = parsed_font;
+    }
+    cJSON *orientation_mode =
+        cJSON_GetObjectItemCaseSensitive(json, "orientationMode");
+    if (cJSON_IsString(orientation_mode)) {
+        if (strcmp(orientation_mode->valuestring, "auto") == 0) {
+            settings->orientation_mode = DMD_ORIENTATION_AUTO;
+        } else if (strcmp(orientation_mode->valuestring, "fixed") == 0) {
+            settings->orientation_mode = DMD_ORIENTATION_FIXED;
+        }
+    }
+    load_u16(json, "fixedRotation", &settings->fixed_rotation);
     load_bool(json, "displayOn", &settings->display_on);
     load_bool(json, "playScene", &settings->play_scene);
     load_u16(json, "sceneIndex", &settings->scene_index);

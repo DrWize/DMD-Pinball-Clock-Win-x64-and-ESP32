@@ -56,7 +56,7 @@
     <div class="columns">
       <div>
         <h3>Display and playback</h3>
-        <p><code>displayOn</code>, <code>playScene</code>, <code>waitingForScene</code>, <code>sceneIndex</code>, <code>sceneStep</code>, <code>sceneFrame</code>, <code>scene</code>, <code>sceneFile</code>, metadata fields, <code>sceneCount</code>, cycle settings, brightness, glow, theme and information settings.</p>
+        <p><code>displayOn</code>, <code>playScene</code>, <code>waitingForScene</code>, <code>sceneIndex</code>, <code>sceneStep</code>, <code>sceneFrame</code>, <code>scene</code>, <code>sceneFile</code>, metadata fields, <code>sceneCount</code>, cycle settings, <code>clockFont</code>, <code>clockFontName</code>, brightness, glow, theme and information settings.</p>
         <h3>Time and network</h3>
         <p>Device time/epoch/timezone, Wi-Fi connection and IP, device/AP identity, <code>lanOnlyWeb</code>, NTP state, last-sync epoch, elapsed sync age and configured servers.</p>
       </div>
@@ -111,6 +111,7 @@
         <tr><td>plasmaCustomColors</td><td>Array containing four <code>#RRGGBB</code> stops.</td></tr>
         <tr><td>use24Hour</td><td>Boolean 24-hour clock mode.</td></tr>
         <tr><td>showSeconds</td><td>Boolean seconds display.</td></tr>
+        <tr><td>clockFont</td><td><code>builtin-5x7</code>, <code>altern8</code>, <code>fishy</code>, <code>trek</code>, or <code>twilight</code>. Applied immediately and used by the clock and scene clock overlays.</td></tr>
         <tr><td>showInformation</td><td>Boolean scene-information row; applies immediately.</td></tr>
         <tr><td>informationColorMode</td><td>0 discreet grey, 1 follow theme, 2 custom.</td></tr>
         <tr><td>informationCustomColor</td><td>Standalone <code>#RRGGBB</code> information colour.</td></tr>
@@ -119,7 +120,7 @@
         <tr><td>automaticCycle</td><td>Boolean automatic clock/scene cycle.</td></tr>
         <tr><td>randomPlayback</td><td>Boolean random rather than sequential scene order.</td></tr>
         <tr><td>animationsPerCycle</td><td>1–20 scenes per cycle.</td></tr>
-        <tr><td>clockDisplaySeconds</td><td>5–3,600 seconds of clock time.</td></tr>
+        <tr><td>clockDisplaySeconds</td><td>Any whole number from 1–600 seconds of fixed clock time.</td></tr>
         <tr><td>animationGapSeconds</td><td>0–3,600 seconds between scenes.</td></tr>
         <tr><td>playbackLogEnabled</td><td>Boolean recording to the bounded SD playback log.</td></tr>
         <tr><td>screenScheduleEnabled</td><td>Boolean weekly screen schedule.</td></tr>
@@ -142,7 +143,20 @@
     </table>
     <pre>curl -X POST http://DMDClock-59D9/api/settings ^
   -H "Content-Type: application/json" ^
-  -d "{\"showInformation\":true,\"brightness\":80}"</pre>
+  -d "{\"clockFont\":\"altern8\",\"brightness\":80}"</pre>
+  </section>
+
+  <section class="panel">
+    <div class="endpoint"><span class="method">POST</span><h2><code>/api/orientation</code> — set screen orientation</h2></div>
+    <p>Applies and persists automatic or fixed orientation immediately. Automatic is available only when the physical board reports a usable QMI8658 accelerometer. The 3.49B V2 defaults to automatic; unsupported boards return HTTP 400.</p>
+    <pre>curl -X POST http://DMDClock-59D9/api/orientation ^
+  -H "Content-Type: application/json" ^
+  -d "{\"mode\":\"auto\"}"
+
+curl -X POST http://DMDClock-59D9/api/orientation ^
+  -H "Content-Type: application/json" ^
+  -d "{\"mode\":\"fixed\",\"rotation\":180}"</pre>
+    <p><code>/api/state</code> reports <code>orientationMode</code>, <code>fixedRotation</code>, <code>effectiveRotation</code>, sensor availability/health, filtered acceleration, and read-error count.</p>
   </section>
 
   <section class="panel">

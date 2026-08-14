@@ -11,6 +11,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "nvs.h"
+#include "sdkconfig.h"
 
 #if DMD_HAS_BOOTSTRAP_WIFI
 #include "dmd_bootstrap_wifi.h"
@@ -46,6 +47,13 @@ static void set_defaults(void)
     s_settings.raster_custom[3] = (dmd_rgb_t){111, 61, 134};
     s_settings.use_24_hour = true;
     s_settings.show_seconds = false;
+    s_settings.clock_font = DMD_FONT_BUILTIN_5X7;
+#if CONFIG_DMD_BOARD_3_49_LANDSCAPE && !CONFIG_DMD_QEMU
+    s_settings.orientation_mode = DMD_ORIENTATION_AUTO;
+#else
+    s_settings.orientation_mode = DMD_ORIENTATION_FIXED;
+#endif
+    s_settings.fixed_rotation = 0;
     s_settings.display_on = true;
     s_settings.reboot_weekday = 0;
     s_settings.reboot_hour = 4;
@@ -118,6 +126,12 @@ static esp_err_t finalize_settings_init(void)
             "CET-1CEST,M3.5.0,M10.5.0/3",
             sizeof(s_settings.timezone));
     }
+#if !CONFIG_DMD_BOARD_3_49_LANDSCAPE || CONFIG_DMD_QEMU
+    if (s_settings.orientation_mode == DMD_ORIENTATION_AUTO) {
+        s_settings.orientation_mode = DMD_ORIENTATION_FIXED;
+        persist = true;
+    }
+#endif
     dmd_settings_apply_timezone(s_settings.timezone);
     if (DMD_BOOTSTRAP_WIFI_SSID[0] != '\0' &&
         (strcmp(s_settings.wifi_ssid, DMD_BOOTSTRAP_WIFI_SSID) != 0 ||
@@ -191,6 +205,19 @@ esp_err_t dmd_settings_init(void)
     }
     if (nvs_get_u8(handle, "seconds", &value) == ESP_OK) {
         s_settings.show_seconds = value != 0;
+    }
+    if (nvs_get_u8(handle, "clock_font", &value) == ESP_OK &&
+        dmd_font_is_valid(value)) {
+        s_settings.clock_font = (dmd_font_id_t)value;
+    }
+    if (nvs_get_u8(handle, "orient_mode", &value) == ESP_OK &&
+        value <= DMD_ORIENTATION_AUTO) {
+        s_settings.orientation_mode = (dmd_orientation_mode_t)value;
+    }
+    uint16_t rotation = 0;
+    if (nvs_get_u16(handle, "rotation", &rotation) == ESP_OK &&
+        (rotation == 0 || rotation == 180)) {
+        s_settings.fixed_rotation = rotation;
     }
     if (nvs_get_u8(handle, "display", &value) == ESP_OK) {
         s_settings.display_on = value != 0;
@@ -371,6 +398,18 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
     if (!dmd_color_is_valid((uint8_t)normalized.color_preset)) {
         normalized.color_preset = DMD_COLOR_ORANGE;
     }
+    if (!dmd_font_is_valid((uint8_t)normalized.clock_font)) {
+        normalized.clock_font = DMD_FONT_BUILTIN_5X7;
+    }
+    if (normalized.orientation_mode > DMD_ORIENTATION_AUTO) {
+        normalized.orientation_mode = DMD_ORIENTATION_FIXED;
+    }
+#if !CONFIG_DMD_BOARD_3_49_LANDSCAPE || CONFIG_DMD_QEMU
+    normalized.orientation_mode = DMD_ORIENTATION_FIXED;
+#endif
+    if (normalized.fixed_rotation != 0 && normalized.fixed_rotation != 180) {
+        normalized.fixed_rotation = 0;
+    }
     if (normalized.information_color_mode >
         DMD_INFORMATION_COLOR_CUSTOM) {
         normalized.information_color_mode =
@@ -384,10 +423,10 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
     } else if (normalized.animations_per_cycle > 20) {
         normalized.animations_per_cycle = 20;
     }
-    if (normalized.clock_display_seconds < 5) {
-        normalized.clock_display_seconds = 5;
-    } else if (normalized.clock_display_seconds > 3600) {
-        normalized.clock_display_seconds = 3600;
+    if (normalized.clock_display_seconds < 1) {
+        normalized.clock_display_seconds = 1;
+    } else if (normalized.clock_display_seconds > 600) {
+        normalized.clock_display_seconds = 600;
     }
     if (normalized.animation_gap_seconds > 3600) {
         normalized.animation_gap_seconds = 3600;
@@ -464,6 +503,9 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
             sizeof(normalized.raster_custom))) == ESP_OK &&
         (error = nvs_set_u8(handle, "hour24", normalized.use_24_hour)) == ESP_OK &&
         (error = nvs_set_u8(handle, "seconds", normalized.show_seconds)) == ESP_OK &&
+        (error = nvs_set_u8(handle, "clock_font", normalized.clock_font)) == ESP_OK &&
+        (error = nvs_set_u8(handle, "orient_mode", normalized.orientation_mode)) == ESP_OK &&
+        (error = nvs_set_u16(handle, "rotation", normalized.fixed_rotation)) == ESP_OK &&
         (error = nvs_set_u8(handle, "display", normalized.display_on)) == ESP_OK &&
         (error = nvs_set_u8(handle, "lan_web", normalized.lan_only_web)) == ESP_OK &&
         (error = nvs_set_u8(handle, "mqtt_en", normalized.mqtt_enabled)) == ESP_OK &&

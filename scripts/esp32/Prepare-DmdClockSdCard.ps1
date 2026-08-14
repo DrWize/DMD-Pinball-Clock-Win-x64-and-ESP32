@@ -1,18 +1,39 @@
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
 param(
     [Parameter(Mandatory, Position = 0, ParameterSetName = 'Card')]
-    [ValidatePattern('^[A-Za-z]:?$')]
-    [string]$DriveLetter,
+    [ValidateRange(0, 999)]
+    [int]$DiskNumber,
+
+    [Parameter(Mandatory, ParameterSetName = 'List')]
+    [switch]$ListDisks,
 
     [Parameter(Mandatory, ParameterSetName = 'Test', DontShow)]
     [string]$TestRoot,
+
+    [Parameter(Mandatory, ParameterSetName = 'Check')]
+    [switch]$CheckRequirements,
+
+    [Parameter(Mandatory, ParameterSetName = 'Stage')]
+    [Parameter(ParameterSetName = 'Check')]
+    [Parameter(ParameterSetName = 'Card')]
+    [Parameter(ParameterSetName = 'Test')]
+    [Parameter(ParameterSetName = 'List')]
+    [string]$Destination,
+
+    [Parameter(Mandatory, ParameterSetName = 'Stage')]
+    [switch]$DownloadOnly,
 
     [ValidateSet('Original', 'DmdLarge')]
     [string]$Library = 'DmdLarge',
 
     [string]$SourceDirectory,
 
+    [Alias('Source')]
+    [string]$StagingSource,
+
     [switch]$RefreshSource,
+
+    [switch]$DryRun,
 
     [switch]$AllowFixedDrive,
 
@@ -25,6 +46,13 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if ($DryRun) { $WhatIfPreference = $true }
+
+$provisioningModule = Join-Path $PSScriptRoot 'DmdClock.Provisioning.psm1'
+if (-not (Test-Path -LiteralPath $provisioningModule -PathType Leaf)) {
+    throw "Shared provisioning module not found: $provisioningModule"
+}
+Import-Module $provisioningModule -Force
 
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $localCardTemplateRoot = Join-Path $projectRoot 'firmware\dmdclock-esp32\sdcard\dmd'
@@ -33,6 +61,7 @@ $localCatalogPath = Join-Path $projectRoot 'scenes\catalog.json'
 $cardTemplateRoot = $null
 $metadataPath = $null
 $catalogPath = $null
+$stagedSourceInfo = $null
 $rawRepositoryRoot = "https://raw.githubusercontent.com/$Repository/master"
 $preparationGuide = 'https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md'
 $minimumSafetyBytes = 64MB
@@ -90,7 +119,9 @@ function Get-CardTarget {
             throw "The internal test target must be a dedicated directory below $testBase"
         }
 
-        [IO.Directory]::CreateDirectory($resolvedTestRoot) | Out-Null
+        if (-not $WhatIfPreference) {
+            [IO.Directory]::CreateDirectory($resolvedTestRoot) | Out-Null
+        }
         return [pscustomobject]@{
             Root = Get-NormalizedRoot $resolvedTestRoot
             Volume = $null
@@ -98,15 +129,24 @@ function Get-CardTarget {
         }
     }
 
-    $letter = $DriveLetter.Substring(0, 1).ToUpperInvariant()
-    $systemLetter = [IO.Path]::GetPathRoot($env:SystemRoot).Substring(0, 1).ToUpperInvariant()
-    if ($letter -eq $systemLetter) {
-        throw "Refusing to use the Windows system volume $letter`:"
+    $snapshot = Get-DmdClockDiskSnapshot -Number $DiskNumber
+    if (-not $snapshot.IsCandidate) {
+        throw "Refusing Disk $DiskNumber`: $($snapshot.ExclusionReason)"
     }
-
+    $mountedVolumes = @($snapshot.Volumes | Where-Object {
+        -not [string]::IsNullOrWhiteSpace([string]$_.DriveLetter)
+    })
+    if ($mountedVolumes.Count -ne 1) {
+        throw "Disk $DiskNumber must expose exactly one mounted volume; found $($mountedVolumes.Count)."
+    }
+    $volumeInfo = $mountedVolumes[0]
+    $letter = ([string]$volumeInfo.DriveLetter).ToUpperInvariant()
     $volume = Get-Volume -DriveLetter $letter -ErrorAction Stop
     if ($volume.FileSystem -ne 'FAT32') {
-        throw "Volume $letter`: uses '$($volume.FileSystem)'; DMDClock requires FAT32. The script does not format cards."
+        throw (
+            "Disk $DiskNumber volume $letter`: uses '$($volume.FileSystem)'; DMDClock requires FAT32. " +
+            "Creating and formatting the card are outside this script. Follow $preparationGuide, " +
+            "then run -ListDisks again.")
     }
     if ($volume.HealthStatus -and $volume.HealthStatus -ne 'Healthy') {
         throw "Volume $letter`: health status is '$($volume.HealthStatus)', not Healthy."
@@ -124,7 +164,117 @@ function Get-CardTarget {
         Root = $root
         Volume = $volume
         IsTest = $false
+        DiskNumber = $DiskNumber
+        DiskSnapshot = $snapshot
     }
+}
+
+function Get-DmdClockDiskSnapshot {
+    param([Parameter(Mandatory)][int] $Number)
+
+    $disk = Get-Disk -Number $Number -ErrorAction Stop
+    $partitions = @(Get-Partition -DiskNumber $Number -ErrorAction SilentlyContinue |
+        Sort-Object PartitionNumber)
+    $volumeRecords = [Collections.Generic.List[object]]::new()
+    foreach ($partition in $partitions) {
+        $volume = $null
+        try { $volume = $partition | Get-Volume -ErrorAction Stop } catch { $volume = $null }
+        if ($null -ne $volume) {
+            $volumeRecords.Add([pscustomobject]@{
+                PartitionNumber = [int]$partition.PartitionNumber
+                DriveLetter = [string]$volume.DriveLetter
+                Label = [string]$volume.FileSystemLabel
+                FileSystem = [string]$volume.FileSystem
+                Size = [long]$volume.Size
+            })
+        }
+    }
+    $systemDisk = $disk.IsSystem -or $disk.IsBoot -or
+        @($partitions | Where-Object { $_.IsSystem -or $_.IsBoot }).Count -gt 0
+    $externalBus = [string]$disk.BusType -in @('USB', 'SD', 'MMC')
+    $healthy = -not $disk.IsOffline -and -not $disk.IsReadOnly -and
+        @($disk.OperationalStatus) -contains 'Online'
+    $exclusion = if ($systemDisk) {
+        'it contains a Windows system or boot partition'
+    } elseif (-not $externalBus) {
+        "bus type '$($disk.BusType)' is not USB, SD, or MMC"
+    } elseif (-not $healthy) {
+        "it is offline, read-only, or not operational (status: $($disk.OperationalStatus -join ', '))"
+    } else { '' }
+    $topology = @($partitions | ForEach-Object {
+        '{0}:{1}:{2}:{3}:{4}' -f $_.PartitionNumber, $_.Offset, $_.Size,
+            $_.DriveLetter, $_.Type
+    }) -join '|'
+    $volumeTopology = @($volumeRecords | ForEach-Object {
+        '{0}:{1}:{2}:{3}:{4}' -f $_.PartitionNumber, $_.DriveLetter,
+            $_.Label, $_.FileSystem, $_.Size
+    }) -join '|'
+    return [pscustomobject]@{
+        Number = [int]$disk.Number
+        FriendlyName = [string]$disk.FriendlyName
+        SerialNumber = ([string]$disk.SerialNumber).Trim()
+        UniqueId = ([string]$disk.UniqueId).Trim()
+        Size = [long]$disk.Size
+        BusType = [string]$disk.BusType
+        PartitionStyle = [string]$disk.PartitionStyle
+        Topology = "$topology#volumes=$volumeTopology"
+        IsCandidate = [string]::IsNullOrWhiteSpace($exclusion)
+        ExclusionReason = $exclusion
+        Volumes = @($volumeRecords)
+    }
+}
+
+function Get-DmdClockDiskCandidates {
+    $snapshots = [Collections.Generic.List[object]]::new()
+    foreach ($disk in @(Get-Disk | Sort-Object Number)) {
+        try {
+            $snapshots.Add((Get-DmdClockDiskSnapshot -Number ([int]$disk.Number)))
+        }
+        catch {
+            Write-Warning "Disk $($disk.Number) could not be inspected: $($_.Exception.Message)"
+        }
+    }
+    return @($snapshots)
+}
+
+function Show-DmdClockDiskCandidates {
+    $snapshots = @(Get-DmdClockDiskCandidates)
+    Write-Host ''
+    Write-Host 'Physical disks (no disk is selected automatically):' -ForegroundColor Cyan
+    foreach ($snapshot in $snapshots) {
+        $state = if ($snapshot.IsCandidate) { 'CANDIDATE' } else { 'EXCLUDED' }
+        $color = if ($snapshot.IsCandidate) { 'Green' } else { 'DarkGray' }
+        Write-Host ("  Disk {0} - {1} - {2:N1} GB - {3} - {4}" -f
+            $snapshot.Number, $snapshot.FriendlyName, ($snapshot.Size / 1GB),
+            $snapshot.BusType, $state) -ForegroundColor $color
+        foreach ($volume in $snapshot.Volumes) {
+            $letter = if ($volume.DriveLetter) { "$($volume.DriveLetter):" } else { '(not mounted)' }
+            Write-Host ("    Partition {0}: {1}, label='{2}', {3}, {4:N1} GB" -f
+                $volume.PartitionNumber, $letter, $volume.Label,
+                $volume.FileSystem, ($volume.Size / 1GB))
+        }
+        if (-not $snapshot.IsCandidate) {
+            Write-Host "    Excluded: $($snapshot.ExclusionReason)" -ForegroundColor DarkGray
+        }
+    }
+    Write-Host 'Rerun with -DiskNumber N only after matching the model, size, bus, partitions, and volume.'
+}
+
+function Assert-DmdClockDiskUnchanged {
+    param([Parameter(Mandatory)] $Original)
+
+    $current = Get-DmdClockDiskSnapshot -Number ([int]$Original.Number)
+    foreach ($property in @(
+        'Number', 'FriendlyName', 'SerialNumber', 'UniqueId', 'Size',
+        'BusType', 'PartitionStyle', 'Topology')) {
+        if ([string]$current.$property -cne [string]$Original.$property) {
+            throw "Disk identity/topology changed before synchronization (field: $property). Remove and reinsert the intended card, list disks again, and restart."
+        }
+    }
+    if (-not $current.IsCandidate) {
+        throw "Disk $($Original.Number) is no longer an eligible external disk: $($current.ExclusionReason)"
+    }
+    Write-Host "[OK] Revalidated Disk $($current.Number) identity and topology immediately before synchronization." -ForegroundColor Green
 }
 
 function Expand-CheckedArchive {
@@ -235,6 +385,34 @@ function Get-SceneSource {
             Scenes = Resolve-SceneSource $SourceDirectory
             ArchiveHash = $null
             Source = [IO.Path]::GetFullPath($SourceDirectory)
+        }
+    }
+
+    if ($null -ne $stagedSourceInfo) {
+        $artifactId = if ($Library -eq 'Original') {
+            'sd.library.dotclk-original'
+        } else {
+            'sd.library.drwize-complete'
+        }
+        $artifact = $stagedSourceInfo.Artifacts[$artifactId]
+        $archivePath = [string]$artifact.ResolvedPath
+        if ([long]$artifact.size -ne $Definition.DownloadBytes -or
+            ([string]$artifact.sha256).ToUpperInvariant() -ne $Definition.ArchiveSha256 -or
+            [string]$artifact.version -ne $Definition.Version) {
+            throw "Staged artifact '$artifactId' is stale or does not match the staged catalog."
+        }
+        $expandedRoot = Join-Path $temporaryRoot 'source'
+        Expand-CheckedArchive -ArchivePath $archivePath -Destination $expandedRoot
+        $resourceRoot = Get-ChildItem -LiteralPath $expandedRoot -Directory |
+            Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'Scenes') } |
+            Select-Object -First 1
+        if ($null -eq $resourceRoot) {
+            throw "Staged archive '$artifactId' does not contain the expected Scenes directory."
+        }
+        return [pscustomobject]@{
+            Scenes = Resolve-SceneSource $resourceRoot.FullName
+            ArchiveHash = Get-Sha256 $archivePath
+            Source = $archivePath
         }
     }
 
@@ -387,6 +565,7 @@ function Test-SceneLibrary {
             elseif ($null -ne $stream) { $stream.Dispose() }
         }
     }
+
     Write-Progress -Activity 'Validating SCN files' -Completed
     Write-Host "Files: $($files.Count)"
     Write-Host "Accepted: $($files.Count - $rejected.Count)"
@@ -427,6 +606,15 @@ function Get-SupportFile {
 }
 
 function Initialize-SupportFiles {
+    if ($null -ne $stagedSourceInfo) {
+        return [pscustomobject]@{
+            Catalog = [string]$stagedSourceInfo.Artifacts['sd.catalog'].ResolvedPath
+            Metadata = [string]$stagedSourceInfo.Artifacts['sd.scene-metadata'].ResolvedPath
+            CardTemplate = Split-Path -Parent (
+                [string]$stagedSourceInfo.Artifacts['sd.template.manifest'].ResolvedPath)
+        }
+    }
+
     $supportRoot = Join-Path $temporaryRoot 'support'
     $templateRoot = Join-Path $supportRoot 'card-template'
     $resolvedCatalog = Get-SupportFile `
@@ -550,6 +738,187 @@ function Get-PreviouslyManagedScenePaths {
         [StringComparer]::OrdinalIgnoreCase)
 }
 
+function Invoke-SdCardDownloadOnly {
+    param([Parameter(Mandatory)][string] $StagingDestination)
+
+    $layout = New-DmdClockStagingLayout -Destination $StagingDestination `
+        -WhatIf:$WhatIfPreference
+
+    $artifacts = [Collections.Generic.List[object]]::new()
+    $supportDefinitions = @(
+        [pscustomobject]@{
+            Id = 'sd.catalog'; Relative = 'SDCard/catalog.json'
+            RepositoryRelative = 'scenes/catalog.json'; Local = $localCatalogPath
+            Kind = 'sd-catalog'; Maximum = 1MB
+        },
+        [pscustomobject]@{
+            Id = 'sd.scene-metadata'; Relative = 'SDCard/scene-metadata.json'
+            RepositoryRelative = 'scenes/scene-metadata.json'; Local = $localMetadataPath
+            Kind = 'sd-metadata'; Maximum = 32MB
+        },
+        [pscustomobject]@{
+            Id = 'sd.template.manifest'; Relative = 'SDCard/template/dmd/manifest.json'
+            RepositoryRelative = 'firmware/dmdclock-esp32/sdcard/dmd/manifest.json'
+            Local = (Join-Path $localCardTemplateRoot 'manifest.json')
+            Kind = 'sd-template'; Maximum = 1MB
+        },
+        [pscustomobject]@{
+            Id = 'sd.template.readme'; Relative = 'SDCard/template/dmd/README.md'
+            RepositoryRelative = 'firmware/dmdclock-esp32/sdcard/dmd/README.md'
+            Local = (Join-Path $localCardTemplateRoot 'README.md')
+            Kind = 'sd-template'; Maximum = 1MB
+        }
+    )
+
+    foreach ($support in $supportDefinitions) {
+        $uri = [uri]("$rawRepositoryRoot/$($support.RepositoryRelative)")
+        $destinationPath = Join-Path $layout.Root $support.Relative
+        $artifacts.Add((Save-DmdClockStagedDownload `
+            -ArtifactId $support.Id -Uri $uri -Destination $destinationPath `
+            -StagingRoot $layout.Root -MaximumBytes $support.Maximum `
+            -Kind $support.Kind -Version 'v1.6' -Target 'esp32-s3' `
+            -WhatIf:$WhatIfPreference))
+    }
+
+    if ($WhatIfPreference) {
+        Write-Host '[WHATIF] Scene catalog content is not downloaded, so the scene archive is reported after support-file staging executes.' -ForegroundColor Yellow
+        return
+    }
+
+    $stagedCatalogPath = Join-Path $layout.Root 'SDCard/catalog.json'
+    $catalog = Get-Content -LiteralPath $stagedCatalogPath -Raw | ConvertFrom-Json
+    if ([int]$catalog.schemaVersion -ne 1) {
+        throw "Unsupported shared scene catalog schema '$($catalog.schemaVersion)'."
+    }
+    $packId = if ($Library -eq 'Original') { 'dotclk-original' } else { 'drwize-complete' }
+    $matches = @($catalog.packs | Where-Object { [string]$_.packId -eq $packId })
+    if ($matches.Count -ne 1) {
+        throw "The staged catalog must contain exactly one '$packId' entry."
+    }
+    $pack = $matches[0]
+    if (-not [bool]$pack.available -or
+        [string]$pack.downloadUrl -notmatch '^https://' -or
+        [long]$pack.downloadBytes -le 0 -or
+        [string]$pack.archiveSha256 -notmatch '^[0-9A-Fa-f]{64}$' -or
+        @($pack.supportedPlatforms) -notcontains 'esp32-s3') {
+        throw "The staged '$packId' catalog entry is not a valid ESP32 scene library."
+    }
+    $archiveName = "$packId-$($pack.version -replace '[^0-9A-Za-z._-]', '_').zip"
+    $archivePath = Join-Path $layout.SDCard "libraries/$packId/$archiveName"
+    $artifacts.Add((Save-DmdClockStagedDownload `
+        -ArtifactId "sd.library.$packId" -Uri ([uri][string]$pack.downloadUrl) `
+        -Destination $archivePath -StagingRoot $layout.Root `
+        -ExpectedBytes ([long]$pack.downloadBytes) `
+        -ExpectedSha256 ([string]$pack.archiveSha256) -MaximumBytes 256MB `
+        -Kind 'scene-library' -Version ([string]$pack.version) `
+        -Target 'esp32-s3'))
+
+    $manifestPath = Update-DmdClockStagingManifest -StagingRoot $layout.Root `
+        -Artifacts @($artifacts)
+    Write-DmdClockProvisioningLog -Event 'staging-complete' `
+        -Detail "kind=sd library=$packId manifest=$manifestPath artifacts=$($artifacts.Count)"
+    Write-Host ''
+    Write-Host '[DONE] Verified SD-card payload staged without enumerating removable media.' -ForegroundColor Green
+    Write-Host "Manifest: $manifestPath"
+    $artifacts | Select-Object artifactId, status, size, sha256, relativePath | Format-Table -AutoSize
+}
+
+$requirementsPath = if (-not [string]::IsNullOrWhiteSpace($StagingSource)) {
+    [IO.Path]::GetFullPath($StagingSource)
+} elseif ([string]::IsNullOrWhiteSpace($Destination)) {
+    Join-Path ([Environment]::GetFolderPath(
+        [Environment+SpecialFolder]::LocalApplicationData)) 'DmdClock\DmdClockFiles'
+} else {
+    [IO.Path]::GetFullPath($Destination)
+}
+$requirements = Invoke-DmdClockRequirementsCheck `
+    -Operation $(if ($CheckRequirements) { 'Check' } elseif ($DownloadOnly) { 'Download' } elseif ($StagingSource) { 'Offline' } else { 'SdCard' }) `
+    -DataPath $requirementsPath `
+    -MinimumFreeBytes 256MB `
+    -RequiredCommands @(
+        'Get-Disk',
+        'Get-FileHash',
+        'Get-Partition',
+        'Get-Volume',
+        'Invoke-WebRequest'
+    ) `
+    -RequireNetwork:$DownloadOnly `
+    -ThrowOnFailure:(-not $CheckRequirements)
+if ($CheckRequirements) {
+    if (-not $requirements.Passed) { exit 1 }
+    return
+}
+if ($ListDisks) {
+    Show-DmdClockDiskCandidates
+    return
+}
+
+$runOutcome = 'cancelled'
+$runDetail = ''
+$logPath = $null
+if (-not $WhatIfPreference -and -not $TestRoot) {
+    $operation = if ($DownloadOnly) { "stage-sd-$Library" } else { "sync-sd-$Library" }
+    $logDirectory = if ($DownloadOnly) {
+        Join-Path ([IO.Path]::GetFullPath($Destination)) 'Logs'
+    } else {
+        Join-Path ([Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)) 'DmdClock\Logs\Provisioning'
+    }
+    $logPath = Start-DmdClockProvisioningLog -LogDirectory $logDirectory `
+        -Operation $operation
+    Write-Host "Log: $logPath"
+    Write-DmdClockRequirementsLog -Requirements $requirements
+    Write-DmdClockProvisioningLog -Event 'invocation' -Detail (
+        "library=$Library disk=$DiskNumber source_directory=$SourceDirectory " +
+        "staging_source=$StagingSource destination=$Destination refresh=$RefreshSource " +
+        "allow_fixed=$AllowFixedDrive")
+}
+
+try {
+if ($DownloadOnly) {
+    Invoke-SdCardDownloadOnly -StagingDestination $Destination
+    $runOutcome = 'completed'
+    return
+}
+if (-not [string]::IsNullOrWhiteSpace($StagingSource)) {
+    $libraryArtifactId = if ($Library -eq 'Original') {
+        'sd.library.dotclk-original'
+    } else {
+        'sd.library.drwize-complete'
+    }
+    $stagedSourceInfo = Test-DmdClockStagingManifest -Source $StagingSource `
+        -RequiredArtifactIds @(
+            'sd.catalog',
+            'sd.scene-metadata',
+            'sd.template.manifest',
+            'sd.template.readme',
+            $libraryArtifactId
+        )
+}
+if ($WhatIfPreference) {
+    if ($null -ne $stagedSourceInfo) {
+        $catalogPath = [string]$stagedSourceInfo.Artifacts['sd.catalog'].ResolvedPath
+    } elseif (Test-Path -LiteralPath $localCatalogPath -PathType Leaf) {
+        $catalogPath = $localCatalogPath
+    } else {
+        throw 'Dry-run needs either a complete -Source staging folder or the repository catalog; it never downloads support files.'
+    }
+    $definition = Get-LibraryDefinition
+    $target = Get-CardTarget
+    Write-Host ''
+    Write-Host '[DRY RUN] No downloads, temporary extraction, card writes, deletions, formatting, or partitioning will occur.' -ForegroundColor Yellow
+    Write-Host "Library: $($definition.DisplayName) v$($definition.Version) ($($definition.SceneCount) scenes)"
+    Write-Host "Source:  $(if ($StagingSource) { [IO.Path]::GetFullPath($StagingSource) } elseif ($SourceDirectory) { [IO.Path]::GetFullPath($SourceDirectory) } else { $definition.DownloadUrl })"
+    Write-Host "Target:  $($target.Root)"
+    if (-not $target.IsTest) {
+        Write-Host ("Disk:    {0} - {1} - {2:N1} GB - {3}" -f
+            $target.DiskNumber, $target.DiskSnapshot.FriendlyName,
+            ($target.DiskSnapshot.Size / 1GB), $target.DiskSnapshot.BusType)
+        Write-Host "Volume:  $($target.Volume.DriveLetter): FAT32; label='$($target.Volume.FileSystemLabel)'"
+    }
+    return
+}
+
 [IO.Directory]::CreateDirectory($temporaryRoot) | Out-Null
 try {
     $supportFiles = Initialize-SupportFiles
@@ -564,18 +933,37 @@ try {
     }
 
     $definition = Get-LibraryDefinition
-    $target = Get-CardTarget
     Write-Host "Library: $($definition.DisplayName) v$($definition.Version) ($($definition.SceneCount) scenes)"
-    Write-Host "Target: $($target.Root)"
     Write-Host "Instructions: $preparationGuide"
-    if (-not $target.IsTest) {
-        Write-Host (
-            "Volume: FAT32, $($target.Volume.DriveType), " +
-            "$([Math]::Round($target.Volume.Size / 1GB, 2)) GiB")
-    }
 
     $source = Get-SceneSource -Definition $definition
     Test-SceneLibrary $source.Scenes
+    Write-DmdClockProvisioningLog -Event 'scene-source-verified' -Detail (
+        "library=$($definition.PackId) version=$($definition.Version) scenes=$($definition.SceneCount) " +
+        "source=$($source.Source) archive_sha256=$($source.ArchiveHash)")
+
+    # Hardware/media enumeration starts only after all source files, inventory,
+    # archive metadata, and every SCN have passed validation.
+    $target = Get-CardTarget
+    Write-Host "Target: $($target.Root)"
+    if (-not $target.IsTest) {
+        Write-Host (
+            "Physical disk: Disk $($target.DiskNumber) - " +
+            "$($target.DiskSnapshot.FriendlyName) - " +
+            "$([Math]::Round($target.DiskSnapshot.Size / 1GB, 2)) GiB - " +
+            "$($target.DiskSnapshot.BusType)")
+        Write-Host (
+            "Volume: $($target.Volume.DriveLetter):, label='$($target.Volume.FileSystemLabel)', " +
+            "FAT32, $($target.Volume.HealthStatus), $($target.Volume.DriveType), " +
+            "$([Math]::Round($target.Volume.Size / 1GB, 2)) GiB")
+        Write-DmdClockProvisioningLog -Event 'disk-selected' -Detail (
+            "disk=$($target.DiskNumber) model=$($target.DiskSnapshot.FriendlyName) " +
+            "size=$($target.DiskSnapshot.Size) bus=$($target.DiskSnapshot.BusType) " +
+            "volume=$($target.Volume.DriveLetter): label=$($target.Volume.FileSystemLabel) " +
+            "filesystem=$($target.Volume.FileSystem) health=$($target.Volume.HealthStatus) " +
+            "drive_type=$($target.Volume.DriveType)")
+    }
+    Write-Host '[SAFE] No partitioning, formatting, or deletion of card files is performed.' -ForegroundColor Green
 
     $managed = [Collections.Generic.List[object]]::new()
     $sceneManifestEntries = [Collections.Generic.List[object]]::new()
@@ -672,7 +1060,7 @@ try {
         Added = 0
         Repaired = 0
         Updated = 0
-        Removed = 0
+        ObsoletePreserved = 0
         Preserved = 0
     }
     $copyBytes = [long]0
@@ -709,7 +1097,7 @@ try {
         [void]$managedScenePaths.Add($file.RelativeTarget.Replace('\', '/'))
     }
     $previousManagedPaths = Get-PreviouslyManagedScenePaths -CardRoot $target.Root
-    $obsoleteManagedFiles = [Collections.Generic.HashSet[string]]::new(
+    $obsoletePreservedFiles = [Collections.Generic.HashSet[string]]::new(
         [StringComparer]::OrdinalIgnoreCase)
     foreach ($relative in $previousManagedPaths) {
         $managedRelative = "dmd/scenes/$relative"
@@ -719,8 +1107,8 @@ try {
                 -Root $target.Root `
                 -Description "Previously managed scene '$relative'"
             if (Test-Path -LiteralPath $obsoletePath -PathType Leaf) {
-                [void]$obsoleteManagedFiles.Add($obsoletePath)
-                $counts.Removed++
+                [void]$obsoletePreservedFiles.Add($obsoletePath)
+                $counts.ObsoletePreserved++
             }
         }
     }
@@ -731,7 +1119,7 @@ try {
             $relativeExisting = $existing.FullName.Substring(
                 $targetRootNormalized.Length).Replace('\', '/')
             if ($relativeExisting -ne 'dmd/scenes/scene-metadata.json' -and
-                -not $obsoleteManagedFiles.Contains($existing.FullName) -and
+                -not $obsoletePreservedFiles.Contains($existing.FullName) -and
                 -not $managedScenePaths.Contains($relativeExisting)) {
                 $counts.Preserved++
             }
@@ -754,19 +1142,30 @@ try {
     Write-Host "  Added:     $($counts.Added)"
     Write-Host "  Repaired:  $($counts.Repaired)"
     Write-Host "  Updated:   $($counts.Updated)"
-    Write-Host "  Removed:   $($counts.Removed)"
-    Write-Host "  Preserved: $($counts.Preserved)"
+    Write-Host "  Obsolete managed files preserved: $($counts.ObsoletePreserved)"
+    Write-Host "  Other files preserved:            $($counts.Preserved)"
     Write-Host "  Write:     $([Math]::Round($copyBytes / 1MB, 1)) MiB"
+    Write-DmdClockProvisioningLog -Event 'sd-plan' -Detail (
+        "target=$($target.Root) library=$($definition.PackId) unchanged=$($counts.Unchanged) " +
+        "added=$($counts.Added) repaired=$($counts.Repaired) updated=$($counts.Updated) " +
+        "obsolete_preserved=$($counts.ObsoletePreserved) other_preserved=$($counts.Preserved) " +
+        "write_bytes=$copyBytes")
 
-    $changeCount = $counts.Added + $counts.Repaired + $counts.Updated + $counts.Removed
+    $changeCount = $counts.Added + $counts.Repaired + $counts.Updated
     if ($changeCount -eq 0) {
         Write-Host 'The card is already up to date; no files were written.'
+        $runOutcome = 'completed'
         return
+    }
+
+    if (-not $target.IsTest) {
+        Assert-DmdClockDiskUnchanged -Original $target.DiskSnapshot
     }
 
     if (-not $PSCmdlet.ShouldProcess(
         $target.Root,
         "Synchronize $($sceneFiles.Count) scenes for $($definition.DisplayName) and the DMDClock card layout")) {
+        Write-DmdClockProvisioningLog -Event 'sd-cancelled' -Detail "target=$($target.Root)"
         return
     }
 
@@ -790,9 +1189,6 @@ try {
         Install-FileAtomically -File $file -CardRoot $target.Root
     }
 
-    foreach ($obsoletePath in $obsoleteManagedFiles) {
-        Remove-Item -LiteralPath $obsoletePath -Force
-    }
     foreach ($file in $managed | Where-Object Category -eq 'Manifest') {
         $destination = Join-Path $target.Root $file.RelativeTarget
         if (Test-Path -LiteralPath $destination -PathType Leaf) {
@@ -805,22 +1201,48 @@ try {
 
         Install-FileAtomically -File $file -CardRoot $target.Root
     }
-    $legacyManifest = Join-Path $target.Root 'dmd\config\dotclk-scenes-manifest.json'
-    if (Test-Path -LiteralPath $legacyManifest -PathType Leaf) {
-        Remove-Item -LiteralPath $legacyManifest -Force
-    }
-
     Write-Host ''
     Write-Host (
         "SD card preparation complete: added $($counts.Added), " +
         "repaired $($counts.Repaired), updated $($counts.Updated), " +
-        "removed $($counts.Removed), unchanged $($counts.Unchanged), " +
-        "preserved $($counts.Preserved).")
+        "unchanged $($counts.Unchanged), obsolete managed files preserved " +
+        "$($counts.ObsoletePreserved), other files preserved $($counts.Preserved).")
+    Write-DmdClockProvisioningLog -Event 'sd-complete' -Detail (
+        "target=$($target.Root) library=$($definition.PackId) added=$($counts.Added) " +
+        "repaired=$($counts.Repaired) updated=$($counts.Updated) write_bytes=$copyBytes")
+    $runOutcome = 'completed'
 }
 finally {
     $temporaryBase = Get-NormalizedRoot ([IO.Path]::GetTempPath())
     if ((Test-Path -LiteralPath $temporaryRoot) -and
         $temporaryRoot.StartsWith($temporaryBase, [StringComparison]::OrdinalIgnoreCase)) {
         Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -WhatIf:$false
+    }
+}
+}
+catch {
+    $originalError = $_
+    $runOutcome = 'failed'
+    $runDetail = "error_type=$($originalError.Exception.GetType().FullName) error=$($originalError.Exception.Message)"
+    try {
+        Write-DmdClockProvisioningLog -Event 'error' -Detail $runDetail
+    }
+    catch {
+        Write-Warning "Could not append the original failure to the provisioning log: $($_.Exception.Message)"
+    }
+    throw $originalError
+}
+finally {
+    if ($logPath) {
+        if ($runOutcome -eq 'failed') {
+            try {
+                Complete-DmdClockProvisioningLog -Outcome $runOutcome -Detail $runDetail
+            }
+            catch {
+                Write-Warning "Could not finalize the failed provisioning log: $($_.Exception.Message)"
+            }
+        } else {
+            Complete-DmdClockProvisioningLog -Outcome $runOutcome -Detail $runDetail
+        }
     }
 }

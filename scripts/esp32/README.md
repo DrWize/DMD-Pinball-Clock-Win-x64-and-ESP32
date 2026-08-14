@@ -6,7 +6,8 @@ Repository:
 The build, QEMU, doctor, and developer scripts use the pinned, workspace-local
 ESP-IDF 5.5.2 installation under `E:\ai\.tools`; they do not require those tools
 on the global `PATH`. The user-facing `Flash-DmdClockEsp32.ps1` and
-`Prepare-DmdClockSdCard.ps1` run with Windows PowerShell 5.1 or newer and do not
+`Prepare-DmdClockSdCard.ps1` run on Windows 11 x64 with PowerShell 7 or newer
+(`pwsh`) and do not
 require Python, ESP-IDF, .NET, Git, CMake, Ninja, or the Xtensa compiler.
 
 ```powershell
@@ -19,14 +20,22 @@ require Python, ESP-IDF, .NET, Git, CMake, Ninja, or the Xtensa compiler.
 # Build another cached hardware test.
 .\scripts\esp32\Build-WaveshareExample.ps1 -Example SD
 
-# Validate and preview preparation of an already-formatted FAT32 card.
-.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F -Library Original -WhatIf
+# Read-only Windows 11 x64 / pwsh 7 requirements checks.
+.\scripts\esp32\Flash-DmdClockEsp32.ps1 -CheckRequirements
+.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -CheckRequirements
 
-# Download, validate, and idempotently install Original DotCLK-Orig.
-.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F -Library Original
+# Stage the selected SD library, both firmware targets, and esptool with no hardware.
+.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DownloadOnly `
+  -Destination .\DmdClockFiles -Library DmdLarge
+.\scripts\esp32\Flash-DmdClockEsp32.ps1 -DownloadOnly `
+  -Destination .\DmdClockFiles
 
-# Or prepare the larger DMD-Large library.
-.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F -Library DmdLarge
+# Verify offline payloads without a card or ESP32.
+.\scripts\esp32\Flash-DmdClockEsp32.ps1 -Board Waveshare349B `
+  -Source .\DmdClockFiles -DownloadOnly
+
+# Card creation/formatting and current scene-library preparation:
+# https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md
 
 # Run any idf.py operation against an explicit project.
 .\scripts\esp32\Invoke-Idf.ps1 -ProjectPath <path> build
@@ -103,8 +112,14 @@ playback logging is controlled from the web remote and writes the bounded
 `Prepare-DmdClockSdCard.ps1` defaults to preferred **DMD-Large** (2,416 scenes);
 **Original DotCLK-Orig** (2,324 scenes) remains selectable. Preparation validates
 the shared catalog, byte size, SHA-256, and every SCN. A managed scene list
-prevents files from the previously selected library from being treated as custom
-when switching libraries.
+tracks what belongs to the selected library without deleting files from a
+previous library. The script requires an existing healthy FAT32 volume and never
+partitions, formats, or deletes card content.
+
+Both entry scripts import `DmdClock.Provisioning.psm1`. Download-only staging
+uses `ESP32`, `SDCard`, `Tools`, and `Logs` below one destination and atomically
+maintains `staging-manifest.json`. `-Source` validates every required staged
+file by size and SHA-256 before either script reaches its disk or COM gate.
 
 `Measure-ScenePackDelivery.ps1` records the real ZIP phases from a running QEMU
 profile or compares the revision-pinned ZIP with sequential downloads of every
@@ -169,6 +184,19 @@ watchdog/crash/persistence failures, and leaves the P6 visual checklist explicit
 
 The P7 image enables AXS15231B touch on the 3.49B V2. Its final landscape
 orientation and all eight visible menu controls passed the physical P7 gate.
+
+`Test-DmdClockPhysicalFonts.ps1` runs the reusable v1.6 physical font matrix
+against a flashed board's live API. It exercises all five fonts across 12/24-hour
+and seconds combinations, rejects an unknown font, checks frame advancement,
+scene playback, memory and touch/settings diagnostics, performs a real reboot
+persistence test, restores the initial settings, and records JSON evidence. Pass
+`-VisualConfirmation ALL-FONTS-OK` only after observing all five choices:
+
+```powershell
+.\scripts\esp32\Test-DmdClockPhysicalFonts.ps1 `
+  -DeviceUrl http://192.168.1.150 -Board Waveshare349B `
+  -VisualConfirmation ALL-FONTS-OK
+```
 
 `Test-DmdClockQemuAcceptance.ps1` exercises the broader QEMU behavior matrix:
 clock, static/animated SCNs, all four color families, brightness, QR/touch

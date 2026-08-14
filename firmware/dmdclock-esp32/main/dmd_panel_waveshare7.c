@@ -120,8 +120,18 @@ uint16_t *dmd_panel_begin_frame(void)
     return s_framebuffers[s_render_buffer];
 }
 
-esp_err_t dmd_panel_present(void)
+esp_err_t dmd_panel_present(uint16_t rotation)
 {
+    if (rotation == 180) {
+        size_t left = 0;
+        size_t right = LCD_WIDTH * LCD_HEIGHT - 1;
+        while (left < right) {
+            uint16_t pixel = s_framebuffers[s_render_buffer][left];
+            s_framebuffers[s_render_buffer][left++] =
+                s_framebuffers[s_render_buffer][right];
+            s_framebuffers[s_render_buffer][right--] = pixel;
+        }
+    }
     s_display_task = xTaskGetCurrentTaskHandle();
     ulTaskNotifyValueClear(NULL, ULONG_MAX);
     ESP_RETURN_ON_ERROR(
@@ -139,6 +149,13 @@ esp_err_t dmd_panel_present(void)
     }
     s_render_buffer ^= 1U;
     return ESP_OK;
+}
+
+bool dmd_panel_orientation_sensor_available(void) { return false; }
+bool dmd_panel_read_accelerometer(float *x, float *y, float *z)
+{
+    (void)x; (void)y; (void)z;
+    return false;
 }
 
 esp_err_t dmd_panel_set_backlight(bool enabled)

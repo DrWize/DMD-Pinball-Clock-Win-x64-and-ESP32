@@ -53,16 +53,11 @@ The installer downloads and verifies the release manifest, target ID, firmware
 ZIP, and image hashes before writing anything. An application update preserves
 the bootloader, partition table, NVS/Wi-Fi settings, and TF card.
 
-To install scenes, insert a FAT32 card in the PC and run the following command,
-replacing `J:` with the verified removable drive:
-
-```powershell
-.\scripts\esp32\Prepare-DmdClockSdCard.ps1 J:
-```
-
-The card preparation is idempotent: it does not format the card or delete
-unrelated files. See [Install DMDClock on the ESP32-S3 and SD card](INSTALL-ESP32.md)
-for first boot, Wi-Fi, recovery, security, and local-build instructions.
+Creating and formatting the card are outside the DMDClock scripts. To install
+scenes on an already-FAT32 card, use the single authoritative
+[Windows TF-card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md).
+See [Install DMDClock on the ESP32-S3 and SD card](INSTALL-ESP32.md) for first
+boot, Wi-Fi, recovery, security, and local-build instructions.
 
 ## Verify a download
 

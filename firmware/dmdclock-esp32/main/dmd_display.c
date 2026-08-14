@@ -10,6 +10,7 @@
 #include "dmd_board.h"
 #include "dmd_color.h"
 #include "dmd_controls.h"
+#include "dmd_font.h"
 #include "dmd_geometry.h"
 #include "dmd_layout.h"
 #include "dmd_network.h"
@@ -43,12 +44,19 @@ static const char *TAG = "dmd_display";
 static uint16_t *s_framebuffer;
 static uint8_t s_dmd[DMD_WIDTH * DMD_HEIGHT];
 static uint8_t s_clock_dmd[DMD_WIDTH * DMD_HEIGHT];
+static uint8_t s_clock_mask[DMD_WIDTH * DMD_HEIGHT];
 static uint8_t s_scene_mask[DMD_WIDTH * DMD_HEIGHT];
 static dmd_rgb_t s_plasma_palette[DMD_PLASMA_PALETTE_SIZE];
 static dmd_plasma_palette_t s_cached_plasma_palette = UINT8_MAX;
 static dmd_rgb_t s_cached_plasma_custom[DMD_PLASMA_STOP_COUNT];
 static SemaphoreHandle_t s_state_lock;
 static dmd_display_state_t s_state;
+static uint16_t s_effective_rotation;
+static bool s_orientation_sensor_healthy;
+static float s_acceleration_x;
+static float s_acceleration_y;
+static float s_acceleration_z;
+static uint32_t s_orientation_read_error_count;
 static uint32_t s_command_revision;
 static uint32_t s_touch_test_request_revision;
 static uint32_t s_setup_qr_request_revision;
@@ -806,75 +814,6 @@ static void draw_screen_chrome(
     }
 }
 
-static void dmd_set_block(uint8_t *buffer, int x, int y, int scale)
-{
-    for (int row = 0; row < scale; row++) {
-        int target_y = y + row;
-        if (target_y < 0 || target_y >= DMD_HEIGHT) {
-            continue;
-        }
-        for (int column = 0; column < scale; column++) {
-            int target_x = x + column;
-            if (target_x >= 0 && target_x < DMD_WIDTH) {
-                buffer[target_y * DMD_WIDTH + target_x] = 15;
-            }
-        }
-    }
-}
-
-static void render_text_to_buffer(
-    uint8_t *buffer,
-    const char *text,
-    int requested_scale,
-    int center_x,
-    int center_y)
-{
-    memset(buffer, 0, DMD_WIDTH * DMD_HEIGHT);
-    size_t length = strlen(text);
-    int base_width = length > 0 ? (int)length - 1 : 0;
-    for (size_t index = 0; index < length; index++) {
-        base_width += find_glyph(text[index])->width;
-    }
-
-    int scale_x = base_width > 0 ? DMD_WIDTH / base_width : 1;
-    int scale_y = DMD_HEIGHT / 7;
-    int font_scale = requested_scale > 0
-        ? requested_scale
-        : (scale_x < scale_y ? scale_x : scale_y);
-    if (font_scale > 4) {
-        font_scale = 4;
-    }
-    if (font_scale < 1) {
-        font_scale = 1;
-    }
-
-    int rendered_width = base_width * font_scale;
-    int cursor_x = center_x - rendered_width / 2;
-    int origin_y = center_y - (7 * font_scale) / 2;
-
-    for (size_t index = 0; index < length; index++) {
-        const glyph_t *glyph = find_glyph(text[index]);
-        for (int row = 0; row < 7; row++) {
-            for (int column = 0; column < glyph->width; column++) {
-                uint8_t mask = (uint8_t)(1U << (glyph->width - column - 1));
-                if ((glyph->rows[row] & mask) != 0) {
-                    dmd_set_block(
-                        buffer,
-                        cursor_x + column * font_scale,
-                        origin_y + row * font_scale,
-                        font_scale);
-                }
-            }
-        }
-        cursor_x += (glyph->width + 1) * font_scale;
-    }
-}
-
-static void render_text_to_dmd(const char *text)
-{
-    render_text_to_buffer(s_dmd, text, 0, DMD_WIDTH / 2, DMD_HEIGHT / 2);
-}
-
 static void overlay_scene_clock(
     const dmd_settings_t *settings,
     const dmd_scene_info_t *scene,
@@ -884,29 +823,31 @@ static void overlay_scene_clock(
     char time_text[16];
     struct tm local;
     localtime_r(&now, &local);
-    const char *format = scene->clock_style == 1
+    bool compact = scene->clock_style == 1;
+    const char *format = compact
         ? (settings->use_24_hour ? "%H:%M" : "%I:%M")
         : (settings->show_seconds
-            ? (settings->use_24_hour ? "%H:%M:%S" : "%I:%M:%S")
-            : (settings->use_24_hour ? "%H:%M" : "%I:%M"));
+            ? (settings->use_24_hour ? "%H:%M:%S" : "%I:%M:%S %p")
+            : (settings->use_24_hour ? "%H:%M" : "%I:%M %p"));
     strftime(time_text, sizeof(time_text), format, &local);
-    if (!settings->use_24_hour && time_text[0] == '0') {
-        memmove(time_text, time_text + 1, strlen(time_text));
-    }
     int center_x = scene->clock_style == 1 ? scene->clock_x : DMD_WIDTH / 2;
     int center_y = scene->clock_style == 1 ? scene->clock_y : DMD_HEIGHT / 2;
-    render_text_to_buffer(
+    dmd_font_render_frame(
         s_clock_dmd,
+        s_clock_mask,
+        DMD_WIDTH,
+        DMD_HEIGHT,
         time_text,
-        scene->clock_style == 1 ? 2 : 0,
+        compact ? DMD_FONT_BUILTIN_5X7 : settings->clock_font,
         center_x,
-        center_y);
+        center_y,
+        compact || !settings->use_24_hour ? 2 : 3);
     for (size_t index = 0; index < sizeof(s_dmd); index++) {
         if (s_scene_mask[index] != 0) {
             s_dmd[index] = 0;
         }
         if (clock_above) {
-            if (s_clock_dmd[index] != 0) {
+            if (s_clock_mask[index] == 0) {
                 s_dmd[index] = s_clock_dmd[index];
             }
         } else if (s_scene_mask[index] != 0) {
@@ -1046,9 +987,48 @@ static void paint_dmd(
 
 static void refresh_display(void)
 {
-    ESP_ERROR_CHECK(dmd_panel_present());
+    ESP_ERROR_CHECK(dmd_panel_present(s_effective_rotation));
     s_framebuffer = dmd_panel_begin_frame();
     ESP_ERROR_CHECK(s_framebuffer != NULL ? ESP_OK : ESP_ERR_INVALID_STATE);
+}
+
+static void initialize_orientation(const dmd_settings_t *settings)
+{
+    s_effective_rotation = settings->fixed_rotation;
+    if (settings->orientation_mode != DMD_ORIENTATION_AUTO ||
+        !dmd_panel_orientation_sensor_available()) {
+        return;
+    }
+
+    for (uint8_t attempt = 0; attempt < 8; attempt++) {
+        float x;
+        float y;
+        float z;
+        if (dmd_panel_read_accelerometer(&x, &y, &z)) {
+            s_orientation_sensor_healthy = true;
+            s_acceleration_x = x;
+            s_acceleration_y = y;
+            s_acceleration_z = z;
+            float magnitude = y < 0.0f ? -y : y;
+            if (magnitude >= 0.60f) {
+                s_effective_rotation = y > 0.0f ? 0 : 180;
+                ESP_LOGI(
+                    TAG,
+                    "Boot orientation %u degrees (y=%.2f g)",
+                    s_effective_rotation,
+                    (double)y);
+                return;
+            }
+        } else {
+            s_orientation_sensor_healthy = false;
+            s_orientation_read_error_count++;
+        }
+        vTaskDelay(pdMS_TO_TICKS(40));
+    }
+    ESP_LOGW(
+        TAG,
+        "Boot orientation ambiguous; using fixed fallback %u degrees",
+        s_effective_rotation);
 }
 
 esp_err_t dmd_display_init(void)
@@ -1075,10 +1055,9 @@ esp_err_t dmd_display_init(void)
         ESP_ERR_INVALID_STATE,
         TAG,
         "panel backend returned no framebuffer");
-    ESP_RETURN_ON_ERROR(
-        dmd_panel_set_backlight(true),
-        TAG,
-        "enable panel backlight");
+    dmd_settings_t settings;
+    dmd_settings_get(&settings);
+    initialize_orientation(&settings);
     s_state_lock = xSemaphoreCreateMutex();
     if (s_state_lock == NULL) {
         return ESP_ERR_NO_MEM;
@@ -1088,6 +1067,10 @@ esp_err_t dmd_display_init(void)
 #if CONFIG_DMD_QEMU
     refresh_display();
 #endif
+    ESP_RETURN_ON_ERROR(
+        dmd_panel_set_backlight(true),
+        TAG,
+        "enable panel backlight");
     return ESP_OK;
 }
 
@@ -1171,6 +1154,14 @@ static void publish_state(
     s_state.schedule_override_seconds_remaining =
         schedule_override_seconds_remaining;
     s_state.touch_test_running = touch_test_running;
+    s_state.orientation_sensor_available =
+        dmd_panel_orientation_sensor_available();
+    s_state.orientation_sensor_healthy = s_orientation_sensor_healthy;
+    s_state.effective_rotation = s_effective_rotation;
+    s_state.acceleration_x = s_acceleration_x;
+    s_state.acceleration_y = s_acceleration_y;
+    s_state.acceleration_z = s_acceleration_z;
+    s_state.orientation_read_error_count = s_orientation_read_error_count;
     xSemaphoreGive(s_state_lock);
 }
 
@@ -1202,14 +1193,20 @@ static void render_clock(const dmd_settings_t *settings)
         struct tm local;
         localtime_r(&now, &local);
         const char *format = settings->show_seconds
-            ? (settings->use_24_hour ? "%H:%M:%S" : "%I:%M:%S")
-            : (settings->use_24_hour ? "%H:%M" : "%I:%M");
+            ? (settings->use_24_hour ? "%H:%M:%S" : "%I:%M:%S %p")
+            : (settings->use_24_hour ? "%H:%M" : "%I:%M %p");
         strftime(time_text, sizeof(time_text), format, &local);
-        if (!settings->use_24_hour && time_text[0] == '0') {
-            memmove(time_text, time_text + 1, strlen(time_text));
-        }
     }
-    render_text_to_dmd(time_text);
+    dmd_font_render_frame(
+        s_dmd,
+        NULL,
+        DMD_WIDTH,
+        DMD_HEIGHT,
+        time_text,
+        settings->clock_font,
+        DMD_WIDTH / 2,
+        DMD_HEIGHT / 2,
+        settings->use_24_hour ? 3 : 2);
 }
 
 static bool handle_touch(
@@ -1224,6 +1221,11 @@ static bool handle_touch(
     if (!dmd_board_read_touch(&x, &y) ||
         now - last_touch_at < 350000) {
         return false;
+    }
+
+    if (s_effective_rotation == 180) {
+        x = LCD_WIDTH - 1 - x;
+        y = LCD_HEIGHT - 1 - y;
     }
 
     last_touch_at = now;
@@ -1248,6 +1250,74 @@ static bool handle_touch(
         dmd_action_execute(action);
     }
     return true;
+}
+
+static bool update_orientation(const dmd_settings_t *settings, int64_t now)
+{
+    static int64_t next_read_at;
+    static int64_t candidate_since;
+    static uint16_t candidate_rotation;
+    static bool filter_initialized;
+
+    uint16_t previous = s_effective_rotation;
+    if (settings->orientation_mode != DMD_ORIENTATION_AUTO ||
+        !dmd_panel_orientation_sensor_available()) {
+        s_effective_rotation = settings->fixed_rotation;
+        candidate_since = 0;
+        return previous != s_effective_rotation;
+    }
+    if (now < next_read_at) {
+        return false;
+    }
+    next_read_at = now + 100000;
+
+    float x;
+    float y;
+    float z;
+    if (!dmd_panel_read_accelerometer(&x, &y, &z)) {
+        s_orientation_sensor_healthy = false;
+        s_orientation_read_error_count++;
+        return false;
+    }
+    s_orientation_sensor_healthy = true;
+    if (!filter_initialized) {
+        s_acceleration_x = x;
+        s_acceleration_y = y;
+        s_acceleration_z = z;
+        filter_initialized = true;
+    } else {
+        s_acceleration_x = s_acceleration_x * 0.75f + x * 0.25f;
+        s_acceleration_y = s_acceleration_y * 0.75f + y * 0.25f;
+        s_acceleration_z = s_acceleration_z * 0.75f + z * 0.25f;
+    }
+
+    /* The board's sensor Y axis follows the display's vertical landscape axis. */
+    float gravity = s_acceleration_y;
+    float magnitude = gravity < 0.0f ? -gravity : gravity;
+    float threshold = candidate_since == 0 ? 0.60f : 0.35f;
+    if (magnitude < threshold) {
+        if (candidate_since != 0 && magnitude < 0.35f) {
+            candidate_since = 0;
+        }
+        return false;
+    }
+    uint16_t detected = gravity > 0.0f ? 0 : 180;
+    if (detected == s_effective_rotation) {
+        candidate_since = 0;
+        return false;
+    }
+    if (candidate_since == 0 || candidate_rotation != detected) {
+        candidate_rotation = detected;
+        candidate_since = now;
+        return false;
+    }
+    if (now - candidate_since >= 800000) {
+        s_effective_rotation = candidate_rotation;
+        candidate_since = 0;
+        ESP_LOGI(TAG, "Automatic orientation changed to %u degrees (y=%.2f g)",
+            s_effective_rotation, (double)s_acceleration_y);
+    }
+    return previous != s_effective_rotation;
 }
 
 void dmd_display_task(void *context)
@@ -1355,6 +1425,9 @@ void dmd_display_task(void *context)
             force_render = true;
         }
         monotonic_now = esp_timer_get_time();
+        if (update_orientation(&settings, monotonic_now)) {
+            force_render = true;
+        }
         if (previous_revision != 0 &&
             settings.revision != previous_revision &&
             settings.show_information != previous_show_information) {

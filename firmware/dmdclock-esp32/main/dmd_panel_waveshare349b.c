@@ -38,6 +38,13 @@
 #define EXPANDER_SDA GPIO_NUM_47
 #define EXPANDER_BL_EN (1ULL << 1)
 #define EXPANDER_LCD_RST (1ULL << 5)
+#define QMI8658_ADDRESS 0x6B
+#define QMI8658_WHO_AM_I 0x00
+#define QMI8658_CTRL1 0x02
+#define QMI8658_CTRL2 0x03
+#define QMI8658_CTRL5 0x06
+#define QMI8658_CTRL7 0x08
+#define QMI8658_AX_L 0x35
 
 static const char *TAG = "dmd_panel_waveshare349b";
 static SemaphoreHandle_t s_transfer_done;
@@ -46,6 +53,20 @@ static esp_lcd_panel_handle_t s_panel;
 static uint16_t *s_framebuffer;
 static uint16_t *s_transfer_buffer;
 static bool s_first_frame_logged;
+static i2c_master_dev_handle_t s_qmi8658;
+static bool s_qmi8658_available;
+
+static esp_err_t qmi8658_write(uint8_t reg, uint8_t value)
+{
+    uint8_t command[] = {reg, value};
+    return i2c_master_transmit(s_qmi8658, command, sizeof(command), 100);
+}
+
+static esp_err_t qmi8658_read(uint8_t reg, void *data, size_t size)
+{
+    return i2c_master_transmit_receive(
+        s_qmi8658, &reg, 1, data, size, 100);
+}
 
 static const axs15231b_lcd_init_cmd_t s_lcd_init_commands[] = {
     {0x11, (uint8_t[]){0x00}, 0, 100},
@@ -108,6 +129,31 @@ esp_err_t dmd_panel_init(void)
             &s_io_expander),
         TAG,
         "create TCA9554 expander");
+    const i2c_device_config_t qmi8658_config = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = QMI8658_ADDRESS,
+        .scl_speed_hz = 300000,
+    };
+    esp_err_t imu_error = i2c_master_bus_add_device(
+        i2c_bus, &qmi8658_config, &s_qmi8658);
+    uint8_t who_am_i = 0;
+    if (imu_error == ESP_OK) {
+        imu_error = qmi8658_read(QMI8658_WHO_AM_I, &who_am_i, 1);
+    }
+    if (imu_error == ESP_OK && who_am_i == 0x05) {
+        /* Address auto-increment, +/-2 g, 31.25 Hz, LPF mode 0, accel only. */
+        if (qmi8658_write(QMI8658_CTRL1, 0x40) == ESP_OK &&
+            qmi8658_write(QMI8658_CTRL2, 0x08) == ESP_OK &&
+            qmi8658_write(QMI8658_CTRL5, 0x01) == ESP_OK &&
+            qmi8658_write(QMI8658_CTRL7, 0x01) == ESP_OK) {
+            s_qmi8658_available = true;
+            ESP_LOGI(TAG, "QMI8658 accelerometer ready (WHO_AM_I=0x%02x)", who_am_i);
+        }
+    }
+    if (!s_qmi8658_available) {
+        ESP_LOGW(TAG, "QMI8658 unavailable: %s (WHO_AM_I=0x%02x)",
+            esp_err_to_name(imu_error), who_am_i);
+    }
     ESP_RETURN_ON_ERROR(
         esp_io_expander_set_dir(
             s_io_expander,
@@ -204,7 +250,7 @@ uint16_t *dmd_panel_begin_frame(void)
     return s_framebuffer;
 }
 
-esp_err_t dmd_panel_present(void)
+esp_err_t dmd_panel_present(uint16_t rotation)
 {
     ESP_RETURN_ON_FALSE(s_panel != NULL, ESP_ERR_INVALID_STATE, TAG, "panel not initialized");
     if (!s_first_frame_logged) {
@@ -228,7 +274,12 @@ esp_err_t dmd_panel_present(void)
         for (int native_x = 0; native_x < NATIVE_WIDTH; native_x++) {
             for (int row = 0; row < rows; row++) {
                 int logical_x = NATIVE_HEIGHT - 1 - (native_y + row);
-                uint16_t pixel = s_framebuffer[native_x * LCD_WIDTH + logical_x];
+                int logical_y = native_x;
+                if (rotation == 180) {
+                    logical_x = LCD_WIDTH - 1 - logical_x;
+                    logical_y = LCD_HEIGHT - 1 - logical_y;
+                }
+                uint16_t pixel = s_framebuffer[logical_y * LCD_WIDTH + logical_x];
                 s_transfer_buffer[row * NATIVE_WIDTH + native_x] = swap_pixel_bytes(pixel);
             }
         }
@@ -249,6 +300,29 @@ esp_err_t dmd_panel_present(void)
             "wait for framebuffer stripe");
     }
     return ESP_OK;
+}
+
+bool dmd_panel_orientation_sensor_available(void)
+{
+    return s_qmi8658_available;
+}
+
+bool dmd_panel_read_accelerometer(float *x, float *y, float *z)
+{
+    if (!s_qmi8658_available || x == NULL || y == NULL || z == NULL) {
+        return false;
+    }
+    uint8_t raw[6];
+    if (qmi8658_read(QMI8658_AX_L, raw, sizeof(raw)) != ESP_OK) {
+        return false;
+    }
+    int16_t ax = (int16_t)((uint16_t)raw[1] << 8 | raw[0]);
+    int16_t ay = (int16_t)((uint16_t)raw[3] << 8 | raw[2]);
+    int16_t az = (int16_t)((uint16_t)raw[5] << 8 | raw[4]);
+    *x = ax * (2.0f / 32768.0f);
+    *y = ay * (2.0f / 32768.0f);
+    *z = az * (2.0f / 32768.0f);
+    return true;
 }
 
 esp_err_t dmd_panel_set_backlight(bool enabled)

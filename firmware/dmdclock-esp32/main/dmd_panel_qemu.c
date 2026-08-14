@@ -50,9 +50,25 @@ uint16_t *dmd_panel_begin_frame(void)
     return s_framebuffer;
 }
 
-esp_err_t dmd_panel_present(void)
+esp_err_t dmd_panel_present(uint16_t rotation)
 {
+    if (rotation == 180) {
+        size_t left = 0;
+        size_t right = LCD_WIDTH * LCD_HEIGHT - 1;
+        while (left < right) {
+            uint16_t pixel = s_framebuffer[left];
+            s_framebuffer[left++] = s_framebuffer[right];
+            s_framebuffer[right--] = pixel;
+        }
+    }
     return esp_lcd_rgb_qemu_refresh(s_panel);
+}
+
+bool dmd_panel_orientation_sensor_available(void) { return false; }
+bool dmd_panel_read_accelerometer(float *x, float *y, float *z)
+{
+    (void)x; (void)y; (void)z;
+    return false;
 }
 
 esp_err_t dmd_panel_set_backlight(bool enabled)

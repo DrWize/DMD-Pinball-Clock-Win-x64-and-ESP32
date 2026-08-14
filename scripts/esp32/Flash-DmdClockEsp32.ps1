@@ -22,6 +22,13 @@ param(
 
     [switch] $DownloadOnly,
 
+    [switch] $CheckRequirements,
+
+    [string] $Destination,
+
+    [string] $Source,
+
+    [Alias('DryRun')]
     [switch] $WhatIf,
 
     [string] $ConfirmHardware,
@@ -32,6 +39,12 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $null = Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+$provisioningModule = Join-Path $PSScriptRoot 'DmdClock.Provisioning.psm1'
+if (-not (Test-Path -LiteralPath $provisioningModule -PathType Leaf)) {
+    throw "Shared provisioning module not found: $provisioningModule"
+}
+Import-Module $provisioningModule -Force
 
 $maximumManifestBytes = 1MB
 $maximumPackageBytes = 64MB
@@ -87,6 +100,7 @@ $hardwareTargets = @(
 )
 $selectedTarget = $null
 $esptool = $null
+$selectedPortIdentity = $null
 
 $factoryRecoveryImages = @{
     V1 = [pscustomobject]@{
@@ -208,6 +222,8 @@ function Get-CompatibleReleases {
 
     $uri = "https://api.github.com/repos/$Repository/releases?per_page=30"
     Write-Host "Checking GitHub releases for $($Target.Product)..."
+    Write-DmdClockProvisioningLog -Event 'metadata-query' `
+        -Detail "url=$uri target=$($Target.Id)"
     try {
         $response = Invoke-RestMethod -Uri $uri -Headers (Get-GitHubHeaders)
     }
@@ -291,6 +307,8 @@ function Save-RemoteFile {
 
     $temporary = "$Destination.partial-$([Guid]::NewGuid().ToString('N'))"
     Assert-WithinDirectory -Path $temporary -Directory $outputRoot
+    Write-DmdClockProvisioningLog -Event 'download-started' -Detail (
+        "url=$($Uri.AbsoluteUri) destination=$Destination maximum_bytes=$MaximumBytes")
     try {
         Invoke-WebRequest -Uri $Uri -Headers (Get-GitHubHeaders) -OutFile $temporary `
             -UseBasicParsing
@@ -299,6 +317,9 @@ function Save-RemoteFile {
             throw "Downloaded file size $size is outside the accepted range 1-$MaximumBytes bytes."
         }
         Move-Item -LiteralPath $temporary -Destination $Destination -Force
+        $hash = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-DmdClockProvisioningLog -Event 'download-completed' -Detail (
+            "url=$($Uri.AbsoluteUri) destination=$Destination size=$size sha256=$hash")
     }
     finally {
         if (Test-Path -LiteralPath $temporary) {
@@ -530,6 +551,9 @@ function Get-ReleasePackage {
 
     $expandedPath = Join-Path $releaseCache 'package'
     Expand-VerifiedPackage -ArchivePath $archivePath -Destination $expandedPath -Manifest $manifest
+    Write-DmdClockProvisioningLog -Event 'firmware-package-ready' -Detail (
+        "release=$($release.tag_name) manifest=$manifestFile archive=$archivePath " +
+        "package_root=$expandedPath size=$($manifest.package.size) sha256=$($manifest.package.sha256)")
     return [pscustomobject]@{
         Source = "GitHub release $($release.tag_name)"
         Version = [string]$manifest.version
@@ -543,11 +567,25 @@ function Get-ReleasePackage {
 function Get-ConnectedPorts {
     $found = @{}
     Get-CimInstance Win32_SerialPort -ErrorAction SilentlyContinue | ForEach-Object {
-        $found[$_.DeviceID] = [pscustomobject]@{ Port = $_.DeviceID; Name = $_.Name }
+        $found[$_.DeviceID] = [pscustomobject]@{
+            Port = [string]$_.DeviceID
+            Name = [string]$_.Name
+            InstanceId = [string]$_.PNPDeviceID
+            Manufacturer = ''
+            Service = ''
+            Status = [string]$_.Status
+        }
     }
     Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue | ForEach-Object {
         if ($_.Name -match '\((COM\d+)\)') {
-            $found[$Matches[1]] = [pscustomobject]@{ Port = $Matches[1]; Name = $_.Name }
+            $found[$Matches[1]] = [pscustomobject]@{
+                Port = [string]$Matches[1]
+                Name = [string]$_.Name
+                InstanceId = [string]$_.PNPDeviceID
+                Manufacturer = [string]$_.Manufacturer
+                Service = [string]$_.Service
+                Status = [string]$_.Status
+            }
         }
     }
     $serialMap = Get-ItemProperty -Path 'HKLM:\HARDWARE\DEVICEMAP\SERIALCOMM' -ErrorAction SilentlyContinue
@@ -559,6 +597,10 @@ function Get-ConnectedPorts {
                 $found[[string]$_.Value] = [pscustomobject]@{
                     Port = [string]$_.Value
                     Name = [string]$_.Name
+                    InstanceId = ''
+                    Manufacturer = ''
+                    Service = ''
+                    Status = ''
                 }
             }
         }
@@ -574,6 +616,10 @@ function Select-SerialPort {
             Show-PortHelp -Target $selectedTarget
             throw "Serial port '$Port' is not connected. Available ports: $available."
         }
+        $script:selectedPortIdentity = @($ports | Where-Object Port -eq $Port)[0]
+        if ([string]::IsNullOrWhiteSpace($script:selectedPortIdentity.InstanceId)) {
+            throw "Serial port '$Port' has no Windows PnP instance identity; refusing an identity-weak selection."
+        }
         return $Port
     }
     if ($ports.Count -eq 0) {
@@ -587,7 +633,30 @@ function Select-SerialPort {
     }
     $choice = Read-MenuChoice -Prompt 'Select the ESP32 port' -Minimum 1 -Maximum $ports.Count `
         -Default $(if ($ports.Count -eq 1) { 1 } else { 0 })
-    return $ports[$choice - 1].Port
+    $script:selectedPortIdentity = $ports[$choice - 1]
+    if ([string]::IsNullOrWhiteSpace($script:selectedPortIdentity.InstanceId)) {
+        throw "Serial port '$($script:selectedPortIdentity.Port)' has no Windows PnP instance identity; refusing an identity-weak selection."
+    }
+    return $script:selectedPortIdentity.Port
+}
+
+function Assert-SerialPortUnchanged {
+    param([Parameter(Mandatory)][string] $SelectedPort)
+
+    if ($null -eq $selectedPortIdentity) {
+        throw 'The selected serial port has no captured Windows identity.'
+    }
+    $matches = @(Get-ConnectedPorts | Where-Object Port -eq $SelectedPort)
+    if ($matches.Count -ne 1) {
+        throw "Serial port '$SelectedPort' disappeared or became ambiguous before flashing."
+    }
+    $current = $matches[0]
+    if ([string]::IsNullOrWhiteSpace($current.InstanceId) -or
+        [string]$current.InstanceId -cne [string]$selectedPortIdentity.InstanceId -or
+        [string]$current.Name -cne [string]$selectedPortIdentity.Name) {
+        throw "The Windows PnP device on '$SelectedPort' changed before flashing. Disconnect other serial devices and restart selection."
+    }
+    Write-Host "[OK] Revalidated $SelectedPort PnP identity: $($current.Name)" -ForegroundColor Green
 }
 
 function Select-FactoryRecoveryRevision {
@@ -644,6 +713,9 @@ function Get-FactoryRecoveryPackage {
         }
         Assert-Sha256 -Path $imagePath -ExpectedHash $image.Sha256
     }
+    Write-DmdClockProvisioningLog -Event 'factory-image-ready' -Detail (
+        "revision=$Revision source_commit=$($image.Commit) destination=$imagePath " +
+        "size=$($image.Size) sha256=$($image.Sha256) reused=$reuseImage")
 
     return [pscustomobject]@{
         Source = "Official Waveshare factory image at commit $($image.Commit)"
@@ -717,6 +789,7 @@ function Get-PortableEsptool {
     Write-Host ''
     Write-Host 'Checking the portable Espressif flashing tool...'
     $uri = "https://api.github.com/repos/$esptoolRepository/releases?per_page=20"
+    Write-DmdClockProvisioningLog -Event 'metadata-query' -Detail "url=$uri kind=esptool"
     try {
         $response = Invoke-RestMethod -Uri $uri -Headers (Get-GitHubHeaders)
         $releases = @($response)
@@ -801,9 +874,218 @@ function Get-PortableEsptool {
         throw "The portable esptool executable could not be verified. Antivirus software may have blocked it. See $esptoolReleasesUrl"
     }
     Write-Host "[OK] esptool $($selection.Release.tag_name)" -ForegroundColor Green
+    Write-DmdClockProvisioningLog -Event 'tool-ready' -Detail (
+        "tool=esptool version=$($selection.Release.tag_name) executable=$($executables[0].FullName) " +
+        "archive=$archivePath size=$($asset.size) sha256=$expectedHash")
     return [pscustomobject]@{
         Path = $executables[0].FullName
         Version = [string]$selection.Release.tag_name
+    }
+}
+
+function Invoke-FirmwareDownloadOnly {
+    param([Parameter(Mandatory)][string] $StagingDestination)
+
+    $layout = New-DmdClockStagingLayout -Destination $StagingDestination `
+        -WhatIf:$WhatIf
+    $artifacts = [Collections.Generic.List[object]]::new()
+    $targetsToStage = if ($Board) {
+        @($hardwareTargets | Where-Object Key -eq $Board)
+    } else {
+        @($hardwareTargets)
+    }
+    foreach ($target in $targetsToStage) {
+        $selections = @(Get-CompatibleReleases -Target $target)
+        $selectionMatches = if ($ReleaseTag) {
+            @($selections | Where-Object { [string]$_.Release.tag_name -eq $ReleaseTag })
+        } else {
+            @($selections | Select-Object -First 1)
+        }
+        if ($selectionMatches.Count -ne 1) {
+            $requested = if ($ReleaseTag) { $ReleaseTag } else { 'the latest release' }
+            throw "No unique compatible firmware for $($target.Product) was found in $requested."
+        }
+        $selection = $selectionMatches[0]
+        $release = $selection.Release
+        $safeTag = ([string]$release.tag_name) -replace '[^0-9A-Za-z._-]', '_'
+        $targetRoot = Join-Path $layout.ESP32 "$($target.Key)/$safeTag"
+        $manifestPath = Join-Path $targetRoot ([string]$selection.ManifestAsset.name)
+        $manifestDigest = [string]$selection.ManifestAsset.digest
+        $manifestHash = if ($manifestDigest -match '^sha256:([0-9A-Fa-f]{64})$') {
+            $Matches[1]
+        } else { '' }
+        $artifacts.Add((Save-DmdClockStagedDownload `
+            -ArtifactId "firmware.$($target.Key).manifest" `
+            -Uri ([uri][string]$selection.ManifestAsset.browser_download_url) `
+            -Destination $manifestPath -StagingRoot $layout.Root `
+            -ExpectedBytes ([long]$selection.ManifestAsset.size) `
+            -ExpectedSha256 $manifestHash -MaximumBytes $maximumManifestBytes `
+            -Kind 'firmware-manifest' -Version ([string]$release.tag_name) `
+            -Target $target.Id -WhatIf:$WhatIf))
+        if ($WhatIf) { continue }
+
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        Assert-CompatibleManifest -Manifest $manifest -Target $target
+        if ([string]$manifest.releaseTag -ne [string]$release.tag_name) {
+            throw "Firmware manifest release '$($manifest.releaseTag)' does not match '$($release.tag_name)'."
+        }
+        $packageAssets = @($release.assets | Where-Object {
+            [string]$_.name -ceq [string]$manifest.package.asset
+        })
+        if ($packageAssets.Count -ne 1 -or
+            [long]$packageAssets[0].size -ne [long]$manifest.package.size) {
+            throw "Firmware package asset for $($target.Product) is missing or has the wrong size."
+        }
+        $packagePath = Join-Path $targetRoot ([string]$manifest.package.asset)
+        $artifacts.Add((Save-DmdClockStagedDownload `
+            -ArtifactId "firmware.$($target.Key).package" `
+            -Uri ([uri][string]$packageAssets[0].browser_download_url) `
+            -Destination $packagePath -StagingRoot $layout.Root `
+            -ExpectedBytes ([long]$manifest.package.size) `
+            -ExpectedSha256 ([string]$manifest.package.sha256) `
+            -MaximumBytes $maximumPackageBytes -Kind 'firmware-package' `
+            -Version ([string]$manifest.version) -Target $target.Id))
+    }
+
+    if (-not $WhatIf) {
+        Write-Host 'Checking the official portable Espressif flashing tool...'
+        $toolResponse = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$esptoolRepository/releases?per_page=20" `
+            -Headers (Get-GitHubHeaders)
+        $toolReleases = @($toolResponse)
+        $toolCandidates = @()
+        foreach ($release in $toolReleases) {
+            if ($release.draft -or $release.prerelease -or
+                [string]$release.tag_name -notmatch '^v5\.') { continue }
+            $assets = @($release.assets | Where-Object {
+                [string]$_.name -match '^esptool-v[0-9.]+-windows-amd64\.zip$'
+            })
+            if ($assets.Count -eq 1) {
+                $toolCandidates += [pscustomobject]@{ Release = $release; Asset = $assets[0] }
+            }
+        }
+        if ($toolCandidates.Count -eq 0) {
+            throw "No supported official Windows x64 esptool v5 package was found. See $esptoolReleasesUrl"
+        }
+        $tool = $toolCandidates[0]
+        $digest = [string]$tool.Asset.digest
+        if ($digest -notmatch '^sha256:([0-9A-Fa-f]{64})$') {
+            throw 'The official esptool asset has no usable GitHub SHA-256 digest.'
+        }
+        $toolPath = Join-Path $layout.Tools "esptool/$($tool.Release.tag_name)/$($tool.Asset.name)"
+        $artifacts.Add((Save-DmdClockStagedDownload `
+            -ArtifactId 'tool.esptool.windows-x64' `
+            -Uri ([uri][string]$tool.Asset.browser_download_url) `
+            -Destination $toolPath -StagingRoot $layout.Root `
+            -ExpectedBytes ([long]$tool.Asset.size) -ExpectedSha256 $Matches[1] `
+            -MaximumBytes $maximumToolBytes -Kind 'flash-tool' `
+            -Version ([string]$tool.Release.tag_name) -Target 'windows-x64'))
+
+        $manifestPath = Update-DmdClockStagingManifest -StagingRoot $layout.Root `
+            -Artifacts @($artifacts)
+        Write-DmdClockProvisioningLog -Event 'staging-complete' `
+            -Detail "kind=firmware manifest=$manifestPath artifacts=$($artifacts.Count)"
+        Write-Host ''
+        Write-Host '[DONE] Verified firmware/tool payload staged without enumerating COM devices.' -ForegroundColor Green
+        Write-Host "Manifest: $manifestPath"
+        $artifacts | Select-Object artifactId, status, size, sha256, relativePath | Format-Table -AutoSize
+    } else {
+        Write-Host '[WHATIF] Firmware manifest downloads are required to resolve package names and hashes; no files or hardware were changed.' -ForegroundColor Yellow
+    }
+}
+
+function Get-StagedFirmwareAndTool {
+    param(
+        [Parameter(Mandatory)] $Target,
+        [Parameter(Mandatory)][string] $StagingSource
+    )
+
+    $required = @(
+        "firmware.$($Target.Key).manifest",
+        "firmware.$($Target.Key).package",
+        'tool.esptool.windows-x64'
+    )
+    $staged = Test-DmdClockStagingManifest -Source $StagingSource `
+        -RequiredArtifactIds $required
+    $manifestArtifact = $staged.Artifacts["firmware.$($Target.Key).manifest"]
+    $packageArtifact = $staged.Artifacts["firmware.$($Target.Key).package"]
+    $toolArtifact = $staged.Artifacts['tool.esptool.windows-x64']
+    if ([string]$manifestArtifact.target -ne $Target.Id -or
+        [string]$packageArtifact.target -ne $Target.Id) {
+        throw "The staged inventory target does not match $($Target.Product)."
+    }
+    $manifest = Get-Content -LiteralPath $manifestArtifact.ResolvedPath -Raw |
+        ConvertFrom-Json
+    Assert-CompatibleManifest -Manifest $manifest -Target $Target
+    if ([long]$packageArtifact.size -ne [long]$manifest.package.size -or
+        ([string]$packageArtifact.sha256).ToLowerInvariant() -ne
+            ([string]$manifest.package.sha256).ToLowerInvariant() -or
+        [string]$packageArtifact.version -ne [string]$manifest.version) {
+        throw "The staged package inventory is stale or does not match its firmware manifest for $($Target.Product)."
+    }
+
+    if ($WhatIf) {
+        if ([string]$toolArtifact.version -notmatch '^v5\.[0-9.]+$' -or
+            [string]$toolArtifact.target -ne 'windows-x64') {
+            throw 'The staged esptool inventory has an unsupported version or platform.'
+        }
+        Write-Host "[OK] Offline firmware package and esptool archive inventory verified for dry-run." -ForegroundColor Green
+        return [pscustomobject]@{
+            Package = [pscustomobject]@{
+                Source = "Offline staging $($staged.Root)"
+                Version = [string]$manifest.version
+                Manifest = $manifest
+                Root = $null
+                Cache = $null
+                IsLocal = $true
+            }
+            Tool = [pscustomobject]@{
+                Path = $null
+                Version = [string]$toolArtifact.version
+            }
+        }
+    }
+
+    $safeVersion = ([string]$manifest.version) -replace '[^0-9A-Za-z._-]', '_'
+    $offlineRoot = Join-Path $cacheRoot "offline/$($Target.Key)/$safeVersion"
+    $expandedPackage = Join-Path $offlineRoot 'package'
+    Expand-VerifiedPackage -ArchivePath $packageArtifact.ResolvedPath `
+        -Destination $expandedPackage -Manifest $manifest
+
+    if ([string]$toolArtifact.version -notmatch '^v5\.[0-9.]+$' -or
+        [string]$toolArtifact.target -ne 'windows-x64') {
+        throw 'The staged esptool inventory has an unsupported version or platform.'
+    }
+    $safeToolVersion = ([string]$toolArtifact.version) -replace '[^0-9A-Za-z._-]', '_'
+    $expandedTool = Join-Path $toolCacheRoot "offline/$safeToolVersion/package"
+    if (-not (Test-Path -LiteralPath $expandedTool -PathType Container)) {
+        Expand-SafeArchive -ArchivePath $toolArtifact.ResolvedPath `
+            -Destination $expandedTool
+    }
+    $executables = @(Get-ChildItem -LiteralPath $expandedTool -Filter 'esptool.exe' -File -Recurse)
+    if ($executables.Count -ne 1) {
+        throw 'The staged esptool archive does not contain exactly one esptool.exe.'
+    }
+    $versionOutput = @(& $executables[0].FullName version 2>&1)
+    if ($LASTEXITCODE -ne 0 -or
+        ($versionOutput | Out-String) -notmatch [Regex]::Escape(
+            ([string]$toolArtifact.version).TrimStart('v'))) {
+        throw 'The staged esptool executable could not be verified.'
+    }
+    Write-Host "[OK] Offline firmware and esptool $($toolArtifact.version) verified." -ForegroundColor Green
+    return [pscustomobject]@{
+        Package = [pscustomobject]@{
+            Source = "Offline staging $($staged.Root)"
+            Version = [string]$manifest.version
+            Manifest = $manifest
+            Root = $expandedPackage
+            Cache = $offlineRoot
+            IsLocal = $true
+        }
+        Tool = [pscustomobject]@{
+            Path = $executables[0].FullName
+            Version = [string]$toolArtifact.version
+        }
     }
 }
 
@@ -813,12 +1095,18 @@ function Invoke-EsptoolChecked {
     if ($null -eq $esptool -or -not (Test-Path -LiteralPath $esptool.Path -PathType Leaf)) {
         throw "The portable esptool executable is unavailable. See $esptoolReleasesUrl"
     }
+    Write-DmdClockProvisioningLog -Event 'command-started' -Detail (
+        "executable=$($esptool.Path) arguments=$($Arguments -join ' ')")
     $output = @(& $esptool.Path @Arguments 2>&1)
     $exitCode = $LASTEXITCODE
     $output | Write-Host
     if ($exitCode -ne 0) {
+        Write-DmdClockProvisioningLog -Event 'command-failed' `
+            -Detail "executable=$($esptool.Path) exit_code=$exitCode"
         throw "esptool failed with exit code $exitCode."
     }
+    Write-DmdClockProvisioningLog -Event 'command-completed' `
+        -Detail "executable=$($esptool.Path) exit_code=0"
     return ($output | Out-String)
 }
 
@@ -940,18 +1228,27 @@ function Invoke-FirmwareFlash {
     Write-Host "  Version:  $($Package.Version)" -ForegroundColor Cyan
     Write-Host "  Target:   $($selectedTarget.Product)"
     Write-Host "  Port:     $SelectedPort" -ForegroundColor Cyan
+    Write-Host "  Device:   $($selectedPortIdentity.Name)"
+    Write-Host "  PnP ID:   $($selectedPortIdentity.InstanceId)"
     Write-Host "  Mode:     $Mode" -ForegroundColor Yellow
+    Write-Host "  Package:  $($Package.Manifest.package.sha256) (SHA-256)"
     Write-Host '  NVS:      preserved (no erase command is used)' -ForegroundColor Green
     Write-Host '  TF card:  untouched' -ForegroundColor Green
     foreach ($file in $files) {
         Write-Host "  $($file.Offset)  $($file.RelativePath)"
     }
+    Write-DmdClockProvisioningLog -Event 'flash-plan' -Detail (
+        "target=$($selectedTarget.Id) port=$SelectedPort pnp=$($selectedPortIdentity.InstanceId) " +
+        "mode=$Mode version=$($Package.Version) package_sha256=$($Package.Manifest.package.sha256) " +
+        "files=$(($files | ForEach-Object { $_.Offset + ':' + $_.RelativePath }) -join ',')")
+
+    Assert-SerialPortUnchanged -SelectedPort $SelectedPort
 
     if ($WhatIf) {
         Write-Host ''
         Write-Host '[WHATIF] All downloads, hashes, and hardware checks passed; flash was skipped.' `
             -ForegroundColor Yellow
-        return
+        return $false
     }
 
     if (-not $Force) {
@@ -963,7 +1260,8 @@ function Invoke-FirmwareFlash {
         if ($confirmation -ine 'FLASH') {
             Write-Host 'Flash cancelled. The verified download remains cached.' `
                 -ForegroundColor Yellow
-            return
+            Write-DmdClockProvisioningLog -Event 'flash-cancelled' -Detail "port=$SelectedPort mode=$Mode"
+            return $false
         }
     }
 
@@ -985,7 +1283,9 @@ function Invoke-FirmwareFlash {
     Write-Host ''
     Write-Host '[DONE] Firmware written and verified by esptool; the board was reset.' `
         -ForegroundColor Green
-
+    Write-DmdClockProvisioningLog -Event 'flash-complete' `
+        -Detail "target=$($selectedTarget.Id) port=$SelectedPort mode=$Mode version=$($Package.Version)"
+    return $true
 }
 
 function Invoke-FactoryRecoveryFlash {
@@ -999,17 +1299,24 @@ function Invoke-FactoryRecoveryFlash {
     Write-Host "  Source:   $($Package.Source)"
     Write-Host "  Target:   $($selectedTarget.Product) $($Package.Revision)"
     Write-Host "  Port:     $SelectedPort" -ForegroundColor Cyan
+    Write-Host "  Device:   $($selectedPortIdentity.Name)"
+    Write-Host "  PnP ID:   $($selectedPortIdentity.InstanceId)"
     Write-Host '  Offset:   0x0'
     Write-Host "  Image:    $($Package.FileName)"
     Write-Host "  SHA-256:  $($Package.Sha256)"
     Write-Warning 'Factory recovery replaces the current internal-flash contents, including stored settings.'
     Write-Host '  TF card:  untouched' -ForegroundColor Green
+    Write-DmdClockProvisioningLog -Event 'factory-recovery-plan' -Detail (
+        "target=$($selectedTarget.Id) revision=$($Package.Revision) port=$SelectedPort " +
+        "pnp=$($selectedPortIdentity.InstanceId) image=$($Package.FileName) sha256=$($Package.Sha256)")
+
+    Assert-SerialPortUnchanged -SelectedPort $SelectedPort
 
     if ($WhatIf) {
         Write-Host ''
         Write-Host '[WHATIF] Image, hash, revision, and hardware checks passed; factory recovery was skipped.' `
             -ForegroundColor Yellow
-        return
+        return $false
     }
 
     $confirmation = Read-HighlightedConfirmation `
@@ -1018,9 +1325,11 @@ function Invoke-FactoryRecoveryFlash {
         -Suffix ' (uppercase or lowercase) to restore the official factory image' `
         -Color Yellow
     if ($confirmation -ine 'FLASH') {
-        Write-Host 'Factory recovery cancelled. The verified image remains cached.' `
-            -ForegroundColor Yellow
-        return
+            Write-Host 'Factory recovery cancelled. The verified image remains cached.' `
+                -ForegroundColor Yellow
+        Write-DmdClockProvisioningLog -Event 'factory-recovery-cancelled' `
+            -Detail "revision=$($Package.Revision) port=$SelectedPort"
+        return $false
     }
 
     $arguments = @(
@@ -1037,27 +1346,127 @@ function Invoke-FactoryRecoveryFlash {
     Write-Host '[DONE] Official factory image written and verified; the board was reset.' `
         -ForegroundColor Green
     Write-Host 'Exercise the LCD, touch, and SD-card tests before installing custom firmware.'
+    Write-DmdClockProvisioningLog -Event 'factory-recovery-complete' `
+        -Detail "revision=$($Package.Revision) port=$SelectedPort sha256=$($Package.Sha256)"
+    return $true
+}
+
+function Show-FirmwareDryRun {
+    param(
+        [Parameter(Mandatory)] $Package,
+        [Parameter(Mandatory)][string] $Mode
+    )
+
+    $ports = @(Get-ConnectedPorts)
+    if ($Port -and $Port -notin @($ports.Port)) {
+        throw "Dry-run requested '$Port', but that COM port is not currently enumerated."
+    }
+    Write-Host ''
+    Write-Host '[DRY RUN] No files, caches, serial ports, flash, or hardware will be changed.' -ForegroundColor Yellow
+    Write-Host "Target:   $($selectedTarget.Product)"
+    Write-Host "Revision: $($selectedTarget.SupportedBoard)"
+    Write-Host "Firmware: $($Package.Version)"
+    Write-Host "Package:  $($Package.Manifest.package.size) bytes"
+    Write-Host "SHA-256:  $($Package.Manifest.package.sha256)"
+    Write-Host "Mode:     $Mode"
+    Write-Host "Tool:     $(if ($esptool) { $esptool.Version } else { 'official esptool v5 (resolved only during execution)' })"
+    foreach ($file in @($Package.Manifest.flash.$($Mode.ToLowerInvariant()).files)) {
+        Write-Host "  $($file.offset)  $($file.path)  $($file.size) bytes  $($file.sha256)"
+    }
+    if ($Port) {
+        $identity = @($ports | Where-Object Port -eq $Port)[0]
+        Write-Host "COM plan: $($identity.Port) - $($identity.Name) - $($identity.InstanceId)"
+    } elseif ($ports.Count) {
+        Write-Host 'Available COM devices (none selected or opened):'
+        foreach ($identity in $ports) {
+            Write-Host "  $($identity.Port) - $($identity.Name) - $($identity.InstanceId)"
+        }
+    } else {
+        Write-Host 'Available COM devices: none (allowed in dry-run).'
+    }
 }
 
 Show-SupportedHardwareBanner
 
-if ($env:OS -ne 'Windows_NT') {
-    throw "This flashing script supports Windows only. See https://github.com/$Repository/releases."
+$requirementsPath = if (-not [string]::IsNullOrWhiteSpace($Source)) {
+    [IO.Path]::GetFullPath($Source)
+} elseif ([string]::IsNullOrWhiteSpace($Destination)) {
+    Join-Path $outputRoot 'DmdClockFiles'
+} else {
+    [IO.Path]::GetFullPath($Destination)
 }
-if (-not [Environment]::Is64BitOperatingSystem) {
-    throw "The portable Espressif flashing tool requires 64-bit Windows. See $esptoolReleasesUrl"
+$requirements = Invoke-DmdClockRequirementsCheck `
+    -Operation $(if ($CheckRequirements) { 'Check' } elseif ($Source) { 'Offline' } elseif ($DownloadOnly) { 'Download' } else { 'Flash' }) `
+    -DataPath $requirementsPath `
+    -MinimumFreeBytes 256MB `
+    -RequiredCommands @(
+        'Get-CimInstance',
+        'Get-FileHash',
+        'Get-PnpDevice',
+        'Invoke-RestMethod',
+        'Invoke-WebRequest'
+    ) `
+    -RequireNetwork:(((-not $CheckRequirements) -and [string]::IsNullOrWhiteSpace($Source)) -or
+        ($CheckRequirements -and $DownloadOnly -and [string]::IsNullOrWhiteSpace($Source))) `
+    -ThrowOnFailure:(-not $CheckRequirements)
+if ($CheckRequirements) {
+    if (-not $requirements.Passed) { exit 1 }
+    return
 }
-if ($PSVersionTable.PSVersion -lt [Version]'5.1') {
-    throw 'Windows PowerShell 5.1 or newer is required. See https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows'
+if ($DownloadOnly -and -not [string]::IsNullOrWhiteSpace($Destination) -and
+    -not [string]::IsNullOrWhiteSpace($Source)) {
+    throw 'Do not combine -DownloadOnly -Destination with -Source.'
 }
-Write-Host "[OK] 64-bit Windows" -ForegroundColor Green
-Write-Host "[OK] PowerShell $($PSVersionTable.PSVersion)" -ForegroundColor Green
-New-Item -ItemType Directory -Force -Path $cacheRoot, $toolCacheRoot | Out-Null
 
-$selectedTarget = Select-HardwareTarget
-if ($null -eq $selectedTarget) { return }
+$runOutcome = 'cancelled'
+$runDetail = ''
+$logPath = $null
+if (-not $WhatIf) {
+    $operation = if ($DownloadOnly -and -not [string]::IsNullOrWhiteSpace($Destination)) {
+        'stage-firmware'
+    } elseif ($DownloadOnly -and -not [string]::IsNullOrWhiteSpace($Source)) {
+        'verify-offline-firmware'
+    } elseif ($FactoryRecovery) {
+        'factory-recovery'
+    } elseif ($DownloadOnly) {
+        'download-firmware'
+    } else {
+        'flash-firmware'
+    }
+    $logDirectory = if ($operation -eq 'stage-firmware') {
+        Join-Path ([IO.Path]::GetFullPath($Destination)) 'Logs'
+    } else {
+        Join-Path $outputRoot 'Logs\Provisioning'
+    }
+    $logPath = Start-DmdClockProvisioningLog -LogDirectory $logDirectory `
+        -Operation $operation
+    Write-Host "Log: $logPath"
+    Write-DmdClockRequirementsLog -Requirements $requirements
+    Write-DmdClockProvisioningLog -Event 'invocation' -Detail (
+        "repository=$Repository board=$Board release=$ReleaseTag flash_mode=$FlashMode " +
+        "download_only=$DownloadOnly source=$Source destination=$Destination")
+}
+
+try {
+    if ($DownloadOnly -and -not [string]::IsNullOrWhiteSpace($Destination)) {
+        Invoke-FirmwareDownloadOnly -StagingDestination $Destination
+        $runOutcome = 'completed'
+        return
+    }
+    if (-not $WhatIf) {
+        New-Item -ItemType Directory -Force -Path $cacheRoot, $toolCacheRoot | Out-Null
+    }
+
+    $selectedTarget = Select-HardwareTarget
+    if ($null -eq $selectedTarget) { return }
+    Write-DmdClockProvisioningLog -Event 'target-selected' -Detail (
+        "key=$($selectedTarget.Key) id=$($selectedTarget.Id) product=$($selectedTarget.Product) " +
+        "revision=$($selectedTarget.SupportedBoard)")
 
 if ($FactoryRecovery) {
+    if (-not [string]::IsNullOrWhiteSpace($Source)) {
+        throw 'Offline factory recovery staging is not implemented; use verified production firmware or the pinned online recovery path.'
+    }
     if ($selectedTarget.Key -ne 'Waveshare349B') {
         throw 'Factory recovery mode is only supported for Waveshare ESP32-S3-Touch-LCD-3.49B.'
     }
@@ -1070,43 +1479,96 @@ if ($FactoryRecovery) {
 
     $revision = Select-FactoryRecoveryRevision
     if ($null -eq $revision) { return }
-    $package = Get-FactoryRecoveryPackage -Revision $revision
+    if ($WhatIf) {
+        $image = $factoryRecoveryImages[$revision]
+        $package = [pscustomobject]@{
+            Source = "https://raw.githubusercontent.com/$($image.Repository)/$($image.Commit)/Firmware/$($image.FileName)"
+            Revision = $revision
+            ImagePath = $null
+            FileName = $image.FileName
+            Sha256 = $image.Sha256
+            Cache = $null
+        }
+    } else {
+        $package = Get-FactoryRecoveryPackage -Revision $revision
+    }
     Write-Host ''
     Write-Host '[OK] Official factory recovery image verified' -ForegroundColor Green
     Write-Host "  Source:   $($package.Source)"
     Write-Host "  Revision: $($package.Revision)"
-    Write-Host "  Cache:    $($package.Cache)"
+    if ($package.Cache) { Write-Host "  Cache:    $($package.Cache)" }
     if ($DownloadOnly) {
         Write-Host 'Download-only mode selected; nothing was flashed.'
+        $runOutcome = 'completed'
         return
     }
 
-    $selectedPort = Select-SerialPort
+    if ($WhatIf) {
+        $ports = @(Get-ConnectedPorts)
+        Write-Host ''
+        Write-Host '[DRY RUN] Factory image URL, pinned revision, size, and SHA-256 were resolved; no file, cache, COM port, or hardware was changed.' -ForegroundColor Yellow
+        Write-Host "  Target:   $($selectedTarget.Product) $revision"
+        Write-Host "  Image:    $($package.FileName)"
+        Write-Host "  SHA-256:  $($package.Sha256)"
+        Write-Host "  COM plan: $(if ($Port) { $Port } elseif ($ports.Count) { 'none selected; available: ' + ($ports.Port -join ', ') } else { 'none connected (allowed in dry-run)' })"
+        return
+    }
+
     $esptool = Get-PortableEsptool
+    $selectedPort = Select-SerialPort
+    Write-DmdClockProvisioningLog -Event 'serial-selected' -Detail (
+        "port=$selectedPort name=$($selectedPortIdentity.Name) pnp=$($selectedPortIdentity.InstanceId) " +
+        "tool_version=$($esptool.Version)")
     Assert-ConnectedHardware -SelectedPort $selectedPort
     Assert-FactoryRecoveryRevision -Revision $revision
-    Invoke-FactoryRecoveryFlash -Package $package -SelectedPort $selectedPort
+    $flashed = Invoke-FactoryRecoveryFlash -Package $package -SelectedPort $selectedPort
+    $runOutcome = if ($flashed) { 'completed' } else { 'cancelled' }
     return
 }
 
-$package = Get-ReleasePackage -Selection (
-    Select-CompatibleRelease -Target $selectedTarget)
+if (-not [string]::IsNullOrWhiteSpace($Source)) {
+    $offline = Get-StagedFirmwareAndTool -Target $selectedTarget `
+        -StagingSource $Source
+    $package = $offline.Package
+    $esptool = $offline.Tool
+} else {
+    $selection = Select-CompatibleRelease -Target $selectedTarget
+    if ($WhatIf) {
+        Assert-CompatibleManifest -Manifest $selection.Manifest -Target $selectedTarget
+        $package = [pscustomobject]@{
+            Source = "GitHub release $($selection.Release.tag_name) (metadata only)"
+            Version = [string]$selection.Manifest.version
+            Manifest = $selection.Manifest
+            Root = $null
+            Cache = $null
+            IsLocal = $false
+        }
+    } else {
+        $package = Get-ReleasePackage -Selection $selection
+    }
+}
 
 Write-Host ''
 Write-Host '[OK] Firmware package verified' -ForegroundColor Green
 Write-Host "  Source:  $($package.Source)"
 Write-Host "  Version: $($package.Version)"
 Write-Host "  Target:  $($selectedTarget.Product)"
+Write-DmdClockProvisioningLog -Event 'firmware-verified' -Detail (
+    "source=$($package.Source) version=$($package.Version) target=$($selectedTarget.Id) " +
+    "package_size=$($package.Manifest.package.size) package_sha256=$($package.Manifest.package.sha256)")
 if ($package.Cache) {
     Write-Host "  Cache:   $($package.Cache)"
 }
 
 if ($DownloadOnly) {
     Write-Host 'Download-only mode selected; nothing was flashed.'
+    $runOutcome = 'completed'
     return
 }
 
-if (-not $FlashMode) {
+if ($WhatIf -and -not $FlashMode) {
+    $FlashMode = 'Application'
+} elseif (-not $FlashMode) {
     Write-Host ''
     Write-Host 'Flash mode:'
     Write-Host '  [1] Application update (Recommended; preserves bootloader, partitions and NVS)' `
@@ -1124,8 +1586,46 @@ if (-not $FlashMode) {
     }
 }
 
+if ($WhatIf) {
+    Show-FirmwareDryRun -Package $package -Mode $FlashMode
+    return
+}
+
+if ($null -eq $esptool) {
+    $esptool = Get-PortableEsptool
+}
 $selectedPort = Select-SerialPort
-$esptool = Get-PortableEsptool
+Write-DmdClockProvisioningLog -Event 'serial-selected' -Detail (
+    "port=$selectedPort name=$($selectedPortIdentity.Name) pnp=$($selectedPortIdentity.InstanceId) " +
+    "tool_version=$($esptool.Version)")
 Assert-ConnectedHardware -SelectedPort $selectedPort
 Assert-DmdFirmwareRevision -Target $selectedTarget
-Invoke-FirmwareFlash -Package $package -Mode $FlashMode -SelectedPort $selectedPort
+    $flashed = Invoke-FirmwareFlash -Package $package -Mode $FlashMode -SelectedPort $selectedPort
+    $runOutcome = if ($flashed) { 'completed' } else { 'cancelled' }
+}
+catch {
+    $originalError = $_
+    $runOutcome = 'failed'
+    $runDetail = "error_type=$($originalError.Exception.GetType().FullName) error=$($originalError.Exception.Message)"
+    try {
+        Write-DmdClockProvisioningLog -Event 'error' -Detail $runDetail
+    }
+    catch {
+        Write-Warning "Could not append the original failure to the provisioning log: $($_.Exception.Message)"
+    }
+    throw $originalError
+}
+finally {
+    if ($logPath) {
+        if ($runOutcome -eq 'failed') {
+            try {
+                Complete-DmdClockProvisioningLog -Outcome $runOutcome -Detail $runDetail
+            }
+            catch {
+                Write-Warning "Could not finalize the failed provisioning log: $($_.Exception.Message)"
+            }
+        } else {
+            Complete-DmdClockProvisioningLog -Outcome $runOutcome -Detail $runDetail
+        }
+    }
+}

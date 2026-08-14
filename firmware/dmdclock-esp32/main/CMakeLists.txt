@@ -5,6 +5,8 @@ idf_component_register(
         "dmd_board.c"
         "dmd_display.c"
         "dmd_diagnostics.c"
+        "dmd_font.c"
+        "generated/dmd_fonts_generated.c"
         "dmd_mqtt.c"
         "dmd_color.c"
         "dmd_controls.c"
@@ -58,6 +60,34 @@ idf_component_register(
         mbedtls
         zlib
 )
+
+set(DMD_FONT_GENERATOR
+    "${CMAKE_CURRENT_LIST_DIR}/../../../scripts/esp32/Generate-DmdClockFonts.py")
+set(DMD_FONT_SOURCE_DIR
+    "${CMAKE_CURRENT_LIST_DIR}/../../../assets/fonts/DotClk")
+set(DMD_FONT_GENERATED_DIR
+    "${CMAKE_CURRENT_LIST_DIR}/generated")
+set_property(
+    DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${DMD_FONT_GENERATOR}"
+    "${DMD_FONT_SOURCE_DIR}/ALTERN8.fnt"
+    "${DMD_FONT_SOURCE_DIR}/FISHY.fnt"
+    "${DMD_FONT_SOURCE_DIR}/TREK.fnt"
+    "${DMD_FONT_SOURCE_DIR}/TWILIGHT.fnt"
+    "${DMD_FONT_GENERATED_DIR}/dmd_fonts_generated.h"
+    "${DMD_FONT_GENERATED_DIR}/dmd_fonts_generated.c")
+execute_process(
+    COMMAND
+        "${PYTHON}"
+        "${DMD_FONT_GENERATOR}"
+        --source-dir "${DMD_FONT_SOURCE_DIR}"
+        --output-dir "${DMD_FONT_GENERATED_DIR}"
+        --check
+    RESULT_VARIABLE DMD_FONT_CHECK_RESULT)
+if(NOT DMD_FONT_CHECK_RESULT EQUAL 0)
+    message(FATAL_ERROR
+        "Generated ESP32 font assets are stale; run Generate-DmdClockFonts.py")
+endif()
 
 target_add_binary_data(
     ${COMPONENT_LIB}

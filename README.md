@@ -36,11 +36,13 @@ Firmware `v1.5.0` supports the original **Waveshare ESP32-S3-Touch-LCD-7,
 800x480, N16R8** and **Waveshare ESP32-S3-Touch-LCD-3.49B V2 / Rev1.1,
 640x172, N16R8**. The 7B and 3.49B V1 use incompatible hardware and are blocked.
 
-From an empty folder, download the two standalone Windows PowerShell scripts:
+From an empty folder in PowerShell 7 (`pwsh`), download the two entry scripts
+and their shared provisioning module:
 
 ```powershell
 Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/Flash-DmdClockEsp32.ps1' -OutFile 'Flash-DmdClockEsp32.ps1'
 Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/Prepare-DmdClockSdCard.ps1' -OutFile 'Prepare-DmdClockSdCard.ps1'
+Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/DmdClock.Provisioning.psm1' -OutFile 'DmdClock.Provisioning.psm1'
 ```
 
 The first script finds, verifies, and flashes a compatible release. The second
@@ -54,8 +56,10 @@ No repository clone or external development tools are required.
 3. Select the correct COM port and type `FLASH` only after reviewing the final
    target and version summary.
 4. Connect it to a 2.4 GHz Wi-Fi network and open the local web remote.
-5. Use the Windows preparation script to install either scene library on a FAT32
-   TF card, safely eject it, and insert it while the ESP32 is powered off.
+5. Supply an already-FAT32 card and follow the
+   [canonical Windows TF-card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md)
+   to install either scene library. Card creation and formatting are outside the
+   DMDClock scripts.
 
 The [ESP32-S3 installation guide](docs/INSTALL-ESP32.md) gives the exact commands,
 first-boot flow, SD-card layout, recovery steps, and security notes.
@@ -94,7 +98,7 @@ metadata, while each platform provides controls suited to its display.
 
 Original `.scn` animations are not included in desktop packages or production
 firmware. Windows and macOS retain **Download scenes…** in the app. For ESP32,
-use the [Windows TF-card preparation guide](docs/PREPARE-ESP32-SD-CARD.md).
+use the [Windows TF-card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md).
 **DMD-Large** is preferred and contains 2,416 scenes, including the complete
 Original collection. **Original DotCLK-Orig** remains available separately with
 2,324 scenes.
@@ -132,7 +136,7 @@ guides explain storage, backup, and recovery in more detail.
 - [Windows installation](docs/INSTALL-WINDOWS.md)
 - [Complete Windows user setup](docs/USER-SETUP.md)
 - [ESP32-S3 installation and TF-card setup](docs/INSTALL-ESP32.md)
-- [Prepare an ESP32 TF card on Windows](docs/PREPARE-ESP32-SD-CARD.md)
+- [Prepare an ESP32 TF card on Windows](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md)
 - [Settings reference](docs/SETTINGS.md)
 - [ESP32-S3 roadmap](docs/ESP32-S3-ROADMAP.md)
 

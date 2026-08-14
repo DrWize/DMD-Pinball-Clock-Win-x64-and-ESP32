@@ -72,6 +72,56 @@ try {
     }
     $captures.Add((Capture-Case 'clock-basic'))
 
+    $fontIds = @('builtin-5x7', 'altern8', 'fishy', 'trek', 'twilight')
+    foreach ($fontId in $fontIds) {
+        $fontState = Set-Settings @{
+            playScene = $false
+            automaticCycle = $false
+            use24Hour = $true
+            showSeconds = $false
+            clockFont = $fontId
+        }
+        if ([string]$fontState.clockFont -ne $fontId) {
+            throw "Clock font '$fontId' did not round-trip through the state API."
+        }
+        $captures.Add((Capture-Case "font-$fontId"))
+    }
+    $fontHashes = @(
+        $captures | Where-Object Name -like 'font-*' |
+            Select-Object -ExpandProperty Sha256 -Unique
+    )
+    if ($fontHashes.Count -ne $fontIds.Count) {
+        throw 'One or more clock fonts produced an identical framebuffer hash.'
+    }
+    Set-Settings @{
+        playScene = $false
+        clockFont = 'altern8'
+        glowStrength = 0
+        hotCoreEnabled = $false
+    } | Out-Null
+    $glowOffCapture = Capture-Case 'glow-off'
+    $captures.Add($glowOffCapture)
+    Set-Settings @{ glowStrength = 70 } | Out-Null
+    $glowOnCapture = Capture-Case 'glow-on'
+    $captures.Add($glowOnCapture)
+    if ($glowOnCapture.Sha256 -eq $glowOffCapture.Sha256) {
+        throw 'DotClk font glow did not change the physical framebuffer.'
+    }
+    Set-Settings @{ hotCoreEnabled = $true; hotCoreStyle = 0 } | Out-Null
+    $hotCoreCapture = Capture-Case 'hot-core'
+    $captures.Add($hotCoreCapture)
+    if ($hotCoreCapture.Sha256 -eq $glowOnCapture.Sha256) {
+        throw 'DotClk hot-core rendering did not change the physical framebuffer.'
+    }
+    try {
+        Invoke-RestMethod -Uri $settingsUri -Method Post `
+            -ContentType 'application/json' `
+            -Body '{"clockFont":"unknown-font"}' -TimeoutSec 10 | Out-Null
+        throw 'The settings API accepted an unknown clock font.'
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 400) { throw }
+    }
     $static = Set-Settings @{ playScene = $true; sceneIndex = 1; automaticCycle = $false }
     if ([int]$static.sceneFrames -ne 1) {
         throw "Expected scene index 1 to be static; reported $($static.sceneFrames) frames."
@@ -200,6 +250,12 @@ try {
         animatedFrameAdvanced = $advanced
         automaticRandomTransition = $automaticTransition
         currentHourScheduleActivated = [bool]$scheduled.screenScheduledOff
+        clockFonts = $fontIds
+        uniqueClockFontHashes = $fontHashes.Count
+        clockFontApiRoundTrip = $true
+        clockFontRestartPersistence = 'physical-device-gate'
+        clockFontGlowChangedFramebuffer = $true
+        clockFontHotCoreChangedFramebuffer = $true
         settingsRoundTrip = [ordered]@{
             automaticCycle = [bool]$behavior.automaticCycle
             randomPlayback = [bool]$behavior.randomPlayback
@@ -216,6 +272,9 @@ try {
 finally {
     Set-Settings @{
         brightness = [int]$initial.brightness
+        glowStrength = [int]$initial.glowStrength
+        hotCoreEnabled = [bool]$initial.hotCoreEnabled
+        hotCoreStyle = [int]$initial.hotCoreStyle
         colorPreset = [int]$initial.colorPreset
         playScene = [bool]$initial.playScene
         sceneIndex = [int]$initial.sceneIndex
@@ -226,6 +285,9 @@ finally {
         animationsPerCycle = [int]$initial.animationsPerCycle
         clockDisplaySeconds = [int]$initial.clockDisplaySeconds
         animationGapSeconds = [int]$initial.animationGapSeconds
+        clockFont = [string]$initial.clockFont
+        use24Hour = [bool]$initial.use24Hour
+        showSeconds = [bool]$initial.showSeconds
     } | Out-Null
     Invoke-Action 'showClock'
 }

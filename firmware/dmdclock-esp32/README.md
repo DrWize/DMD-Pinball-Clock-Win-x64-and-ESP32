@@ -324,23 +324,10 @@ directory to the root of the microSD/TF card so the device sees `/dmd`.
 
 ### Prepare a card from PowerShell
 
-After formatting the card as FAT32, run the idempotent preparation script from
-the repository root. Replace `F` with the card's drive letter:
-
-```powershell
-# Preview validation, downloads, and proposed card changes.
-.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F -WhatIf
-
-# Prepare or repair the card.
-.\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DriveLetter F
-```
-
-The script never formats a volume. It refuses the Windows system volume,
-requires FAT32, requires a removable volume by default, checks health and free
-space, validates every SCN with `DmdClock.Tools`, and installs the complete
-DotClk set under `/dmd/scenes`. It also creates the canonical `/dmd` directory
-tree, installs `scene-metadata.json`, and writes a deterministic SHA-256 content
-manifest under `/dmd/config`.
+Card creation and formatting are outside DMDClock. For the current physical-disk
+selection, FAT32 validation, and scene-library commands, use the single
+authoritative
+[Windows TF-card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md).
 
 Running the same command again is safe: matching files remain untouched,
 missing files are added, damaged managed files are repaired, changed metadata

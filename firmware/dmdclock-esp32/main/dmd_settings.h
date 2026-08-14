@@ -5,6 +5,7 @@
 #include <time.h>
 
 #include "dmd_color.h"
+#include "dmd_font.h"
 #include "dmd_plasma.h"
 #include "esp_err.h"
 
@@ -35,6 +36,11 @@ typedef enum {
     DMD_HOT_CORE_DUAL_COLOR = 2,
 } dmd_hot_core_style_t;
 
+typedef enum {
+    DMD_ORIENTATION_FIXED = 0,
+    DMD_ORIENTATION_AUTO = 1,
+} dmd_orientation_mode_t;
+
 typedef struct {
     uint8_t brightness;
     uint8_t glow_strength;
@@ -49,6 +55,9 @@ typedef struct {
     dmd_rgb_t raster_custom[DMD_RASTER_CUSTOM_COLOR_COUNT];
     bool use_24_hour;
     bool show_seconds;
+    dmd_font_id_t clock_font;
+    dmd_orientation_mode_t orientation_mode;
+    uint16_t fixed_rotation;
     bool display_on;
     bool screen_schedule_enabled;
     uint8_t screen_off_schedule[DMD_SCHEDULE_BYTES];

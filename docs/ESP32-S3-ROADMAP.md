@@ -36,6 +36,77 @@ settings. QEMU uses a classic ESP32 with 4 MiB quad PSRAM, so this remains
 rendering and memory-pressure evidence rather than physical ESP32-S3, panel, or
 touch qualification.
 
+## Version 1.6 target — fonts and orientation
+
+Version 1.6 adds the desktop DotClk clock faces and reversible landscape
+orientation without splitting shared behavior by panel. Clock-font parity is
+complete on `feature/v1.6`; orientation is the next implementation phase.
+
+### Shared DotClk font parity
+
+- [x] Use the Windows/macOS inventory as the reference: built-in 5×7 plus embedded
+      ALTERN8, FISHY, TREK, and TWILIGHT. Inter remains a desktop TTF in v1.6;
+      arbitrary ESP32 TTF/OTF support remains the later measured project.
+- [x] Build a deterministic `.fnt`-to-C generator that preserves version-1 glyph
+      metrics, kerning, four-bit atlas intensities, masks, and canonical hashes.
+- [x] Implement one board-independent ESP32 font renderer and selector on the
+      logical 128×32 framebuffer. Do not duplicate fonts or rendering in the
+      Waveshare 7 and 3.49B panel drivers.
+- [x] Persist the selected clock font and expose it through settings, `/api/state`,
+      the web remote, the TF-card settings mirror, and `/api-docs`.
+- [x] Keep a separate date-font setting deferred until the planned ESP32 date
+      renderer exists; it is not part of the completed clock-font gate.
+- [x] Preserve the internal 5×7 fallback for missing, invalid, or unavailable font
+      assets and verify time, scene clock overlays, separators, masks, glow, and
+      missing glyphs with golden framebuffer fixtures.
+- [x] Pass both QEMU profiles and both physical-board matrices, including render
+      timing, heap/PSRAM, restart persistence, and web/touch responsiveness. Both
+      QEMU profiles pass all five selections with distinct framebuffer hashes;
+      the 3.49B V2 physical matrix also passes all five visual selections, time
+      format combinations, frame advancement, scene playback, memory, clean
+      touch/settings diagnostics, and reboot persistence. The Waveshare 7 passes
+      the equivalent physical matrix. The final closure evidence has 22 exact C
+      intensity-plus-mask desktop goldens, 176 passing .NET tests, 19 QEMU captures
+      per model including glow/hot-core changes, and final-image physical reboots
+      123 to 124 on Waveshare 7 and 31 to 32 on 3.49B V2.
+
+This is medium difficulty. The canonical fonts total only a few kilobytes and the
+.NET reader supplies an exact format reference; the material work is deterministic
+generation, variable-width masked rendering, settings/UI integration, and tests.
+It is one shared implementation followed by two board validation passes.
+
+### Fixed 0°/180° and 3.49B automatic orientation
+
+- [x] Persist `fixedRotation` (`0` or `180`) and `orientationMode` (`fixed` or
+      `auto`), defaulting the physical 3.49B V2 to automatic and other targets to
+      fixed 0° while retaining the last fixed choice.
+- [x] Add a direct `POST /api/orientation`, report requested/effective orientation
+      and sensor availability through `/api/state`, and document the contract in
+      `/api-docs`. Reject invalid angles and `auto` on unsupported boards.
+- [x] Add immediate **Fixed 0°** and **Fixed 180°** controls to the web
+      section. Offer **Automatic** only when QMI8658 availability is reported.
+- [x] Rotate the completed logical composition, including overlays and setup/QR
+      screens, then apply each board's existing physical transfer. Apply the same
+      180° transform to touch coordinates before hit testing.
+- [x] For Waveshare 3.49B V2 only, probe QMI8658 at `0x6b` on the existing shared
+      I2C0 bus (SDA GPIO47, SCL GPIO48), use low-rate accelerometer/gravity samples
+      rather than the gyroscope, and use the physically observed signed Y axis.
+- [x] Filter samples and require separate 0.60 g enter / 0.35 g exit thresholds
+      plus an 800 ms dwell time. Retain the last stable result when ambiguous; on
+      probe/read failure expose diagnostics and fall back to the persisted fixed
+      orientation without blocking boot.
+- [x] Fixed 180° is built and captured nonblank in `Waveshare7` and `Landscape349`
+      QEMU. Physical 3.49B V2 validation confirms positive Y as 0°, negative Y as
+      180°, correct orientation before the first visible boot frame, repeated
+      automatic turns, rotated touch, persistence, and zero QMI8658 read errors.
+      Physical Waveshare 7 validation confirms fixed 0°/180°, rotated controls and
+      touch, and that Automatic is unavailable.
+
+Fixed rotation is medium difficulty. Reliable automatic positioning is
+medium-to-high because it adds a board-only sensor path and must coexist with the
+3.49B's current native-to-landscape framebuffer transfer and corrected touch map.
+QEMU can validate the rotation contract but cannot qualify the sensor or its axes.
+
 ## Goals
 
 - Render the classic 128×32 four-bit DMD on the internal 800×480 display.

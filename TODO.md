@@ -24,6 +24,257 @@ deferred.
 
 ## Current baseline
 
+### Version 1.6 roadmap — ESP32 font parity and screen orientation
+
+Implementation has started on `feature/v1.6`. Checked items below have automated
+or QEMU evidence; none of that is physical-panel proof.
+
+#### P0 — desktop-compatible ESP32 DotClk font pipeline — complete 2026-08-14
+
+This first v1.6 implementation and acceptance gate is complete. Orientation work
+may now begin.
+
+- [x] Keep the desktop font inventory as the reference: Windows and macOS use the
+      same built-in 5×7 fallback, embedded ALTERN8, FISHY, TREK, and TWILIGHT
+      DotClk fonts, and external bundled Inter TTF.
+- [x] Port the four DotClk fonts once in the shared ESP32 firmware, not separately
+      in the Waveshare 7 and 3.49B panel backends. Generate deterministic compact
+      C assets from the canonical `.fnt` files, preserving glyph widths, kerning,
+      four-bit intensities, masks, source hashes, and the built-in 5×7 fallback.
+- [x] Add a board-independent bitmap-font renderer for the logical 128×32 DMD and
+      use the same selected font before either physical panel scales the completed
+      framebuffer to 6× or 5×.
+- [x] Match the existing desktop pipeline rather than designing a new visual
+      interpretation: embedded resource IDs, variable glyph widths, kerning,
+      four-bit intensities, overlap masks, centring, clipping, and generated
+      fallback separators must produce the same logical 128×32 result.
+- [x] Add persisted clock-font selection to the ESP32 settings, state API, TF-card
+      settings mirror, web remote, and API documentation.
+- [x] Keep independent date-font selection outside this clock-font P0; add it with
+      the separately planned ESP32 date renderer rather than creating a dormant
+      setting now.
+- [x] Keep Inter and arbitrary TTF/OTF rasterization outside the v1.6 embedded
+      parity gate. Inter remains bundled for the desktop applications; any ESP32
+      use must go through the separately measured bitmap-conversion project rather
+      than adding an outline-font engine to the display task.
+- [x] Add converter freshness/hash tests, malformed/generated-asset tests, golden
+      128×32 framebuffer fixtures, persistence tests, and web/API tests for every
+      font and fallback path. Converter, malformed-input, canonical golden-hash,
+      API round-trip, unknown-font rejection, and distinct QEMU framebuffer checks
+      pass. The actual C renderer matches 22 desktop intensity-plus-mask goldens,
+      including built-in scaling, 12-hour AM/PM, clipping, separators, overlap
+      masks, unknown font IDs, and missing glyphs. Physical restart persistence
+      passes on both supported boards; QEMU cannot run that gate because its
+      network adapter cannot recover after `esp_restart()`.
+- [x] Validate all five choices in `Waveshare7` and `Landscape349` QEMU, then on
+      both physical boards. Confirm 12/24-hour time, optional seconds, missing
+      glyph fallback, masks, glow, scene clock overlays, frame time, heap/PSRAM,
+      touch responsiveness, and restart persistence. Both QEMU profiles pass all
+      five font selections with five distinct framebuffer hashes. The final QEMU
+      closure matrix records 19 captures per model, including changed framebuffer
+      hashes for glow and hot-core rendering, static/animated scene playback, and
+      touch diagnostics.
+- [x] Complete the Waveshare 3.49B V2 physical font matrix: all five fonts were
+      visually confirmed, 12/24-hour and seconds combinations rendered while the
+      physical frame counter advanced, scene playback remained healthy, touch had
+      zero read errors, NVS/TF saves stayed `ESP_OK`, heap/PSRAM stayed healthy,
+      and TWILIGHT persisted across the final-image reboot from boot count 31 to
+      32. The corrected built-in 12-hour AM/PM layout was visually confirmed.
+- [x] Complete the Waveshare 7 physical font matrix: all five fonts were visually
+      confirmed, the same time/seconds, frame, scene, memory, touch, and settings
+      checks passed, and TWILIGHT persisted across the final-image reboot from
+      boot count 123 to 124. The corrected built-in 12-hour AM/PM layout was
+      visually confirmed.
+
+Difficulty: **medium**. The four source files are small and the desktop parser is
+already a precise format reference, but ESP32 needs a generated-asset pipeline,
+a variable-width four-bit renderer, new persisted settings, web controls, and
+cross-platform fixtures. Most work is shared; the two boards mainly double the
+physical acceptance matrix rather than the implementation.
+
+#### P1 — 0°/180° orientation and 3.49B QMI8658 positioning
+
+- [x] Define one shared persisted orientation contract with `fixedRotation`
+      restricted to `0` or `180` and `orientationMode` restricted to `fixed` or
+      `auto`. Default the physical 3.49B V2 to automatic, default Waveshare 7 and
+      QEMU to fixed 0°, and retain the last explicit fixed rotation.
+- [x] Add a direct `POST /api/orientation` endpoint accepting only the two exact
+      rotations and the supported mode, return effective/requested orientation in
+      `/api/state`, and document errors for invalid values or `auto` on a board
+      without an orientation sensor.
+- [x] Add a compact **Screen orientation** control to the web remote with immediate
+      **Fixed 0°** and **Fixed 180°** choices. Enable **Automatic** only when the
+      state API reports a usable QMI8658; do not imply that the Waveshare 7 has an
+      accelerometer.
+- [x] Apply 180° after composing the logical DMD/overlay so scenes, clock, metadata,
+      startup/setup screens, QR codes, and touch controls rotate together. Invert
+      both touch axes against the board's logical width and height so hit targets
+      remain attached to the visible controls.
+- [x] On the 3.49B V2, add a board-local QMI8658 accelerometer driver at I2C
+      address `0x6b` on SDA GPIO47/SCL GPIO48, sharing I2C0 with the TCA9554
+      expander. Use acceleration/gravity only; keep the gyroscope disabled.
+- [x] Physically identify sensor Y as the signed axis distinguishing the two
+      landscape positions. Use filtered samples, an ambiguity threshold,
+      and a dwell time before changing orientation so vibration or a nearly flat
+      device cannot repeatedly flip the screen.
+- [x] Keep the last stable orientation through ambiguous samples. If QMI8658 probe,
+      or reads fail, report diagnostics and fall back to the persisted fixed
+      rotation without delaying boot or affecting display/touch operation.
+- [x] Fixed 180° is built and nonblank in both QEMU profiles, and the direct API
+      rejects unsupported automatic mode. Physical 3.49B V2 validation confirms
+      both automatic positions, boot-time orientation, rotated touch, filtering,
+      persistence, and zero sensor errors. Physical Waveshare 7 validation confirms
+      fixed 0°/180°, rotated controls/touch, and no Automatic option. QEMU is not
+      sensor proof.
+
+Difficulty: **medium** for fixed rotation and **medium-to-high** for trustworthy
+automatic positioning. The API and menu are small changes; the risk lies in the
+3.49B's existing native-to-landscape panel transfer, matching touch inversion,
+the installed sensor-axis sign, filtering/hysteresis, and physical validation.
+
+#### P2 — safe staged PowerShell provisioning — v1.6 release blocker
+
+Refactor `Flash-DmdClockEsp32.ps1` and `Prepare-DmdClockSdCard.ps1` into an
+explicit three-stage Windows 11 x64 / PowerShell 7 workflow: verify and stage,
+prepare a deliberately selected SD card, then flash a positively identified
+ESP32. Stage 1 must always work with no SD card and no ESP32 connected. Preserve
+existing supported-board, firmware-revision, package-integrity, and scene-library
+behavior unless it conflicts with the safety requirements below.
+
+##### P2.1 — audit before implementation
+
+- [x] Read both entry scripts and every script, manifest, catalog, package, tool,
+      and documentation path they invoke. Map the current control flow before
+      editing it.
+- [x] Inventory every destructive operation, disk-number/drive-letter assumption,
+      COM-port assumption, network dependency, external tool/version dependency,
+      elevation requirement, shared dependency between the scripts, and path that
+      could select the wrong disk, board revision, firmware, or serial device.
+- [x] Briefly document current risks and the proposed parameter/staging design
+      before implementation. Prefer safety over backward compatibility wherever
+      the existing behavior could cause data loss or flash incompatible firmware.
+      The audit and staged contract are recorded in
+      `docs/ESP32-POWERSHELL-PROVISIONING.md`.
+
+##### P2.2 — shared requirements gate
+
+- [x] Add a non-mutating `-CheckRequirements` path that validates Windows 11,
+      64-bit Windows/x64, PowerShell 7 or newer, and that the host is actually
+      `pwsh` rather than Windows PowerShell 5.1.
+- [ ] Validate required PowerShell commands, external tools and versions, writable
+      staging/log locations, and sufficient free disk space before downloading or
+      modifying anything.
+- [x] Check internet access and working GitHub TLS/HTTPS only for operations that
+      require a download. Offline operations using a complete local staging folder
+      must not fail merely because the network is unavailable.
+- [ ] Determine whether the selected operation truly needs elevation. Do not
+      require administrator rights for requirements checks, downloads, or other
+      operations that Windows permits for a normal user.
+- [x] On failure, stop before mutation and report the failed check, detected value,
+      required value, and a concrete manual remediation. Do not automatically
+      install PowerShell, drivers, Python, esptool, or any system component.
+
+##### P2.3 — download and staging without attached hardware
+
+- [x] Add a `-DownloadOnly -Destination <path>` workflow with a documented local
+      structure such as `DmdClockFiles\ESP32`, `SDCard`, `Tools`, and `Logs`.
+      Identify and stage everything later required by both supported ESP32 board
+      variants and the selected SD-card scene-library workflow.
+- [x] Guarantee that download-only mode never enumerates or requires an SD card or
+      ESP32, never writes removable media, and never invokes a format, partition,
+      erase, or flash command.
+- [x] Validate HTTP success, non-zero content, expected size when known, and
+      SHA-256 wherever practical. Show whether each artifact was downloaded,
+      reused, or replaced; never silently trust a stale cached file.
+- [x] Download to a temporary file in the destination directory, verify it, then
+      atomically promote it to the final name. Remove incomplete temporary files
+      on failure and abort safely when GitHub or another required source cannot be
+      reached.
+- [x] Produce a final inventory containing source URL, local path, size, SHA-256,
+      version/target, and status for every staged firmware, SD payload, and tool.
+
+##### P2.4 — complete offline consumption
+
+- [x] Add `-Source <staging-path>` support so SD preparation can run without new
+      network access when the staging inventory is complete and verified.
+- [x] Provide the equivalent offline firmware/tool consumption path for ESP32
+      flashing where technically possible.
+- [x] Validate the complete staged manifest before touching an SD card or ESP32.
+      If anything is missing, corrupt, stale, or for the wrong board/revision,
+      report the exact artifacts and stop before the destructive phase.
+
+##### P2.5 — physical SD-disk safety
+
+- [x] Never automatically select the first USB/removable disk. Enumerate plausible
+      physical candidates with disk number, drive letter, model, size, bus type,
+      partitions, volume label, and filesystem, and require an explicit physical
+      disk selection.
+- [x] Exclude the Windows system/boot disk and internal disks as far as Windows can
+      reliably identify them. Never select or format a disk from drive letter
+      alone, and never choose automatically when multiple candidates exist.
+- [x] Do not implement partitioning, formatting, or deletion of card content.
+      Require the selected disk to expose exactly one mounted, healthy FAT32
+      volume; otherwise stop with manual remediation instructions.
+- [x] Display the selected physical disk and FAT32 volume unambiguously, then
+      re-enumerate and verify the same disk identity, layout, size, and topology
+      immediately before copying. Abort if anything changed.
+
+##### P2.6 — guarded ESP32 flashing
+
+- [x] Verify the staged firmware, manifest, checksums, flash tool, and tool version
+      before opening or changing a serial device.
+- [x] Enumerate plausible COM devices with useful Windows device information.
+      Never use an arbitrary port; require selection when multiple candidates are
+      present and fail clearly when none are present.
+- [x] Query chip information before flashing when supported. Show the selected COM
+      port, detected ESP32 chip, flash size, board target/revision, firmware file,
+      firmware version, size, and SHA-256 before confirmation.
+- [x] Preserve the incompatible 3.49B V1/V2 guard and supported Waveshare 7 versus
+      7B distinction. Revalidate the selected device immediately before flashing
+      and retain the final exact `FLASH` confirmation.
+
+##### P2.7 — dry-run, errors, and per-run evidence
+
+- [x] Provide consistent `-WhatIf` or `-DryRun` behavior for requirements,
+      download, SD, and flash modes. Show files, destinations, physical disk,
+      copies, commands, COM device, and firmware without changing files, media, or
+      hardware.
+- [x] Use `Set-StrictMode -Version Latest`, `$ErrorActionPreference = 'Stop'`, and
+      deliberate `try/catch/finally` handling. Critical failures must stop the
+      workflow, preserve the original error context, clean partial artifacts where
+      safe, and never fall through into a destructive step. Avoid empty catches or
+      suppression of relevant errors.
+- [x] Write one non-secret log per run containing timestamps, PowerShell/Windows
+      versions, architecture, checks, URLs, destinations, hashes, selected disk or
+      COM port, external tool versions, planned/executed commands, outcome, and
+      errors. Keep secrets, Wi-Fi credentials, tokens, and passwords out of logs.
+
+##### P2.8 — non-destructive acceptance matrix and documentation
+
+- [ ] Add verifiable tests for Windows 11 x64 with PowerShell 7; no SD card; no
+      ESP32; download-only; complete offline staging; incomplete offline staging;
+      multiple removable disks; multiple COM ports; unavailable GitHub; failed,
+      truncated, corrupt, zero-byte, stale, and checksum-mismatched downloads;
+      cancellation; invalid disk selection; topology changes; and attempts to
+      select the system disk.
+- [ ] Make the primary acceptance gate prove that a normal user can run staging on
+      Windows 11 x64 / PowerShell 7 with no SD card and no ESP32 attached and obtain
+      every required local artifact without formatting a disk or modifying
+      hardware.
+- [ ] Test destructive command construction only through mocks, fixtures,
+      `-WhatIf`, or dry-run evidence. Automated validation and release tests must
+      never perform a real format, erase, partition, or ESP32 flash.
+- [ ] Update user documentation with the final parameter design and examples for
+      requirements checking, download/staging, dry-run, offline SD preparation,
+      and offline/verified ESP32 flashing. List changed files and the non-destructive
+      validation evidence in the implementation handoff.
+
+Difficulty: **high**. The individual checks are straightforward, but safe physical
+disk identity, transactional staging, offline manifests, board/revision selection,
+consistent dry-run semantics, and deterministic failure injection span two mature
+scripts and several shared helpers. Treat the no-hardware download gate and the
+system-disk/incorrect-firmware exclusions as release-blocking safety properties.
+
 ### Repository integration and cleanup — reviewed 2026-08-12
 
 - [x] For the next release, make **DMD-Large** the preferred/default scene library
@@ -34,10 +285,11 @@ deferred.
       and ESP32 release. Windows and macOS must retain the built-in 5x7 fallback,
       embedded ALTERN8, FISHY, TREK, and TWILIGHT DotClk fonts, and bundled Inter
       TTF; add package assertions that verify every font in both release artifacts.
-      ESP32 currently has only the built-in 5x7 renderer: convert and package the
-      four DotClk fonts as generated firmware assets, add clock/date font selection
-      and persistence to the web interface, preserve the built-in fallback, and
-      verify every choice in both QEMU profiles and on the original Waveshare 7.
+      The v1.6 branch now packages the four DotClk fonts as generated firmware
+      assets and adds persisted clock-font selection to the web interface while
+      preserving the built-in fallback. Date-font selection and both physical-board
+      validation matrices remain open. Inter remains a desktop bundle in v1.6;
+      ESP32 TTF/OTF work stays a later measured conversion/rasterization project.
 - [x] Preserve and separate the uncommitted work in `qemu-sd-settings-debug`;
       it now has its own retained worktree and was not combined with the release.
 - [x] Integrate `c24ecb5` and `b86ed2e` into the default branch (`master`, not
@@ -112,8 +364,8 @@ they do not need to install both.
       choices backed by the shared catalog, exact archive size/SHA-256 checks,
       exact scene counts, SCN validation, and a verified local cache.
 - [x] Keep preparation idempotent: matching cards produce zero writes, damaged
-      managed files are repaired, switching libraries removes only obsolete
-      previously managed scenes, and unrelated/custom files remain untouched.
+      managed files are repaired, and switching libraries preserves obsolete
+      previously managed scenes as well as unrelated/custom card content.
 - [x] Remove full-library download controls from the ESP32 web remote and replace
       them with read-only installed-library status plus a link to the Windows
       TF-card preparation article. Keep the existing API path only as an internal

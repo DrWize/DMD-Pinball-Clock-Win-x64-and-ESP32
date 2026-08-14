@@ -10,6 +10,10 @@ requires an explicit V2 revision confirmation. Hash-verified official factory
 recovery remains available for both 3.49B revisions, but the recovery image must
 match the PCB revision and is separate from DMDClock firmware.
 
+Recommended order: download the setup files, prepare the TF card, flash the
+ESP32, insert the prepared card while powered off, then configure the web remote.
+The card does not need a flashed or connected ESP32 and can be finished first.
+
 ## Select the correct programming connector
 
 Not every USB or power connector provides a flashing UART. Check the official
@@ -36,14 +40,15 @@ RGB wiring, touch, or physical TF-card behavior.
 - a data-capable USB cable connected to the model-specific programming
   connector identified above;
 - a FAT32 microSD/TF card with at least 256 MB free;
-- a 64-bit Windows PC with Windows PowerShell 5.1 or newer;
-- this repository or a downloaded copy of the two ESP32 PowerShell scripts.
+- a Windows 11 x64 PC running PowerShell 7 or newer as `pwsh`;
+- this repository or downloaded copies of the two ESP32 entry scripts and their
+  shared provisioning module.
 
 The [latest release page][latest-release] is the canonical place for published
 versions. `Flash-DmdClockEsp32.ps1` asks for the exact board first, then lists
 only releases containing a compatible, hash-verified image for that selection.
 
-## 1. Download the two setup scripts
+## 1. Download the setup scripts
 
 Create or open a clean folder in PowerShell. These commands download the latest
 versions of both scripts directly from the `master` branch:
@@ -51,6 +56,7 @@ versions of both scripts directly from the `master` branch:
 ```powershell
 Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/Flash-DmdClockEsp32.ps1' -OutFile 'Flash-DmdClockEsp32.ps1'
 Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/Prepare-DmdClockSdCard.ps1' -OutFile 'Prepare-DmdClockSdCard.ps1'
+Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/DmdClock.Provisioning.psm1' -OutFile 'DmdClock.Provisioning.psm1'
 ```
 
 `Flash-DmdClockEsp32.ps1` discovers compatible firmware releases, downloads and
@@ -63,10 +69,83 @@ If Windows marks the downloaded scripts as blocked, remove only their downloaded
 file markers:
 
 ```powershell
-Unblock-File -Path .\Flash-DmdClockEsp32.ps1, .\Prepare-DmdClockSdCard.ps1
+Unblock-File -Path .\Flash-DmdClockEsp32.ps1, .\Prepare-DmdClockSdCard.ps1, .\DmdClock.Provisioning.psm1
 ```
 
-## 2. Connect and flash the ESP32-S3
+Check the host without creating folders, downloading payloads, or enumerating
+hardware:
+
+```powershell
+.\Flash-DmdClockEsp32.ps1 -CheckRequirements
+.\Prepare-DmdClockSdCard.ps1 -CheckRequirements
+```
+
+### Stage once without attached hardware
+
+These commands build one verified `DmdClockFiles` folder. No TF card or ESP32 is
+required or enumerated. The first command stages the selected scene library; the
+second adds firmware for both supported boards and official portable esptool.
+
+```powershell
+.\Prepare-DmdClockSdCard.ps1 -DownloadOnly `
+  -Destination .\DmdClockFiles -Library DmdLarge
+.\Flash-DmdClockEsp32.ps1 -DownloadOnly `
+  -Destination .\DmdClockFiles
+```
+
+Preview either operation by adding `-WhatIf`; no destination is created. The
+staging inventory is `DmdClockFiles\staging-manifest.json`, with per-run evidence
+under `DmdClockFiles\Logs`.
+
+For the card and flash entry points, `-DryRun` is equivalent to `-WhatIf`. It
+creates no log, saved download, temporary extraction, cache, card write, or
+flash, and it never opens a COM port. It may read GitHub release metadata and
+enumerate disks or COM devices to display the exact plan.
+
+Mutating staging runs write one non-secret evidence log below
+`DmdClockFiles\Logs`. SD synchronization and flashing write theirs below
+`%LOCALAPPDATA%\DmdClock\Logs\Provisioning`. Logs finish with an explicit
+completed, cancelled, or failed outcome and redact credentials and URL queries.
+
+Consume the verified bundle offline:
+
+```powershell
+.\Prepare-DmdClockSdCard.ps1 -DiskNumber 3 -Library DmdLarge `
+  -Source .\DmdClockFiles -WhatIf
+.\Flash-DmdClockEsp32.ps1 -Board Waveshare7 `
+  -Source .\DmdClockFiles -DownloadOnly
+```
+
+Remove `-DownloadOnly` from the last command only when the correct board is
+connected and you intend to proceed to guarded COM selection and flashing.
+
+## 2. Prepare the SD card before flashing
+
+The TF card is independent of the firmware installation. You can prepare it
+completely **before connecting or flashing the ESP32**, then insert it after the
+firmware installation is complete. This is often the easiest order because the
+scene download and full SCN validation can finish while the board remains
+disconnected.
+
+Creating or formatting the card is outside the scope of DMDClock and its scripts.
+Supply an already working FAT32 card. The single authoritative procedure for
+checking the card and adding either scene library is the
+[Windows TF-card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md).
+All formatting-tool guidance, including the official Rufus download location,
+is maintained there.
+
+Safely eject the prepared card and keep it aside. After flashing, power off the
+ESP32, insert the card, and power it on. Firmware creates
+`/dmd/config/settings.json` after mounting the card and mirrors later web-setting
+changes to that file.
+
+The prepared scene library uses the full display area on both supported boards:
+
+| Waveshare 7 — 800×480 | Waveshare 3.49B V2 — 640×172 |
+| --- | --- |
+| ![Scene library controls on Waveshare 7](screenshots/install/esp32-scene-packs-waveshare7.png) | ![Scene library controls on Waveshare 3.49B V2](screenshots/install/esp32-scene-packs-landscape349.png) |
+
+## 3. Connect and flash the ESP32-S3
 
 1. Power off the board.
 2. Connect a data-capable USB cable to the model-specific programming connector
@@ -139,49 +218,6 @@ Remove only `-WhatIf` to perform the recovery. The script still requires a final
 case-insensitive `FLASH` confirmation and does not accept `-Force` in factory
 recovery mode.
 
-![DMDClock ESP32 web remote after installation](screenshots/install/esp32-web-remote.png)
-
-## 3. Prepare the SD card
-
-Follow the complete [Windows TF-card preparation article](PREPARE-ESP32-SD-CARD.md)
-to identify and, when necessary, format the correct card safely. The preparation
-script does not format media.
-
-Insert the FAT32 card into the PC and confirm its drive letter, volume label, and
-capacity in File Explorer. The following examples use `J:`.
-
-Prepare preferred DMD-Large:
-
-```powershell
-.\Prepare-DmdClockSdCard.ps1 `
-  -DriveLetter J `
-  -Library DmdLarge
-```
-
-Prepare Original DotCLK-Orig instead:
-
-```powershell
-.\Prepare-DmdClockSdCard.ps1 `
-  -DriveLetter J `
-  -Library Original
-```
-
-The script verifies the target, downloads or reuses the selected version, checks
-the published size and SHA-256, validates every SCN, and creates:
-
-```text
-J:\dmd\scenes\
-J:\dmd\config\scene-library-manifest.json
-```
-
-It is idempotent: rerunning it reports matching files as unchanged and writes
-nothing. Switching libraries removes only files recorded as managed by the
-previous run. It never formats the card or deletes unrelated/custom SCNs. Eject
-the card safely, insert it into the unpowered ESP32, and power the board again.
-Firmware creates
-`J:\dmd\config\settings.json` after it mounts the card and mirrors every later web
-setting change to that file.
-
 ## 4. Open the web remote
 
 If home Wi-Fi is not connected:
@@ -193,13 +229,78 @@ If home Wi-Fi is not connected:
 When home Wi-Fi has a DHCP lease, open the IP shown on the ESP32 startup screen.
 The device name is also displayed, for example `DMDClock-59D9`.
 
-![DMDClock ESP32 web remote](screenshots/install/esp32-web-remote.png)
-
 To add or change the full scene library, power down the ESP32, remove the TF card,
-and use the [Windows TF-card preparation article](PREPARE-ESP32-SD-CARD.md).
+and use the [Windows TF-card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md).
 Windows and macOS keep their normal in-app **Download scenes…** workflow for
 desktop libraries. Full ESP32 library downloads are prepared on Windows to avoid
 competing for the device's display, TLS, and SDMMC memory.
+
+## Web settings guide
+
+The remote is arranged from frequently used display controls at the top to
+network, automation, and diagnostics farther down. Changes that say they apply
+immediately are saved directly; use the section's **Save** button where one is
+shown.
+
+### Quick controls and display
+
+![DMDClock ESP32 web remote showing quick controls and display settings](screenshots/install/esp32-web-remote.png)
+
+- **Quick controls** mirror the touchscreen actions: advance pinball or scene,
+  change colour family/theme, toggle information and glow, synchronize time,
+  show the clock, or start the touch test.
+- **Screen** blanks or restores the DMD without shutting down the ESP32.
+- **Content** selects the clock or an SD-card scene. The scene chooser includes
+  pinball, scene, year, and manufacturer metadata when available.
+- **Brightness** controls panel output. **Dot glow** controls the halo around
+  each DMD dot, while **Hot-core dots** adds a brighter centre and optional
+  centre colour.
+
+### Colour themes
+
+Choose Basic, Gradient, Raster, or Plasma, then select a theme within that
+family. Theme changes apply immediately. Plasma additionally exposes palette
+and motion-loop controls. These examples show the same shared DMD renderer with
+two very different settings:
+
+| C64 rainbow | Neon sunset |
+| --- | --- |
+| ![C64 rainbow DMD colour theme](screenshots/colors/c64-rainbow.png) | ![Neon sunset DMD colour theme](screenshots/colors/neon-sunset.png) |
+
+### Clock, date, font, duration, and orientation
+
+- Select 12- or 24-hour time, seconds visibility, scene-information overlay and
+  colour, and one of the five embedded DotClk-compatible clock fonts.
+- **Fixed clock duration** accepts a whole number from 1 to 600 seconds and
+  displays the value in readable minutes and seconds.
+- **Orientation** offers fixed 0° or 180° on both boards. The 3.49B V2 also
+  offers **Automatic** as the default, using its QMI8658 sensor. Automatic is
+  hidden on the Waveshare 7 because that board has no supported orientation
+  sensor.
+
+| Clock display | Date display |
+| --- | --- |
+| ![DMDClock time display](screenshots/time.png) | ![DMDClock date display](screenshots/date.png) |
+
+### Schedules and scene cycling
+
+- **Weekly screen schedule** paints the hours when the panel should be on or
+  off. A touchscreen wake is temporary and does not rewrite the schedule.
+- **Automatic weekly reboot** provides an optional maintenance restart at the
+  selected weekday and time.
+- **Windows-style scene cycle** controls automatic scene playback, the number
+  of scenes per cycle, and the fixed 1–600 second clock interval between scene
+  groups.
+
+### Time, network, Home Assistant, and diagnostics
+
+- **Time and network** selects the region/city timezone, synchronizes browser or
+  NTP time, configures home Wi-Fi, and controls LAN-only web access.
+- **Home Assistant and MQTT** is optional. It configures local MQTT discovery,
+  broker address, credentials, and connection status; normal clock operation
+  continues when MQTT is disabled or unavailable.
+- The health section reports firmware, display, SD card, scene index, network,
+  NTP, MQTT, memory, touch, and settings status for troubleshooting.
 
 ## Time and timezone
 
@@ -236,47 +337,9 @@ exists. It never flashes firmware automatically.
 Keep LAN-only access enabled unless another trusted network firewall provides the
 boundary. Never forward ESP32 port 80 from the internet.
 
-## Optional developer Wi-Fi bootstrap and local build
-
-This section requires a repository clone and the development prerequisites. It
-is not needed when using the release flasher above.
-
-From the repository root, create the one-time local bootstrap header. The password
-prompt is masked and the generated header is ignored by Git:
-
-```powershell
-.\scripts\esp32\Set-DmdClockBootstrapWifi.ps1 `
-  -WifiSsid 'Your 2.4 GHz Wi-Fi name' `
-  -Build
-```
-
-The ESP32-S3 supports 2.4 GHz Wi-Fi, not a 5 GHz-only network.
-
-Developers can flash a current local build through the pinned ESP-IDF wrapper:
-
-```powershell
-.\scripts\esp32\Doctor.ps1
-.\scripts\esp32\Invoke-Idf.ps1 `
-  -ProjectPath .\firmware\dmdclock-esp32 `
-  -p COM5 -B build-hw-esp32 flash monitor
-```
-
-Replace `COM5` with the exact connected port reported by the doctor. The flash
-script refuses to guess a port. On first boot, the device copies the bootstrap
-Wi-Fi credentials into NVS and starts a recovery network named
-`DMDClock-xxxx`.
-
-After the home-network connection works, remove the credentials from subsequent
-firmware images while preserving NVS:
-
-```powershell
-.\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build
-.\scripts\esp32\Invoke-Idf.ps1 `
-  -ProjectPath .\firmware\dmdclock-esp32 `
-  -p COM5 -B build-hw-esp32 app-flash
-```
-
-Do not erase the device during this cleanup flash.
+Repository builds, ESP-IDF flashing, QEMU, and the optional one-time Wi-Fi
+bootstrap are intentionally kept out of this end-user installation flow. See
+the [ESP32 developer track](DEVELOPMENT.md#optional-esp32-wi-fi-bootstrap-and-local-flashing).
 
 ## Enclosures
 

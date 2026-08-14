@@ -63,7 +63,6 @@ The card writer must use temporary files followed by same-filesystem rename for
 manifests, indexes, downloads, and settings exports. Cache and log failures must
 not stop the clock or display refresh.
 
-Use `scripts/esp32/Prepare-DmdClockSdCard.ps1` to validate and idempotently
-prepare an already-formatted FAT32 card. The script preserves unrelated scenes,
-repairs managed files, installs the shared metadata, and writes a SHA-256
-manifest without formatting the volume.
+Card creation and formatting are outside DMDClock. Use the authoritative
+[Windows TF-card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md)
+to validate and populate an already-FAT32 card without removing existing files.

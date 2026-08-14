@@ -286,6 +286,24 @@
         <label class="switch"><input id="showSeconds" type="checkbox"><span></span></label>
       </div>
       <div class="row">
+        <label for="clockFont">Clock font<small>Shared 128×32 DotClk font on both ESP32 displays</small></label>
+        <select id="clockFont" style="width:min(260px,48vw)">
+          <option value="builtin-5x7">Built-in 5x7</option>
+          <option value="altern8">ALTERN8</option>
+          <option value="fishy">FISHY</option>
+          <option value="trek">TREK</option>
+          <option value="twilight">TWILIGHT</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="orientation">Orientation<small id="orientationStatus">Automatic on supported hardware</small></label>
+        <select id="orientation" style="width:min(260px,48vw)">
+          <option value="auto">Automatic</option>
+          <option value="fixed0">Fixed 0°</option>
+          <option value="fixed180">Fixed 180°</option>
+        </select>
+      </div>
+      <div class="row">
         <label for="showInformation">Scene information<small>Game - scene - year - manufacturer, in one compact row</small></label>
         <label class="switch"><input id="showInformation" type="checkbox"><span></span></label>
       </div>
@@ -377,12 +395,8 @@
         </select>
       </div>
       <div class="row">
-        <label for="clockDisplaySeconds">Clock duration</label>
-        <select id="clockDisplaySeconds" style="width:min(180px,42vw)">
-          <option value="10">10 seconds</option>
-          <option value="30">30 seconds</option>
-          <option value="60">60 seconds</option>
-        </select>
+        <label for="clockDisplaySeconds">Fixed clock duration<small id="clockDisplayDurationLabel">30 seconds</small></label>
+        <input id="clockDisplaySeconds" type="number" min="1" max="600" step="1" inputmode="numeric" style="width:min(180px,42vw)">
       </div>
       <div class="row">
         <label for="animationGapSeconds">Time between scenes</label>
@@ -394,7 +408,7 @@
         </select>
       </div>
       <h3>Scene library</h3>
-      <p class="hint">Prepare Original DotCLK-Orig or DMD-Large on a Windows PC, safely eject the FAT32 TF card, and insert it while this device is powered off.</p>
+      <p class="hint">Card creation and formatting are outside DMDClock. Supply an already-FAT32 card, use the linked Windows guide to add Original DotCLK-Orig or DMD-Large, safely eject it, and insert it while this device is powered off.</p>
       <p id="sceneLibraryStatus" class="hint">Checking the installed scene library…</p>
       <p><a href="https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md" target="_blank" rel="noopener noreferrer">Open the Windows TF-card preparation guide</a></p>
     </section>
@@ -873,6 +887,19 @@
       if(!response.ok)throw new Error((await response.text())||`HTTP ${response.status}`);
       return response.headers.get("content-type")?.includes("json")?response.json():null;
     }
+    function clockDurationLabel(seconds){
+      const value=Math.max(1,Math.min(600,Math.round(Number(seconds)||1)));
+      if(value<60)return `${value} second${value===1?"":"s"}`;
+      const minutes=Math.floor(value/60);
+      const remainder=value%60;
+      return remainder
+        ?`${minutes} minute${minutes===1?"":"s"} ${remainder} second${remainder===1?"":"s"}`
+        :`${minutes} minute${minutes===1?"":"s"}`;
+    }
+    function updateClockDurationLabel(){
+      $("clockDisplayDurationLabel").textContent=
+        clockDurationLabel($("clockDisplaySeconds").value);
+    }
     function timezoneLabel(name){
       return name.split("/").slice(1).join(" / ").replaceAll("_"," ");
     }
@@ -1151,6 +1178,12 @@
         renderThemePicker();
         $("use24Hour").checked=state.use24Hour;
         $("showSeconds").checked=state.showSeconds;
+        $("clockFont").value=state.clockFont||"builtin-5x7";
+        const autoOption=$('orientation').querySelector('option[value="auto"]');
+        autoOption.disabled=!state.orientationSensorAvailable;
+        autoOption.hidden=!state.orientationSensorAvailable;
+        $("orientation").value=state.orientationMode==="auto"
+          ?"auto":`fixed${state.fixedRotation===180?180:0}`;
         $("showInformation").checked=state.showInformation;
         $("informationColorMode").value=String(state.informationColorMode);
         $("informationCustomColor").value=state.informationCustomColor;
@@ -1168,6 +1201,7 @@
         $("playbackLogEnabled").checked=state.playbackLogEnabled;
         $("animationsPerCycle").value=String(state.animationsPerCycle);
         $("clockDisplaySeconds").value=String(state.clockDisplaySeconds);
+        updateClockDurationLabel();
         $("animationGapSeconds").value=String(state.animationGapSeconds);
         initializeTimezoneSelector(state.timezone);
         $("wifiSsid").value=state.wifiSsid;
@@ -1194,6 +1228,17 @@
       if(document.activeElement!==$("showSeconds")){
         $("showSeconds").checked=state.showSeconds;
       }
+      if(document.activeElement!==$("clockFont")){
+        $("clockFont").value=state.clockFont||"builtin-5x7";
+      }
+      if(document.activeElement!==$("orientation")){
+        $("orientation").value=state.orientationMode==="auto"
+          ?"auto":`fixed${state.fixedRotation===180?180:0}`;
+      }
+      const orientationHealth=state.orientationMode==="auto"
+        ?(state.orientationSensorHealthy?"sensor active":"sensor unavailable; holding last stable angle")
+        :"fixed";
+      $("orientationStatus").textContent=`${orientationHealth} · effective ${state.effectiveRotation||0}°`;
       markCurrentScheduleCell(state);
       const home=state.wifiConnected
         ?`Home Wi-Fi connected at <code>http://${state.stationIp}/</code>.`
@@ -1295,7 +1340,7 @@
           :"Scene library";
         $("sceneLibraryStatus").textContent=status.installed
           ?`${identity} · ${status.extractedScenes}/${status.expectedScenes} scenes · Installed`
-          :"No prepared scene library record was found. Use the Windows TF-card preparation guide.";
+          :"No prepared scene library record was found. Use the linked Windows TF-card preparation guide.";
       }catch(error){
         $("sceneLibraryStatus").textContent=`Scene library status unavailable: ${error.message}`;
       }
@@ -1387,6 +1432,34 @@
     $("showSeconds").addEventListener("change",()=>{
       applyThemeSettings({showSeconds:$("showSeconds").checked});
     });
+    $("clockFont").addEventListener("change",()=>{
+      applyThemeSettings(
+        {clockFont:$("clockFont").value},
+        "Applying clock font…",
+        "Clock font applied and saved."
+      );
+    });
+    $("clockDisplaySeconds").addEventListener("input",updateClockDurationLabel);
+    $("clockDisplaySeconds").addEventListener("change",()=>{
+      const value=Math.max(1,Math.min(600,Math.round(Number($("clockDisplaySeconds").value)||1)));
+      $("clockDisplaySeconds").value=String(value);
+      updateClockDurationLabel();
+    });
+    $("orientation").addEventListener("change",async()=>{
+      const value=$("orientation").value;
+      const body=value==="auto"
+        ?{mode:"auto"}
+        :{mode:"fixed",rotation:value==="fixed180"?180:0};
+      try{
+        await request("/api/orientation",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify(body)
+        });
+        message("Orientation applied and saved.");
+        setTimeout(refresh,250);
+      }catch(error){message(error.message,true);setTimeout(refresh,250)}
+    });
     $("sceneIndex").addEventListener("change",()=>selectScene(Number($("sceneIndex").value)));
     $("syncTime").addEventListener("click",()=>syncTime(false));
     document.querySelectorAll("[data-action]").forEach(button=>{
@@ -1416,6 +1489,7 @@
         rasterCustomColors:customColorsForFamily("Raster"),
         use24Hour:$("use24Hour").checked,
         showSeconds:$("showSeconds").checked,
+        clockFont:$("clockFont").value,
         showInformation:$("showInformation").checked,
         informationColorMode:Number($("informationColorMode").value),
         informationCustomColor:$("informationCustomColor").value,

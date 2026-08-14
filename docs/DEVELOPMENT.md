@@ -158,6 +158,48 @@ then offers application-only or complete flashing. Local developer builds use
 the pinned `Invoke-Idf.ps1` workflow above. The 1024×600
 `ESP32-S3-Touch-LCD-7B` remains unsupported.
 
+### Optional ESP32 Wi-Fi bootstrap and local flashing
+
+This developer-only path requires a repository clone and the ESP32 development
+prerequisites. It is not needed when installing a published release with
+`Flash-DmdClockEsp32.ps1`.
+
+From the repository root, create a one-time local bootstrap header. The password
+prompt is masked and the generated header is ignored by Git:
+
+```powershell
+.\scripts\esp32\Set-DmdClockBootstrapWifi.ps1 `
+  -WifiSsid 'Your 2.4 GHz Wi-Fi name' `
+  -Build
+```
+
+The ESP32-S3 supports 2.4 GHz Wi-Fi, not a 5 GHz-only network. Flash the current
+local build through the pinned ESP-IDF wrapper:
+
+```powershell
+.\scripts\esp32\Doctor.ps1
+.\scripts\esp32\Invoke-Idf.ps1 `
+  -ProjectPath .\firmware\dmdclock-esp32 `
+  -p COM5 -B build-hw-esp32 flash monitor
+```
+
+Replace `COM5` with the exact connected port reported by the doctor. On first
+boot, the device copies the bootstrap Wi-Fi credentials into NVS and starts the
+recovery network `DMDClock-xxxx`.
+
+After the home-network connection is confirmed, remove credentials from later
+firmware images while preserving NVS:
+
+```powershell
+.\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build
+.\scripts\esp32\Invoke-Idf.ps1 `
+  -ProjectPath .\firmware\dmdclock-esp32 `
+  -p COM5 -B build-hw-esp32 app-flash
+```
+
+Do not erase the device during this cleanup flash. Confirm that the credentialed
+build reached **Home Wi-Fi connected** before clearing the bootstrap header.
+
 ## Publish a GitHub Release
 
 After building and validating all packages, preview release publication:
