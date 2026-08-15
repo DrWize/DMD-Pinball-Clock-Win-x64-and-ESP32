@@ -34,7 +34,7 @@ param(
     [ValidateSet('Waveshare7', 'Waveshare349B')]
     [string] $Board,
 
-    [ValidateSet('Application', 'Full')]
+    [ValidateSet('Application', 'Full', 'FullReset')]
     [string] $FlashMode,
 
     [ValidatePattern('^COM\d+$')]

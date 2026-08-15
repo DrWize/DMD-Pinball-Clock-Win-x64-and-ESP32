@@ -23,8 +23,10 @@ the Waveshare 7B, restricts production 3.49B firmware to V2/Rev1.1, verifies
 release metadata and every package hash, and obtains the official portable
 Espressif tool. It requires a connected COM port, detects ESP32-S3 and 16 MB
 flash, asks for the physical board marking, and retains an exact final `FLASH`
-confirmation. Normal application/full writes preserve NVS; factory recovery is
-separately revision-gated and replaces internal settings.
+confirmation. Normal application/full writes preserve NVS. FullReset erases only
+the known NVS region, rejects `-Force`, and requires `RESET` before writing the
+complete installation. Factory recovery is separately revision-gated and replaces
+internal settings.
 
 The remaining serial risk is lifecycle identity: package/tool verification and
 COM enumeration are interleaved, the selected PnP device is not snapshotted and

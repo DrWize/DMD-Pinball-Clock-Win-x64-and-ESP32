@@ -187,6 +187,9 @@ Rev1.1 (640×172, N16R8).
 
 ### ESP32-S3 web management
 
+- [ ] Verify the released web interface uses **microSD card** consistently under
+      **Scene library**, including "Open the Windows microSD card preparation guide";
+      remove remaining "TF card" and "TF-card" wording
 - [ ] Add cross-platform palette/framebuffer hashes for every Plasma palette,
       custom stops, 4-bit intensity, glow, clock, and representative SCN frames
 - [ ] Verify frame time, CPU load, and touch responsiveness at 100% Hot-core glow;

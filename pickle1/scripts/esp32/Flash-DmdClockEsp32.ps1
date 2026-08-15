@@ -9,7 +9,7 @@ param(
     [ValidateSet('Waveshare7', 'Waveshare349B')]
     [string] $Board,
 
-    [ValidateSet('Application', 'Full')]
+    [ValidateSet('Application', 'Full', 'FullReset')]
     [string] $FlashMode,
 
     [switch] $FactoryRecovery,
@@ -59,6 +59,8 @@ $cacheRoot = Join-Path $outputRoot 'cache\firmware'
 $toolCacheRoot = Join-Path $outputRoot 'tools\esptool'
 $esptoolRepository = 'espressif/esptool'
 $esptoolReleasesUrl = "https://github.com/$esptoolRepository/releases"
+$nvsRegionOffset = '0x9000'
+$nvsRegionSize = '0x6000'
 
 $hardwareTargets = @(
     [pscustomobject]@{
@@ -1682,7 +1684,7 @@ function Get-SelectedFlashFiles {
         [Parameter(Mandatory)] [string] $Mode
     )
 
-    $modeProperty = $Mode.ToLowerInvariant()
+    $modeProperty = if ($Mode -eq 'FullReset') { 'full' } else { $Mode.ToLowerInvariant() }
     $files = @($Package.Manifest.flash.$modeProperty.files)
     $resolved = @()
     foreach ($file in $files) {
@@ -1708,6 +1710,11 @@ function Invoke-FirmwareFlash {
         [Parameter(Mandatory)] [string] $SelectedPort
     )
 
+    $resetNvs = $Mode -eq 'FullReset'
+    if ($resetNvs -and $Force) {
+        throw 'Complete installation with settings reset requires the final RESET confirmation; -Force is not accepted.'
+    }
+
     $files = @(Get-SelectedFlashFiles -Package $Package -Mode $Mode)
     $settings = $Package.Manifest.flash.settings
     Write-Host ''
@@ -1720,14 +1727,19 @@ function Invoke-FirmwareFlash {
     Write-Host "  PnP ID:   $($selectedPortIdentity.InstanceId)"
     Write-Host "  Mode:     $Mode" -ForegroundColor Yellow
     Write-Host "  Package:  $($Package.Manifest.package.sha256) (SHA-256)"
-    Write-Host '  NVS:      preserved (no erase command is used)' -ForegroundColor Green
+    if ($resetNvs) {
+        Write-Host "  NVS:      erased at $nvsRegionOffset (size $nvsRegionSize)" -ForegroundColor Yellow
+        Write-Warning 'The microSD card is untouched; dmd\config\settings.json can restore old settings at boot.'
+    } else {
+        Write-Host '  NVS:      preserved (no erase command is used)' -ForegroundColor Green
+    }
     Write-Host '  microSD card:  untouched' -ForegroundColor Green
     foreach ($file in $files) {
         Write-Host "  $($file.Offset)  $($file.RelativePath)"
     }
     Write-DmdClockProvisioningLog -Event 'flash-plan' -Detail (
         "target=$($selectedTarget.Id) port=$SelectedPort pnp=$($selectedPortIdentity.InstanceId) " +
-        "mode=$Mode version=$($Package.Version) package_sha256=$($Package.Manifest.package.sha256) " +
+        "mode=$Mode reset_nvs=$resetNvs version=$($Package.Version) package_sha256=$($Package.Manifest.package.sha256) " +
         "files=$(($files | ForEach-Object { $_.Offset + ':' + $_.RelativePath }) -join ',')")
 
     Assert-SerialPortUnchanged -SelectedPort $SelectedPort
@@ -1740,17 +1752,42 @@ function Invoke-FirmwareFlash {
     }
 
     if (-not $Force) {
+        $confirmationToken = if ($resetNvs) { 'RESET' } else { 'FLASH' }
+        $confirmationAction = if ($resetNvs) {
+            'erase device settings and write the complete installation'
+        } else {
+            'write this firmware'
+        }
         $confirmation = Read-HighlightedConfirmation `
             -Prefix 'Type ' `
-            -Token 'FLASH' `
-            -Suffix ' (uppercase or lowercase) to write this firmware' `
+            -Token $confirmationToken `
+            -Suffix " (uppercase or lowercase) to $confirmationAction" `
             -Color Yellow
-        if ($confirmation -ine 'FLASH') {
+        if ($confirmation -ine $confirmationToken) {
             Write-Host 'Flash cancelled. The verified download remains cached.' `
                 -ForegroundColor Yellow
             Write-DmdClockProvisioningLog -Event 'flash-cancelled' -Detail "port=$SelectedPort mode=$Mode"
             return $false
         }
+    }
+
+    if ($resetNvs) {
+        Write-Host ''
+        Write-Host "Erasing NVS settings region $nvsRegionOffset (size $nvsRegionSize)..." -ForegroundColor Yellow
+        Write-DmdClockProvisioningLog -Event 'nvs-erase-started' `
+            -Detail "port=$SelectedPort region=$nvsRegionOffset size=$nvsRegionSize"
+        $null = Invoke-EsptoolChecked -Arguments @(
+            '--chip', 'esp32s3',
+            '--port', $SelectedPort,
+            '--baud', '460800',
+            '--before', 'default-reset',
+            '--after', 'no-reset',
+            'erase_region',
+            $nvsRegionOffset,
+            $nvsRegionSize
+        )
+        Write-DmdClockProvisioningLog -Event 'nvs-erase-complete' `
+            -Detail "port=$SelectedPort region=$nvsRegionOffset size=$nvsRegionSize"
     }
 
     $arguments = @(
@@ -1771,6 +1808,12 @@ function Invoke-FirmwareFlash {
     Write-Host ''
     Write-Host '[DONE] Firmware written and verified by esptool; the board was reset.' `
         -ForegroundColor Green
+    if ($resetNvs) {
+        Write-Host 'NVS settings were reset. Remove dmd\config\settings.json from the microSD card' `
+            -ForegroundColor Cyan
+        Write-Host 'before reinserting it if the saved card settings must also be discarded.' `
+            -ForegroundColor Cyan
+    }
     Write-DmdClockProvisioningLog -Event 'flash-complete' `
         -Detail "target=$($selectedTarget.Id) port=$SelectedPort mode=$Mode version=$($Package.Version)"
     return $true
@@ -1863,10 +1906,18 @@ function Show-FirmwareDryRun {
     Write-Host ''
     Write-Host 'Files to flash:' -ForegroundColor Cyan
     Write-Host ('  {0,-9} {1,-28} {2,10}  {3}' -f 'Offset', 'File', 'Size (bytes)', 'SHA-256')
-    foreach ($file in @($Package.Manifest.flash.$($Mode.ToLowerInvariant()).files)) {
+    $packageMode = if ($Mode -eq 'FullReset') { 'full' } else { $Mode.ToLowerInvariant() }
+    foreach ($file in @($Package.Manifest.flash.$packageMode.files)) {
         Write-Host ('  {0,-9} {1,-28} {2,10}  {3}' -f
             [string]$file.offset, [string]$file.path,
             [string]$file.size, [string]$file.sha256)
+    }
+    if ($Mode -eq 'FullReset') {
+        Write-Host ''
+        Write-Host "NVS plan: erase settings region $nvsRegionOffset (size $nvsRegionSize)." `
+            -ForegroundColor Yellow
+        Write-Host 'The microSD card remains untouched; remove dmd\config\settings.json separately.' `
+            -ForegroundColor Yellow
     }
     Write-Host ''
     if ($Port) {
@@ -2190,18 +2241,25 @@ if ($WhatIf -and -not $FlashMode) {
         -ForegroundColor Green
     Write-Host '  [2] Complete installation (bootloader, partition table and application; preserves NVS)' `
         -ForegroundColor Yellow
-    Write-Host '  [3] Keep download only and exit' -ForegroundColor DarkGray
-    switch (Read-MenuChoice -Prompt 'Select flash mode' -Minimum 1 -Maximum 3 -Default 1) {
+    Write-Host '  [3] Complete installation + reset device settings (erases NVS; microSD untouched)' `
+        -ForegroundColor Red
+    Write-Host '  [4] Keep download only and exit' -ForegroundColor DarkGray
+    switch (Read-MenuChoice -Prompt 'Select flash mode' -Minimum 1 -Maximum 4 -Default 1) {
         1 { $FlashMode = 'Application' }
         2 { $FlashMode = 'Full' }
-        3 {
+        3 { $FlashMode = 'FullReset' }
+        4 {
             Write-Host 'Nothing was flashed. The verified download remains cached.'
             return
         }
     }
     if ($null -ne $wizardState) {
         Add-DmdClockWizardSelection -Wizard $wizardState -Label 'Flash mode' `
-            -Value $(if ($FlashMode -eq 'Application') { 'Application update' } else { 'Complete installation' })
+            -Value $(switch ($FlashMode) {
+                'Application' { 'Application update' }
+                'Full' { 'Complete installation' }
+                'FullReset' { 'Complete installation + reset device settings' }
+            })
     }
 }
 

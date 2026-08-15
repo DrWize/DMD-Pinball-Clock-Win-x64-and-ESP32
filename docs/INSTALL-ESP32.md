@@ -134,6 +134,19 @@ checking the card and adding either scene library is the
 All formatting-tool guidance, including the official Rufus download location,
 is maintained there.
 
+### How to format the card
+
+If Windows does not offer FAT32 for a card larger than 32 GB, **Rufus** (from its
+official site, [https://rufus.ie/](https://rufus.ie/)) can format it. Double-check
+that the exact card is selected, choose **FAT32** as the file system, and keep the
+default or a 16 KB cluster size:
+
+![Rufus settings for formatting the TF card](screenshots/rufus%20settings.png)
+
+Formatting erases the device, so back up anything you want to keep before
+continuing. A 16 KB cluster size is fine for the DMDClock scene library; the card
+needs only about 166 MB, and DMDClock never partitions or formats a card itself.
+
 Safely eject the prepared card and keep it aside. After flashing, power off the
 ESP32, insert the card, and power it on. Firmware creates
 `/dmd/config/settings.json` after mounting the card and mirrors later web-setting
@@ -217,6 +230,32 @@ Preview every check without writing:
 Remove only `-WhatIf` to perform the recovery. The script still requires a final
 case-insensitive `FLASH` confirmation and does not accept `-Force` in factory
 recovery mode.
+
+### Reset all settings
+
+If the board misbehaves after a settings change or a reflash leaves it in a bad
+state, reset the ESP32 settings as a first troubleshooting step before anything
+more destructive. A normal application reflash preserves settings, so a stuck
+board needs an explicit reset:
+
+```powershell
+.\Reset-DmdClockSettings.ps1 -Port COM5
+```
+
+Preview every check without touching the device:
+
+```powershell
+.\Reset-DmdClockSettings.ps1 -CheckRequirements
+.\Reset-DmdClockSettings.ps1 -Port COM5 -DryRun
+```
+
+The script erases only the NVS settings region (`0x9000`, size `0x6000`). It does
+not write firmware, issue a full-flash erase, or delete files from the TF card.
+It verifies the connected chip is an ESP32-S3 with 16 MB flash, requires a typed
+`RESET` confirmation, and rejects `-Force`. Settings saved on the TF card
+(`/dmd/config/settings.json`) win at boot, so if that file exists, power off,
+remove the card, and delete it before reinserting; the firmware recreates it with
+defaults.
 
 ## 4. Open the web remote
 

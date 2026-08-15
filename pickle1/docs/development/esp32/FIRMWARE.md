@@ -222,9 +222,12 @@ After flashing, start the matching serial monitor when needed:
 
 Application mode writes only the application image and preserves the existing
 bootloader, partition table, NVS, and microSD card. Full mode writes the bootloader,
-partition table, and application without erasing NVS. The installer requires an
+partition table, and application without erasing NVS. FullReset erases only the NVS
+region before writing the same complete-installation files; it requires `RESET`,
+rejects `-Force`, and leaves the microSD card untouched. The installer requires an
 explicit COM-port selection, verifies an ESP32-S3 with 16 MB flash, requires the
-physical `7`-not-`7B` confirmation, and asks for `FLASH` before writing.
+physical `7`-not-`7B` confirmation, and asks for `FLASH` before a normal write or
+`RESET` before FullReset.
 The critical prompts are colour-coded, and `FLASH` is accepted in any mixture of
 uppercase and lowercase letters.
 

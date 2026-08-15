@@ -120,7 +120,7 @@ The scene library and settings live on a FAT32 microSD card. Use the included sc
    .\scripts\esp32\Flash-DmdClockEsp32.ps1 -Board Waveshare7 -FlashMode Application -Port COM5 -ConfirmHardware 7
    ```
 
-   The script verifies the firmware hash, detects the 16 MB flash, and preserves NVS settings and the microSD card. Leave off `-ConfirmHardware` to review the final prompt interactively. `-FlashMode Application` updates an existing install; `Full` performs a complete install (bootloader, partition table, app). `-BoardRevision` only applies to the 3.49B (V2 vs Rev1.1).
+   The script verifies the firmware hash and detects the 16 MB flash. Leave off `-ConfirmHardware` to review the final prompt interactively. `-FlashMode Application` updates an existing install; `Full` performs a complete install (bootloader, partition table, app) while preserving NVS; `FullReset` performs the complete install and erases NVS after a required `RESET` confirmation. Every mode leaves the microSD card untouched. `-BoardRevision` only applies to the 3.49B (V2 vs Rev1.1).
 
 ### 3. Configure on the web page
 

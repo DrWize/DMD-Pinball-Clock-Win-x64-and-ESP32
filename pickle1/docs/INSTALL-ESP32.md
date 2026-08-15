@@ -263,8 +263,9 @@ The prepared scene library uses the full display area on both supported boards:
 
    1. Select the exact ESP32 display board.
    2. Select a stable or preview release containing an image for that board.
-   3. Choose **Complete installation** for a new board, or **Application update**
-      when updating an existing DMDClock installation.
+   3. Choose **Complete installation** for a new board, **Application update**
+      when updating an existing DMDClock installation, or **Complete installation
+      + reset device settings** only when the saved NVS settings must be erased.
    4. Select the COM port identified in Device Manager.
    5. Read the physical label on the board and enter the requested model
       confirmation.
@@ -296,7 +297,18 @@ the board to identify the correct COM port.
 Application updates preserve the bootloader, partition table, NVS/Wi-Fi settings,
 and microSD card. Complete installation writes the bootloader, partition table, and
 application without issuing an erase command, so NVS and the microSD card remain
-untouched.
+untouched. `-FlashMode FullReset` erases only the NVS settings region and then
+performs the complete installation. It rejects `-Force` and requires a final typed
+`RESET` confirmation:
+
+```powershell
+.\Flash-DmdClockEsp32.ps1 -Board Waveshare349B -FlashMode FullReset `
+  -BoardRevision V2 -Port COM5 -ConfirmHardware 3.49B
+```
+
+FullReset never performs a full-chip erase and never changes the microSD card.
+Delete `dmd\config\settings.json` from the card separately if those saved settings
+must also be discarded; otherwise the card can restore them at the next boot.
 
 Download without flashing:
 

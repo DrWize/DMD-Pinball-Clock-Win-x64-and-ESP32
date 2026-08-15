@@ -88,8 +88,10 @@ require Python, ESP-IDF, .NET, Git, CMake, Ninja, or the Xtensa compiler.
 selects the exact hardware first and then shows only compatible published
 releases. It verifies target metadata and hashes, downloads and verifies a
 portable official Espressif flashing tool, offers application-only or complete
-flashing, requires an explicit COM port, checks for an ESP32-S3 with 16 MB
-flash, and never erases NVS.
+flashing, and offers a separately guarded FullReset mode that erases only NVS
+before a complete installation. It requires an explicit COM port and checks for
+an ESP32-S3 with 16 MB flash. Application and complete modes never erase NVS;
+FullReset requires `RESET`, rejects `-Force`, and leaves the microSD card untouched.
 
 Published DMDClock images support the original Waveshare
 `ESP32-S3-Touch-LCD-7`, 800×480, and the

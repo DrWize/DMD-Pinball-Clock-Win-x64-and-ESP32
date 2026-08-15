@@ -149,13 +149,13 @@ $entry = '{0}|src={1}|board={2}|mode={3}|port={4}|dest={5}|wi={6}|check={7}|rev=
 '@ -Encoding utf8NoBOM
     $callsB = Invoke-Scenario 'B' {
         & (Join-Path $scratch 'RUNME-Install-DmdClockEsp32.ps1') -Destination $destB `
-            -Board Waveshare7 -FlashMode Application -Port COM5 -DiskNumber 3
+            -Board Waveshare7 -FlashMode FullReset -Port COM5 -DiskNumber 3
     } 'staged, prepare + flash'
     Assert-True ($callsB.Count -eq 2) "Scenario B expected 2 calls; got: $($callsB -join ' | ')"
     Assert-True ($callsB[0] -match '^sd-prepare') "Scenario B first call must be sd-prepare; got: $($callsB[0])"
     Assert-True ($callsB[1] -match '^fw-flash') "Scenario B second call must be fw-flash; got: $($callsB[1])"
     Assert-True ($callsB[1] -match 'board=Waveshare7') 'Scenario B must forward -Board.'
-    Assert-True ($callsB[1] -match 'mode=Application') 'Scenario B must forward -FlashMode.'
+    Assert-True ($callsB[1] -match 'mode=FullReset') 'Scenario B must forward -FlashMode FullReset.'
     Assert-True ($callsB[1] -match 'port=COM5') 'Scenario B must forward -Port.'
 
     # --- A fully staged destination covering both boards, the library, and the tool. ---
