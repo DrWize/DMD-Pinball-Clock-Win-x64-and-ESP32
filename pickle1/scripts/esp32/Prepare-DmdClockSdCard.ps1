@@ -60,6 +60,22 @@ if (-not (Test-Path -LiteralPath $provisioningModule -PathType Leaf)) {
 }
 Import-Module $provisioningModule -Force
 
+function Test-DmdClockShouldProcess {
+    param(
+        [Parameter(Mandatory)][string]$Target,
+        [Parameter(Mandatory)][string]$Action
+    )
+
+    if ($WhatIfPreference) {
+        Write-Host "What if: Performing the operation `"$Action`" on target `"$Target`"."
+        return $false
+    }
+    if ([Console]::IsInputRedirected) {
+        return $true
+    }
+    return $PSCmdlet.ShouldProcess($Target, $Action)
+}
+
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $localCardTemplateRoot = Join-Path $projectRoot 'firmware\dmdclock-esp32\sdcard\dmd'
 $localMetadataPath = Join-Path $projectRoot 'scenes\scene-metadata.json'
@@ -508,8 +524,7 @@ function Get-SceneSource {
         }
 
         $archivePath = $downloadPath
-        if (-not $WhatIfPreference -and
-            $PSCmdlet.ShouldProcess($cacheArchive, 'Cache the verified scene-library archive')) {
+        if (Test-DmdClockShouldProcess -Target $cacheArchive -Action 'Cache the verified scene-library archive') {
             [IO.Directory]::CreateDirectory($cacheRoot) | Out-Null
             $cacheTemporary = Join-Path $cacheRoot (
                 '.' + $Definition.PackId + '-' + [Guid]::NewGuid().ToString('N') + '.tmp')
@@ -1230,9 +1245,9 @@ try {
         Assert-DmdClockDiskUnchanged -Original $target.DiskSnapshot
     }
 
-    if (-not $PSCmdlet.ShouldProcess(
-        $target.Root,
-        "Synchronize $($sceneFiles.Count) scenes for $($definition.DisplayName) and the DMDClock card layout")) {
+    if (-not (Test-DmdClockShouldProcess `
+        -Target $target.Root `
+        -Action "Synchronize $($sceneFiles.Count) scenes for $($definition.DisplayName) and the DMDClock card layout")) {
         Write-DmdClockProvisioningLog -Event 'sd-cancelled' -Detail "target=$($target.Root)"
         return
     }

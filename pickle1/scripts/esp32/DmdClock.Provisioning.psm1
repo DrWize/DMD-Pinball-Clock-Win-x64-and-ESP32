@@ -389,7 +389,7 @@ function Test-DmdClockAdministrator {
 function Invoke-DmdClockRequirementsCheck {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][ValidateSet('Check', 'Download', 'Offline', 'SdCard', 'Flash')]
+        [Parameter(Mandatory)][ValidateSet('Check', 'Download', 'Offline', 'SdCard', 'Flash', 'Reset')]
         [string] $Operation,
         [Parameter(Mandatory)][string] $DataPath,
         [long] $MinimumFreeBytes = 512MB,
