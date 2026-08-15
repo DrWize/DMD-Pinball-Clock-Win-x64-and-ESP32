@@ -29,6 +29,6 @@ original scene) is hosted as the versioned GitHub Release
 catalog. Scene ZIPs remain release assets instead of Git history.
 
 The Avalonia downloader used by Windows and macOS installs the choices in
-separate `DotCLK-Orig` and `DMD-Large` managed directories. The Windows TF-card
+separate `DotCLK-Orig` and `DMD-Large` managed directories. The Windows microSD card
 preparation script uses the same catalog IDs, stages and verifies the selected
 archive, and keeps custom scenes when switching libraries.

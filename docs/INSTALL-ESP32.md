@@ -1,4 +1,4 @@
-# Install DMDClock on the ESP32-S3 and SD card
+# Install DMDClock on the ESP32-S3 and microSD card
 
 Published DMDClock firmware supports two explicit N16R8 targets: the original
 800×480 Waveshare `ESP32-S3-Touch-LCD-7` and the 640×172 Waveshare
@@ -10,8 +10,8 @@ requires an explicit V2 revision confirmation. Hash-verified official factory
 recovery remains available for both 3.49B revisions, but the recovery image must
 match the PCB revision and is separate from DMDClock firmware.
 
-Recommended order: download the setup files, prepare the TF card, flash the
-ESP32, insert the prepared card while powered off, then configure the web remote.
+Recommended order: download the setup files, prepare the microSD card, insert the
+prepared card into the ESP32, flash the firmware, then configure the web remote.
 The card does not need a flashed or connected ESP32 and can be finished first.
 
 ## Select the correct programming connector
@@ -32,57 +32,118 @@ The QEMU development profiles are not flash images. They emulate a classic
 ESP32 with 4 MiB PSRAM because the virtual RGB device stalls on the ESP32-S3
 machine. The supported N16R8 hardware instead has 8 MiB octal PSRAM. QEMU can
 therefore expose memory-pressure problems, but it cannot prove ESP32-S3 timing,
-RGB wiring, touch, or physical TF-card behavior.
+RGB wiring, touch, or physical microSD card behavior.
 
 ## What you need
 
 - the correct Waveshare board;
 - a data-capable USB cable connected to the model-specific programming
   connector identified above;
-- a FAT32 microSD/TF card with at least 256 MB free;
+- a FAT32 microSD card with at least 256 MB free;
 - a Windows 11 x64 PC running PowerShell 7 or newer as `pwsh`;
-- this repository or downloaded copies of the two ESP32 entry scripts and their
+- this repository or downloaded copies of the three ESP32 entry scripts and their
   shared provisioning module.
 
 The [latest release page][latest-release] is the canonical place for published
-versions. `Flash-DmdClockEsp32.ps1` asks for the exact board first, then lists
-only releases containing a compatible, hash-verified image for that selection.
+versions. `RUNME-Install-DmdClockEsp32.ps1` runs the whole installation in order: stage
+every artifact once, prepare the microSD card (or report that it is already up to
+date), then flash the board. `Flash-DmdClockEsp32.ps1` asks for the exact board
+first, then lists only releases containing a compatible, hash-verified image for
+that selection.
 
 ## 1. Download the setup scripts
 
-Create or open a clean folder in PowerShell. These commands download the latest
-versions of both scripts directly from the `master` branch:
+Create or open a clean folder in PowerShell. Download the start script directly
+from the latest release:
 
 ```powershell
-Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/Flash-DmdClockEsp32.ps1' -OutFile 'Flash-DmdClockEsp32.ps1'
-Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/Prepare-DmdClockSdCard.ps1' -OutFile 'Prepare-DmdClockSdCard.ps1'
-Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/DmdClock.Provisioning.psm1' -OutFile 'DmdClock.Provisioning.psm1'
+Invoke-WebRequest 'https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest/download/RUNME-Install-DmdClockEsp32.ps1' -OutFile 'RUNME-Install-DmdClockEsp32.ps1'
+Unblock-File .\RUNME-Install-DmdClockEsp32.ps1
+.\RUNME-Install-DmdClockEsp32.ps1 -CheckRequirements
 ```
 
-`Flash-DmdClockEsp32.ps1` discovers compatible firmware releases, downloads and
-verifies the selected image and flashing tool, checks the connected hardware,
-and performs the flash. `Prepare-DmdClockSdCard.ps1` downloads and validates the
-selected scene library and copies it to a FAT32 TF card. Neither script requires
-a repository clone, Git, Python, .NET, or ESP-IDF.
+`RUNME-Install-DmdClockEsp32.ps1` is the recommended single entry point: it stages the
+selected scene library plus the firmware and flashing tool into one verified
+`DmdClockFiles` folder, prepares the microSD card (skipping when it is already up
+to date), then flashes the board from the staged payload. It downloads the three
+required companion scripts from the canonical `master` branch on first use. The direct
+`Flash-DmdClockEsp32.ps1` and `Prepare-DmdClockSdCard.ps1` entry points remain for
+fine control and automation. None of the scripts require a repository clone, Git,
+Python, .NET, or ESP-IDF.
+
+If you cloned the repository instead, note that end-user entry scripts live in
+`scripts\esp32\`, developer tooling in `scripts\esp32\dev\`, and automated tests
+in `scripts\esp32\tests\`.
 
 If Windows marks the downloaded scripts as blocked, remove only their downloaded
 file markers:
 
 ```powershell
-Unblock-File -Path .\Flash-DmdClockEsp32.ps1, .\Prepare-DmdClockSdCard.ps1, .\DmdClock.Provisioning.psm1
+Unblock-File -Path .\RUNME-Install-DmdClockEsp32.ps1, .\Flash-DmdClockEsp32.ps1, .\Prepare-DmdClockSdCard.ps1, .\DmdClock.Provisioning.psm1
 ```
 
 Check the host without creating folders, downloading payloads, or enumerating
 hardware:
 
 ```powershell
-.\Flash-DmdClockEsp32.ps1 -CheckRequirements
-.\Prepare-DmdClockSdCard.ps1 -CheckRequirements
+.\RUNME-Install-DmdClockEsp32.ps1 -CheckRequirements
 ```
+
+### One-command install (recommended)
+
+Connect the FAT32 microSD card and the board, then run:
+
+```powershell
+.\RUNME-Install-DmdClockEsp32.ps1 -WhatIf
+```
+
+`-WhatIf` plans every phase without downloading or writing anything; it requires
+an existing `DmdClockFiles` staging folder (or the repository catalog) so the plan
+is real, and phases whose payload is not staged yet are skipped with a `[WHATIF]`
+note. Remove `-WhatIf` to run the real installation:
+
+```powershell
+.\RUNME-Install-DmdClockEsp32.ps1 -Wizard
+```
+
+The installer stages payloads only when they are missing, prepares the microSD
+card (reporting "already up to date" when no files are needed), and then flashes
+the board. Pass `-Board`, `-FlashMode`, `-Port`, `-DiskNumber`, `-Library`,
+`-ReleaseTag`, `-BoardRevision`, `-FactoryRecovery`, or `-ConfirmHardware` to
+skip their prompts and drive the installation non-interactively.
+
+### How the installer decides what to run
+
+A full run performs at most four operations, in order:
+
+1. **Stage the scene library** (`Prepare-DmdClockSdCard.ps1 -DownloadOnly`).
+2. **Stage firmware and flash tool** (`Flash-DmdClockEsp32.ps1 -DownloadOnly`).
+3. **Prepare the microSD card** from the staged payload.
+4. **Flash the board** from the staged payload.
+
+Phases 1 and 2 run only when the corresponding payload is missing from the
+`DmdClockFiles` staging folder — every file's size and SHA-256 are re-verified
+against `staging-manifest.json` — so a second run that finds everything staged
+performs only the card and flash phases. The switches steer this flow:
+
+- `-Update` forces phases 1 and 2 to re-check GitHub and re-stage the latest
+  library and firmware even when a staged payload exists.
+- `-DownloadOnly` stops after the staging phases and is the offline download step
+  of the flow; it never touches a card, disk, or COM port.
+- `-SkipCard` removes phase 3 for flash-only runs.
+- `-Force` accepts the phase 4 `FLASH` confirmation non-interactively (not
+  available for factory recovery).
+- `-WhatIf` plans only the phases that have a staged payload and skips the rest
+  with a `[WHATIF]` note; nothing is downloaded or written.
+
+The installer never inserts the microSD card for you. In the normal order the
+card is prepared first (phase 3, card in a PC card reader), inserted into the
+ESP32, then flashed (phase 4). When the flash finishes the board resets and
+mounts the already-present card.
 
 ### Stage once without attached hardware
 
-These commands build one verified `DmdClockFiles` folder. No TF card or ESP32 is
+These commands build one verified `DmdClockFiles` folder. No microSD card or ESP32 is
 required or enumerated. The first command stages the selected scene library; the
 second adds firmware for both supported boards and official portable esptool.
 
@@ -103,7 +164,7 @@ flash, and it never opens a COM port. It may read GitHub release metadata and
 enumerate disks or COM devices to display the exact plan.
 
 Mutating staging runs write one non-secret evidence log below
-`DmdClockFiles\Logs`. SD synchronization and flashing write theirs below
+`DmdClockFiles\Logs`. microSD synchronization and flashing write theirs below
 `%LOCALAPPDATA%\DmdClock\Logs\Provisioning`. Logs finish with an explicit
 completed, cancelled, or failed outcome and redact credentials and URL queries.
 
@@ -119,38 +180,65 @@ Consume the verified bundle offline:
 Remove `-DownloadOnly` from the last command only when the correct board is
 connected and you intend to proceed to guarded COM selection and flashing.
 
-## 2. Prepare the SD card before flashing
+### Download once, flash each board offline
 
-The TF card is independent of the firmware installation. You can prepare it
-completely **before connecting or flashing the ESP32**, then insert it after the
-firmware installation is complete. This is often the easiest order because the
-scene download and full SCN validation can finish while the board remains
-disconnected.
+The installer can stage everything into one verified `DmdClockFiles` folder with
+no microSD card and no connected ESP32:
+
+```powershell
+.\RUNME-Install-DmdClockEsp32.ps1 -DownloadOnly
+```
+
+It returns after staging the selected scene library plus firmware for both
+supported boards and the official portable esptool, and reports the staging
+folder (by default `%LOCALAPPDATA%\DmdClock\DmdClockFiles`). Re-check GitHub and
+re-stage the latest build at any time:
+
+```powershell
+.\RUNME-Install-DmdClockEsp32.ps1 -DownloadOnly -Update
+```
+
+When the boards are connected, flash either one from the staged payload without
+touching the card:
+
+```powershell
+.\RUNME-Install-DmdClockEsp32.ps1 -SkipCard -Board Waveshare7 -FlashMode Full -Port COM5 -Force
+.\RUNME-Install-DmdClockEsp32.ps1 -SkipCard -Board Waveshare349B -BoardRevision V2 -ConfirmHardware 3.49B -Port COM6 -Force
+```
+
+`-SkipCard` runs only the flash phase; `-Force` accepts the final `FLASH`
+confirmation non-interactively (not available for factory recovery). Run once
+without `-SkipCard` when the microSD card is ready and the installer will also
+prepare the card in the same pass.
+
+### After flashing
+
+1. Confirm the board boots to the clock/startup screen.
+2. When the FAT32 microSD card is ready, run the installer once **without**
+   `-SkipCard` and with `-DiskNumber N`: it prepares the card from the staged
+   payload and reports the firmware as already up to date.
+3. If you flashed with `-SkipCard`, insert the prepared card into the
+   powered-off board, power it on, then configure timezone and Wi-Fi on the web
+   remote (section 4).
+
+## 2. Prepare the microSD card before flashing
+
+The microSD card is independent of the firmware installation. You can prepare it
+completely **before connecting or flashing the ESP32**, then insert it into the
+board before flashing. This is often the easiest order because the scene download
+and full SCN validation can finish while the board remains disconnected.
 
 Creating or formatting the card is outside the scope of DMDClock and its scripts.
 Supply an already working FAT32 card. The single authoritative procedure for
 checking the card and adding either scene library is the
-[Windows TF-card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md).
+[Windows microSD card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md).
 All formatting-tool guidance, including the official Rufus download location,
 is maintained there.
 
-### How to format the card
-
-If Windows does not offer FAT32 for a card larger than 32 GB, **Rufus** (from its
-official site, [https://rufus.ie/](https://rufus.ie/)) can format it. Double-check
-that the exact card is selected, choose **FAT32** as the file system, and keep the
-default or a 16 KB cluster size:
-
-![Rufus settings for formatting the TF card](screenshots/rufus%20settings.png)
-
-Formatting erases the device, so back up anything you want to keep before
-continuing. A 16 KB cluster size is fine for the DMDClock scene library; the card
-needs only about 166 MB, and DMDClock never partitions or formats a card itself.
-
-Safely eject the prepared card and keep it aside. After flashing, power off the
-ESP32, insert the card, and power it on. Firmware creates
-`/dmd/config/settings.json` after mounting the card and mirrors later web-setting
-changes to that file.
+Safely eject the prepared card and insert it into the powered-off ESP32 before
+flashing. When the flash finishes the board resets and mounts the card. Firmware
+creates `/dmd/config/settings.json` after mounting the card and mirrors later
+web-setting changes to that file.
 
 The prepared scene library uses the full display area on both supported boards:
 
@@ -175,8 +263,9 @@ The prepared scene library uses the full display area on both supported boards:
 
    1. Select the exact ESP32 display board.
    2. Select a stable or preview release containing an image for that board.
-   3. Choose **Complete installation** for a new board, or **Application update**
-      when updating an existing DMDClock installation.
+   3. Choose **Complete installation** for a new board, **Application update**
+      when updating an existing DMDClock installation, or **Complete installation
+      + reset device settings** only when the saved NVS settings must be erased.
    4. Select the COM port identified in Device Manager.
    5. Read the physical label on the board and enter the requested model
       confirmation.
@@ -206,9 +295,20 @@ the board to identify the correct COM port.
 ```
 
 Application updates preserve the bootloader, partition table, NVS/Wi-Fi settings,
-and TF card. Complete installation writes the bootloader, partition table, and
-application without issuing an erase command, so NVS and the TF card remain
-untouched.
+and microSD card. Complete installation writes the bootloader, partition table, and
+application without issuing an erase command, so NVS and the microSD card remain
+untouched. `-FlashMode FullReset` erases only the NVS settings region and then
+performs the complete installation. It rejects `-Force` and requires a final typed
+`RESET` confirmation:
+
+```powershell
+.\Flash-DmdClockEsp32.ps1 -Board Waveshare349B -FlashMode FullReset `
+  -BoardRevision V2 -Port COM5 -ConfirmHardware 3.49B
+```
+
+FullReset never performs a full-chip erase and never changes the microSD card.
+Delete `dmd\config\settings.json` from the card separately if those saved settings
+must also be discarded; otherwise the card can restore them at the next boot.
 
 Download without flashing:
 
@@ -219,7 +319,7 @@ Download without flashing:
 ### 3.49B V2 factory qualification
 
 The 3.49B path restores official Waveshare factory firmware so the physical
-LCD, touch, and SD hardware can be qualified before DMDClock support is enabled.
+LCD, touch, and microSD hardware can be qualified before DMDClock support is enabled.
 Preview every check without writing:
 
 ```powershell
@@ -231,33 +331,10 @@ Remove only `-WhatIf` to perform the recovery. The script still requires a final
 case-insensitive `FLASH` confirmation and does not accept `-Force` in factory
 recovery mode.
 
-### Reset all settings
-
-If the board misbehaves after a settings change or a reflash leaves it in a bad
-state, reset the ESP32 settings as a first troubleshooting step before anything
-more destructive. A normal application reflash preserves settings, so a stuck
-board needs an explicit reset:
-
-```powershell
-.\Reset-DmdClockSettings.ps1 -Port COM5
-```
-
-Preview every check without touching the device:
-
-```powershell
-.\Reset-DmdClockSettings.ps1 -CheckRequirements
-.\Reset-DmdClockSettings.ps1 -Port COM5 -DryRun
-```
-
-The script erases only the NVS settings region (`0x9000`, size `0x6000`). It does
-not write firmware, issue a full-flash erase, or delete files from the TF card.
-It verifies the connected chip is an ESP32-S3 with 16 MB flash, requires a typed
-`RESET` confirmation, and rejects `-Force`. Settings saved on the TF card
-(`/dmd/config/settings.json`) win at boot, so if that file exists, power off,
-remove the card, and delete it before reinserting; the firmware recreates it with
-defaults.
-
 ## 4. Open the web remote
+
+The prepared card should already be inserted (it was inserted before flashing);
+if it is not, power off the board, insert the card, and power it back on.
 
 If home Wi-Fi is not connected:
 
@@ -268,7 +345,7 @@ If home Wi-Fi is not connected:
 When home Wi-Fi has a DHCP lease, open the IP shown on the ESP32 startup screen.
 The device name is also displayed, for example `DMDClock-59D9`.
 
-To add or change the full scene library, power down the ESP32, remove the TF card,
+To add or change the full scene library, power down the ESP32, remove the microSD card,
 and use the [Windows microSD card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md).
 Windows and macOS keep their normal in-app **Download scenes…** workflow for
 desktop libraries. Full ESP32 library downloads are prepared on Windows to avoid
@@ -281,31 +358,6 @@ network, automation, and diagnostics farther down. Changes that say they apply
 immediately are saved directly; use the section's **Save** button where one is
 shown.
 
-The table below summarizes which controls apply immediately (and save
-automatically) and which wait for a **Save** button.
-
-| Control | When it applies | Saved by |
-| --- | --- | --- |
-| Quick controls (next pinball/scene/theme, information, glow, NTP sync, clock, touch test) | Immediately on click | Automatically |
-| Screen switch (`displayOn`) | Immediately on toggle | Automatically |
-| Content mode and scene selection | Immediately | Automatically |
-| Brightness and dot glow | Immediately as you slide | Automatically |
-| Hot-core dots and centre colour | Immediately | Automatically |
-| Colour theme, plasma palette, and motion loop | Immediately | Automatically |
-| Clock font, 24-hour clock, show seconds, fixed clock duration | Immediately | Automatically |
-| Scene information row and colour | Immediately | Automatically |
-| Orientation (fixed 0°/180°, automatic) | Immediately | Automatically |
-| Time zone and browser-time fallback | Immediately | Automatically |
-| Scene cycling (automatic cycle, random order, per-cycle count, clock interval, playback log) | Immediately | Automatically |
-| Weekly screen schedule | When you click **Save schedule** | **Save schedule** |
-| Automatic weekly reboot | When you click **Save reboot schedule** | **Save reboot schedule** |
-| Home Wi-Fi SSID/password and LAN-only web access | When you click **Save changes** | **Save changes** |
-| MQTT discovery, broker, and credentials | When you click **Save changes** | **Save changes** |
-
-The main **Save changes** button also re-sends a full snapshot of the display,
-clock, theme, schedule, and cycling settings, so it is a safe fallback after
-any direct control change.
-
 ### Quick controls and display
 
 ![DMDClock ESP32 web remote showing quick controls and display settings](screenshots/install/esp32-web-remote.png)
@@ -314,7 +366,7 @@ any direct control change.
   change colour family/theme, toggle information and glow, synchronize time,
   show the clock, or start the touch test.
 - **Screen** blanks or restores the DMD without shutting down the ESP32.
-- **Content** selects the clock or an SD-card scene. The scene chooser includes
+- **Content** selects the clock or a microSD card scene. The scene chooser includes
   pinball, scene, year, and manufacturer metadata when available.
 - **Brightness** controls panel output. **Dot glow** controls the halo around
   each DMD dot, while **Hot-core dots** adds a brighter centre and optional
@@ -363,7 +415,7 @@ two very different settings:
 - **Home Assistant and MQTT** is optional. It configures local MQTT discovery,
   broker address, credentials, and connection status; normal clock operation
   continues when MQTT is disabled or unavailable.
-- The health section reports firmware, display, SD card, scene index, network,
+- The health section reports firmware, display, microSD card, scene index, network,
   NTP, MQTT, memory, touch, and settings status for troubleshooting.
 
 ## Time and timezone
@@ -388,7 +440,7 @@ exists. It never flashes firmware automatically.
 - The home Wi-Fi password is saved in device NVS. NVS encryption is not currently
   enabled.
 - For backup and editability, `/dmd/config/settings.json` also contains the Wi-Fi
-  password in plain text. Protect the SD card and any copy of this file.
+  password in plain text. Protect the microSD card and any copy of this file.
 - Leaving the password box blank in the web remote preserves the saved password.
 - `dmdclock` is the WPA2 password for joining the recovery access point. It is
   not a web-page login.

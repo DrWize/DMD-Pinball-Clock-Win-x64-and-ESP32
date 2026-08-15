@@ -31,6 +31,7 @@ $esp32ReleaseDirectory = Join-Path $projectRoot 'output\current\esp32-release'
 $installerInfoPath = Join-Path $installerDirectory 'installer-build-info.json'
 $portableInfoPath = Join-Path $portableDirectory 'build-info.json'
 $standaloneInfoPath = Join-Path $standaloneDirectory 'build-info.json'
+$esp32StartScriptPath = Join-Path $projectRoot 'scripts\esp32\RUNME-Install-DmdClockEsp32.ps1'
 
 function Assert-Command([string]$Name) {
     if ($null -eq (Get-Command $Name -ErrorAction SilentlyContinue)) {
@@ -69,6 +70,7 @@ function Resolve-ManifestArtifact([object]$Manifest, [string]$Kind) {
 
 Assert-Command 'git'
 Assert-Command 'gh'
+Assert-File $esp32StartScriptPath
 
 Push-Location $projectRoot
 try {
@@ -251,7 +253,7 @@ Actual:   $actualInstallerHash
         Assert-File $NotesPath
     }
 
-    $assetPaths = $desktopAssetPaths + $esp32AssetPaths
+    $assetPaths = $desktopAssetPaths + $esp32AssetPaths + @($esp32StartScriptPath)
     $hashLines = foreach ($assetPath in $assetPaths) {
         $hash = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash
         "$hash  $(Split-Path -Leaf $assetPath)"
@@ -265,6 +267,7 @@ Actual:   $actualInstallerHash
     Write-Host "Draft:      $($Draft.IsPresent)"
     Write-Host "ESP32:      $($IncludeEsp32.IsPresent)"
     Write-Host "ESP32 only: $($Esp32Only.IsPresent)"
+    Write-Host "Start script: $(Split-Path -Leaf $esp32StartScriptPath)"
     $hashLines | ForEach-Object { Write-Host $_ }
 
     if (-not $PSCmdlet.ShouldProcess(
@@ -282,6 +285,8 @@ Actual:   $actualInstallerHash
     ) + $desktopAssetPaths + @(
         $releaseChecksums
     ) + $esp32AssetPaths + @(
+        $esp32StartScriptPath
+    ) + @(
         '--repo', $Repository,
         '--target', $Target,
         '--title', $Title

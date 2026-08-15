@@ -1,8 +1,14 @@
-[CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
+# END-USER SCRIPT - prepares a DMDClock microSD card on Windows 11 x64 / PowerShell 7,
+# or reports that the card is already up to date. Usually driven by RUNME-Install-DmdClockEsp32.ps1.
+# See docs\INSTALL-ESP32.md. Developer tooling lives in scripts\esp32\dev; tests in scripts\esp32\tests.
+[CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High', DefaultParameterSetName = 'Card')]
 param(
-    [Parameter(Mandatory, Position = 0, ParameterSetName = 'Card')]
+    [Parameter(Position = 0, ParameterSetName = 'Card')]
     [ValidateRange(0, 999)]
     [int]$DiskNumber,
+
+    [Parameter(ParameterSetName = 'Card')]
+    [switch]$Wizard,
 
     [Parameter(Mandatory, ParameterSetName = 'List')]
     [switch]$ListDisks,
@@ -53,6 +59,22 @@ if (-not (Test-Path -LiteralPath $provisioningModule -PathType Leaf)) {
     throw "Shared provisioning module not found: $provisioningModule"
 }
 Import-Module $provisioningModule -Force
+
+function Test-DmdClockShouldProcess {
+    param(
+        [Parameter(Mandatory)][string]$Target,
+        [Parameter(Mandatory)][string]$Action
+    )
+
+    if ($WhatIfPreference) {
+        Write-Host "What if: Performing the operation `"$Action`" on target `"$Target`"."
+        return $false
+    }
+    if ([Console]::IsInputRedirected) {
+        return $true
+    }
+    return $PSCmdlet.ShouldProcess($Target, $Action)
+}
 
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $localCardTemplateRoot = Join-Path $projectRoot 'firmware\dmdclock-esp32\sdcard\dmd'
@@ -152,7 +174,7 @@ function Get-CardTarget {
         throw "Volume $letter`: health status is '$($volume.HealthStatus)', not Healthy."
     }
     if ($volume.DriveType -ne 'Removable' -and -not $AllowFixedDrive) {
-        throw "Volume $letter`: is reported as '$($volume.DriveType)'. Use -AllowFixedDrive only after confirming it is the SD card."
+        throw "Volume $letter`: is reported as '$($volume.DriveType)'. Use -AllowFixedDrive only after confirming it is the microSD card."
     }
 
     $root = Get-NormalizedRoot "$letter`:\"
@@ -258,6 +280,56 @@ function Show-DmdClockDiskCandidates {
         }
     }
     Write-Host 'Rerun with -DiskNumber N only after matching the model, size, bus, partitions, and volume.'
+}
+
+function Invoke-CardWizard {
+    $state = New-DmdClockWizard -Title 'DMDClock microSD card preparation'
+
+    Show-DmdClockWizardHeader -Wizard $state
+    Write-Host 'Scene library:'
+    Write-Host '  [1] DMD-Large (Recommended)' -ForegroundColor Green
+    Write-Host '  [2] Original DotCLK-Orig'
+    $libraryChoice = Read-DmdClockMenuChoice -Prompt 'Select scene library' `
+        -Minimum 1 -Maximum 2 -Default 1
+    $library = if ($libraryChoice -eq 1) { 'DmdLarge' } else { 'Original' }
+    Add-DmdClockWizardSelection -Wizard $state -Label 'Library' -Value $library
+
+    $candidates = @(Get-DmdClockDiskCandidates | Where-Object IsCandidate)
+    if ($candidates.Count -eq 0) {
+        Show-DmdClockDiskCandidates
+        throw 'No eligible external microSD card was found. Insert a FAT32 card and rerun.'
+    }
+
+    Show-DmdClockWizardHeader -Wizard $state
+    Write-Host 'Select the microSD card (physical disk):'
+    for ($index = 0; $index -lt $candidates.Count; $index++) {
+        $candidate = $candidates[$index]
+        Write-Host ("  [{0}] Disk {1} - {2} - {3:N1} GB - {4}" -f
+            ($index + 1), $candidate.Number, $candidate.FriendlyName,
+            ($candidate.Size / 1GB), $candidate.BusType)
+        foreach ($volume in $candidate.Volumes) {
+            $letter = if ($volume.DriveLetter) { "$($volume.DriveLetter):" } else { '(not mounted)' }
+            Write-Host ("      Partition {0}: {1}, label='{2}', {3}, {4:N1} GB" -f
+                $volume.PartitionNumber, $letter, $volume.Label,
+                $volume.FileSystem, ($volume.Size / 1GB))
+        }
+    }
+    $choice = Read-DmdClockMenuChoice -Prompt 'Select the microSD card' `
+        -Minimum 1 -Maximum $candidates.Count
+    $target = $candidates[$choice - 1]
+    Add-DmdClockWizardSelection -Wizard $state -Label 'Disk' `
+        -Value "Disk $($target.Number) - $($target.FriendlyName)"
+    $mounted = @($target.Volumes | Where-Object { $_.DriveLetter })
+    if ($mounted.Count -gt 0) {
+        Add-DmdClockWizardSelection -Wizard $state -Label 'Drive' `
+            -Value "$($mounted[0].DriveLetter):"
+    }
+
+    Show-DmdClockWizardHeader -Wizard $state
+    return @{
+        DiskNumber = [int]$target.Number
+        Library = $library
+    }
 }
 
 function Assert-DmdClockDiskUnchanged {
@@ -452,8 +524,7 @@ function Get-SceneSource {
         }
 
         $archivePath = $downloadPath
-        if (-not $WhatIfPreference -and
-            $PSCmdlet.ShouldProcess($cacheArchive, 'Cache the verified scene-library archive')) {
+        if (Test-DmdClockShouldProcess -Target $cacheArchive -Action 'Cache the verified scene-library archive') {
             [IO.Directory]::CreateDirectory($cacheRoot) | Out-Null
             $cacheTemporary = Join-Path $cacheRoot (
                 '.' + $Definition.PackId + '-' + [Guid]::NewGuid().ToString('N') + '.tmp')
@@ -818,7 +889,7 @@ function Invoke-SdCardDownloadOnly {
     Write-DmdClockProvisioningLog -Event 'staging-complete' `
         -Detail "kind=sd library=$packId manifest=$manifestPath artifacts=$($artifacts.Count)"
     Write-Host ''
-    Write-Host '[DONE] Verified SD-card payload staged without enumerating removable media.' -ForegroundColor Green
+    Write-Host '[DONE] Verified microSD card payload staged without enumerating removable media.' -ForegroundColor Green
     Write-Host "Manifest: $manifestPath"
     $artifacts | Select-Object artifactId, status, size, sha256, relativePath | Format-Table -AutoSize
 }
@@ -851,6 +922,14 @@ if ($CheckRequirements) {
 if ($ListDisks) {
     Show-DmdClockDiskCandidates
     return
+}
+
+$wizardSelection = $null
+if ($PSCmdlet.ParameterSetName -eq 'Card' -and
+    ($Wizard -or -not $PSBoundParameters.ContainsKey('DiskNumber'))) {
+    $wizardSelection = Invoke-CardWizard
+    $DiskNumber = $wizardSelection.DiskNumber
+    $Library = $wizardSelection.Library
 }
 
 $runOutcome = 'cancelled'
@@ -907,14 +986,18 @@ if ($WhatIfPreference) {
     $target = Get-CardTarget
     Write-Host ''
     Write-Host '[DRY RUN] No downloads, temporary extraction, card writes, deletions, formatting, or partitioning will occur.' -ForegroundColor Yellow
-    Write-Host "Library: $($definition.DisplayName) v$($definition.Version) ($($definition.SceneCount) scenes)"
-    Write-Host "Source:  $(if ($StagingSource) { [IO.Path]::GetFullPath($StagingSource) } elseif ($SourceDirectory) { [IO.Path]::GetFullPath($SourceDirectory) } else { $definition.DownloadUrl })"
-    Write-Host "Target:  $($target.Root)"
+    Write-Host ''
+    Write-Host 'Summary:' -ForegroundColor Cyan
+    Write-Host "  Library:  $($definition.DisplayName) v$($definition.Version) ($($definition.SceneCount) scenes)"
+    Write-Host "  Source:   $(if ($StagingSource) { [IO.Path]::GetFullPath($StagingSource) } elseif ($SourceDirectory) { [IO.Path]::GetFullPath($SourceDirectory) } else { $definition.DownloadUrl })"
+    Write-Host "  Target:   $($target.Root)"
     if (-not $target.IsTest) {
-        Write-Host ("Disk:    {0} - {1} - {2:N1} GB - {3}" -f
+        Write-Host ''
+        Write-Host 'Card target:' -ForegroundColor Cyan
+        Write-Host ("  Disk:     {0} - {1} - {2:N1} GB - {3}" -f
             $target.DiskNumber, $target.DiskSnapshot.FriendlyName,
             ($target.DiskSnapshot.Size / 1GB), $target.DiskSnapshot.BusType)
-        Write-Host "Volume:  $($target.Volume.DriveLetter): FAT32; label='$($target.Volume.FileSystemLabel)'"
+        Write-Host "  Volume:   $($target.Volume.DriveLetter): FAT32; label='$($target.Volume.FileSystemLabel)'"
     }
     return
 }
@@ -1162,9 +1245,9 @@ try {
         Assert-DmdClockDiskUnchanged -Original $target.DiskSnapshot
     }
 
-    if (-not $PSCmdlet.ShouldProcess(
-        $target.Root,
-        "Synchronize $($sceneFiles.Count) scenes for $($definition.DisplayName) and the DMDClock card layout")) {
+    if (-not (Test-DmdClockShouldProcess `
+        -Target $target.Root `
+        -Action "Synchronize $($sceneFiles.Count) scenes for $($definition.DisplayName) and the DMDClock card layout")) {
         Write-DmdClockProvisioningLog -Event 'sd-cancelled' -Detail "target=$($target.Root)"
         return
     }
@@ -1203,7 +1286,7 @@ try {
     }
     Write-Host ''
     Write-Host (
-        "SD card preparation complete: added $($counts.Added), " +
+        "microSD card preparation complete: added $($counts.Added), " +
         "repaired $($counts.Repaired), updated $($counts.Updated), " +
         "unchanged $($counts.Unchanged), obsolete managed files preserved " +
         "$($counts.ObsoletePreserved), other files preserved $($counts.Preserved).")

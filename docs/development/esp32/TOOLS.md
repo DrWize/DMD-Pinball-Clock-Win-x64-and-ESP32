@@ -12,19 +12,19 @@ require Python, ESP-IDF, .NET, Git, CMake, Ninja, or the Xtensa compiler.
 
 ```powershell
 # Verify the local toolchain and list connected serial devices.
-.\scripts\esp32\Doctor.ps1
+.\scripts\esp32\dev\Doctor.ps1
 
 # Rebuild the cached official Waveshare LVGL example.
-.\scripts\esp32\Build-WaveshareExample.ps1 -Example LVGL
+.\scripts\esp32\dev\Build-WaveshareExample.ps1 -Example LVGL
 
 # Build another cached hardware test.
-.\scripts\esp32\Build-WaveshareExample.ps1 -Example SD
+.\scripts\esp32\dev\Build-WaveshareExample.ps1 -Example SD
 
 # Read-only Windows 11 x64 / pwsh 7 requirements checks.
 .\scripts\esp32\Flash-DmdClockEsp32.ps1 -CheckRequirements
 .\scripts\esp32\Prepare-DmdClockSdCard.ps1 -CheckRequirements
 
-# Stage the selected SD library, both firmware targets, and esptool with no hardware.
+# Stage the selected microSD library, both firmware targets, and esptool with no hardware.
 .\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DownloadOnly `
   -Destination .\DmdClockFiles -Library DmdLarge
 .\scripts\esp32\Flash-DmdClockEsp32.ps1 -DownloadOnly `
@@ -38,49 +38,49 @@ require Python, ESP-IDF, .NET, Git, CMake, Ninja, or the Xtensa compiler.
 # https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md
 
 # Run any idf.py operation against an explicit project.
-.\scripts\esp32\Invoke-Idf.ps1 -ProjectPath <path> build
+.\scripts\esp32\dev\Invoke-Idf.ps1 -ProjectPath <path> build
 
 # Build the production DMDClock firmware. This never flashes a device.
-.\scripts\esp32\Build-DmdClock.ps1
+.\scripts\esp32\dev\Build-DmdClock.ps1
 
 # Build the isolated 640x172 Waveshare 3.49B V2 development target.
-.\scripts\esp32\Build-DmdClock.ps1 -Board Waveshare349B
+.\scripts\esp32\dev\Build-DmdClock.ps1 -Board Waveshare349B
 
 # Select a board and published ESP32 release, verify it, and optionally flash it.
 # This is the supported end-user flashing entry point.
 .\scripts\esp32\Flash-DmdClockEsp32.ps1
 
 # Developers can flash and monitor the original Waveshare 7 local build through ESP-IDF.
-.\scripts\esp32\Invoke-Idf.ps1 -ProjectPath .\firmware\dmdclock-esp32 `
+.\scripts\esp32\dev\Invoke-Idf.ps1 -ProjectPath .\firmware\dmdclock-esp32 `
   -p COM5 -B build-hw-esp32 flash monitor
 
 # Package both credential-free targets into one release directory.
-.\scripts\esp32\Package-DmdClockEsp32.ps1 -Board Waveshare7 -CleanOutput
-.\scripts\esp32\Package-DmdClockEsp32.ps1 -Board Waveshare349B
+.\scripts\esp32\dev\Package-DmdClockEsp32.ps1 -Board Waveshare7 -CleanOutput
+.\scripts\esp32\dev\Package-DmdClockEsp32.ps1 -Board Waveshare349B
 
 # Include both verified ESP32 targets when previewing the combined release.
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.5.0 -IncludeEsp32 -WhatIf
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.0 -IncludeEsp32 -WhatIf
 
 # Generate a one-time, ignored first-flash Wi-Fi header and build with it.
 # The password is entered through a masked SecureString prompt.
-.\scripts\esp32\Set-DmdClockBootstrapWifi.ps1 -WifiSsid 'My Wi-Fi' -Build
+.\scripts\esp32\dev\Set-DmdClockBootstrapWifi.ps1 -WifiSsid 'My Wi-Fi' -Build
 
 # After the first connection, remove the header and rebuild. A normal flash
 # preserves the credentials that firmware copied into NVS.
-.\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build
+.\scripts\esp32\dev\Clear-DmdClockBootstrapWifi.ps1 -Build
 
 # Build and run the ESP32-S3 QEMU profile with its virtual RGB display.
-.\scripts\esp32\Build-DmdClockQemu.ps1
-.\scripts\esp32\Run-DmdClockQemu.ps1
+.\scripts\esp32\dev\Build-DmdClockQemu.ps1
+.\scripts\esp32\dev\Run-DmdClockQemu.ps1
 
 # Run both models concurrently from separate terminals. Each uses its own build
-# directory, SD image, web port, and QEMU monitor port.
-.\scripts\esp32\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
+# directory, microSD image, web port, and QEMU monitor port.
+.\scripts\esp32\dev\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
   -OutputPath .\firmware\dmdclock-esp32\dmdclock-qemu-sd-waveshare7.img
-.\scripts\esp32\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
+.\scripts\esp32\dev\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
   -OutputPath .\firmware\dmdclock-esp32\dmdclock-qemu-sd-landscape349.img
-.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model Waveshare7
-.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model Landscape349 -SkipBuild
+.\scripts\esp32\dev\Run-DmdClockQemuModel.ps1 -Model Waveshare7
+.\scripts\esp32\dev\Run-DmdClockQemuModel.ps1 -Model Landscape349 -SkipBuild
 
 ```
 
@@ -88,8 +88,10 @@ require Python, ESP-IDF, .NET, Git, CMake, Ninja, or the Xtensa compiler.
 selects the exact hardware first and then shows only compatible published
 releases. It verifies target metadata and hashes, downloads and verifies a
 portable official Espressif flashing tool, offers application-only or complete
-flashing, requires an explicit COM port, checks for an ESP32-S3 with 16 MB
-flash, and never erases NVS.
+flashing, and offers a separately guarded FullReset mode that erases only NVS
+before a complete installation. It requires an explicit COM port and checks for
+an ESP32-S3 with 16 MB flash. Application and complete modes never erase NVS;
+FullReset requires `RESET`, rejects `-Force`, and leaves the microSD card untouched.
 
 Published DMDClock images support the original Waveshare
 `ESP32-S3-Touch-LCD-7`, 800×480, and the
@@ -152,7 +154,7 @@ After a model is running, validate its actual framebuffer and record PPM/hash
 evidence:
 
 ```powershell
-.\scripts\esp32\Test-DmdClockQemuDisplay.ps1 `
+.\scripts\esp32\tests\Test-DmdClockQemuDisplay.ps1 `
   -Model Landscape349 `
   -QemuUrl http://127.0.0.1:8081 `
   -MonitorPort 4445
@@ -178,7 +180,7 @@ boot, native SDMMC, scene-index, panel-init, and ready-state evidence, rejects
 watchdog/crash/persistence failures, and leaves the P6 visual checklist explicit:
 
 ```powershell
-.\scripts\esp32\Test-DmdClockPhysical349BApp.ps1 -Port COM5 `
+.\scripts\esp32\tests\Test-DmdClockPhysical349BApp.ps1 -Port COM5 `
   -BoardRevision V2 -ConfirmHardware 3.49B -DurationMinutes 1
 ```
 
@@ -193,7 +195,7 @@ persistence test, restores the initial settings, and records JSON evidence. Pass
 `-VisualConfirmation ALL-FONTS-OK` only after observing all five choices:
 
 ```powershell
-.\scripts\esp32\Test-DmdClockPhysicalFonts.ps1 `
+.\scripts\esp32\tests\Test-DmdClockPhysicalFonts.ps1 `
   -DeviceUrl http://192.168.1.150 -Board Waveshare349B `
   -VisualConfirmation ALL-FONTS-OK
 ```

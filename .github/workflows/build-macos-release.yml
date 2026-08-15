@@ -6,7 +6,7 @@ on:
       release_tag:
         description: Existing GitHub release tag to receive the unsigned DMG
         required: true
-        default: v1.3.1
+        default: v1.7.0
         type: string
 
 permissions:
@@ -34,6 +34,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.release_tag }}
           fetch-depth: 0
 
       - name: Set up .NET 10

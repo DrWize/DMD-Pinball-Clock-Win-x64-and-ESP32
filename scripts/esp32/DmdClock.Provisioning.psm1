@@ -389,7 +389,7 @@ function Test-DmdClockAdministrator {
 function Invoke-DmdClockRequirementsCheck {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][ValidateSet('Check', 'Download', 'Offline', 'SdCard', 'Flash')]
+        [Parameter(Mandatory)][ValidateSet('Check', 'Download', 'Offline', 'SdCard', 'Flash', 'Reset')]
         [string] $Operation,
         [Parameter(Mandatory)][string] $DataPath,
         [long] $MinimumFreeBytes = 512MB,
@@ -488,19 +488,7 @@ function Invoke-DmdClockRequirementsCheck {
         $isAdministrator = Test-DmdClockAdministrator
         Add-Check 'Administrator' $isAdministrator $(if ($isAdministrator) { 'elevated' } else { 'not elevated' }) `
             'elevated session for disk partitioning/formatting only' `
-            'Close this session and open PowerShell 7 with Run as administrator only for the SD erase/format stage.'
-    }
-
-    Write-Host ''
-    Write-Host "DMDClock requirements: $Operation" -ForegroundColor Cyan
-    foreach ($check in $checks) {
-        $label = if ($check.Passed) { '[OK]' } else { '[FAIL]' }
-        $color = if ($check.Passed) { 'Green' } else { 'Red' }
-        Write-Host "$label $($check.Name): $($check.Detected)" -ForegroundColor $color
-        if (-not $check.Passed) {
-            Write-Host "       Required: $($check.Required)"
-            Write-Host "       Fix: $($check.Remediation)"
-        }
+            'Close this session and open PowerShell 7 with Run as administrator only for the microSD erase/format stage.'
     }
 
     $failed = @($checks | Where-Object { -not $_.Passed })
@@ -509,6 +497,21 @@ function Invoke-DmdClockRequirementsCheck {
         Passed = $failed.Count -eq 0
         Checks = @($checks)
     }
+
+    Write-Host ''
+    if ($result.Passed) {
+        Write-Host "DMDClock requirements: $Operation - all $($checks.Count) checks passed" `
+            -ForegroundColor Green
+    } else {
+        Write-Host "DMDClock requirements: $Operation - $($failed.Count) of $($checks.Count) checks failed" `
+            -ForegroundColor Red
+        foreach ($check in $failed) {
+            Write-Host "[FAIL] $($check.Name): $($check.Detected)" -ForegroundColor Red
+            Write-Host "       Required: $($check.Required)"
+            Write-Host "       Fix: $($check.Remediation)"
+        }
+    }
+
     if ($ThrowOnFailure -and -not $result.Passed) {
         throw "Requirements check failed for '$Operation' ($($failed.Count) failed check(s))."
     }
@@ -607,6 +610,102 @@ function Get-DmdClockProvisioningLogPath {
     return $script:ProvisioningLogPath
 }
 
+function New-DmdClockWizard {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $Title,
+        [object[]] $Devices = $null
+    )
+
+    return [pscustomobject]@{
+        Title = $Title
+        Selections = [Collections.Generic.List[object]]::new()
+        Devices = if ($Devices) { @($Devices) } else { $null }
+    }
+}
+
+function Add-DmdClockWizardSelection {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Wizard,
+        [Parameter(Mandatory)][string] $Label,
+        [Parameter(Mandatory)][string] $Value
+    )
+
+    $Wizard.Selections.Add([pscustomobject]@{
+        Label = $Label
+        Value = $Value
+    })
+}
+
+function Show-DmdClockWizardHeader {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Wizard)
+
+    try {
+        Clear-Host
+    }
+    catch {
+        [void]$_
+    }
+    $width = 78
+    $bar = ('=' * $width)
+    Write-Host ''
+    Write-Host ("  {0}" -f $Wizard.Title) -ForegroundColor Cyan
+    Write-Host $bar -ForegroundColor DarkGray
+    if ($Wizard.Selections.Count -eq 0) {
+        Write-Host '  (no choices made yet)' -ForegroundColor DarkGray
+    } else {
+        foreach ($selection in @($Wizard.Selections)) {
+            Write-Host ("  {0,-22} {1}" -f ($selection.Label + ':'), $selection.Value)
+        }
+    }
+    if ($Wizard.Devices) {
+        Write-Host ''
+        Write-Host '  Detected serial devices:' -ForegroundColor Cyan
+        Write-Host ('  {0,-6} {1,-18} {2,-7} {3,-30} {4}' -f 'COM', 'Model', 'App', 'Signals', 'Status')
+        foreach ($device in @($Wizard.Devices)) {
+            Write-Host ('  {0,-6} {1,-18} {2,-7} {3,-30} {4}' -f
+                $device.Port, $device.Model, $device.App, $device.Signals, $device.Status)
+        }
+        Write-Host '  Chip model and the required 16 MB flash are verified on the selected port before flashing.' -ForegroundColor DarkGray
+    }
+    Write-Host $bar -ForegroundColor DarkGray
+    Write-Host ''
+}
+
+function Read-DmdClockMenuChoice {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $Prompt,
+        [Parameter(Mandatory)][int] $Minimum,
+        [Parameter(Mandatory)][int] $Maximum,
+        [int] $Default = 0,
+        [Parameter()] $Wizard = $null
+    )
+
+    while ($true) {
+        if ($null -ne $Wizard) {
+            Show-DmdClockWizardHeader -Wizard $Wizard
+        }
+        $defaultText = if ($Default -ge $Minimum -and $Default -le $Maximum) {
+            " [$Default]"
+        } else {
+            ''
+        }
+        $answer = (Read-Host "$Prompt$defaultText").Trim()
+        if ([string]::IsNullOrWhiteSpace($answer) -and $defaultText) {
+            return $Default
+        }
+        $choice = 0
+        if ([int]::TryParse($answer, [ref]$choice) -and
+            $choice -ge $Minimum -and $choice -le $Maximum) {
+            return $choice
+        }
+        Write-Warning "Enter a number from $Minimum to $Maximum."
+    }
+}
+
 Export-ModuleMember -Function @(
     'Assert-DmdClockPathBelowRoot',
     'Complete-DmdClockProvisioningLog',
@@ -616,6 +715,10 @@ Export-ModuleMember -Function @(
     'Get-DmdClockSha256',
     'Invoke-DmdClockRequirementsCheck',
     'New-DmdClockStagingLayout',
+    'New-DmdClockWizard',
+    'Add-DmdClockWizardSelection',
+    'Show-DmdClockWizardHeader',
+    'Read-DmdClockMenuChoice',
     'Save-DmdClockStagedDownload',
     'Start-DmdClockProvisioningLog',
     'Test-DmdClockAdministrator',

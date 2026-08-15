@@ -120,18 +120,18 @@ The firmware targets the original 800x480 Waveshare ESP32-S3-Touch-LCD-7 with an
 N16R8 module. Start by checking the workstation toolchain:
 
 ```powershell
-.\scripts\esp32\Doctor.ps1
-.\scripts\esp32\Build-DmdClock.ps1
+.\scripts\esp32\dev\Doctor.ps1
+.\scripts\esp32\dev\Build-DmdClock.ps1
 ```
 
 Build and run both host QEMU validation profiles in separate terminals:
 
 ```powershell
-.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model Waveshare7
-.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model Landscape349
+.\scripts\esp32\dev\Run-DmdClockQemuModel.ps1 -Model Waveshare7
+.\scripts\esp32\dev\Run-DmdClockQemuModel.ps1 -Model Landscape349
 ```
 
-They use separate build directories, writable SD images, web ports 8080/8081,
+They use separate build directories, writable microSD images, web ports 8080/8081,
 and QEMU monitor ports 4444/4445. Generate the model images with
 `New-DmdClockQemuSdImage.ps1`; do not commit or publish images containing the
 local scene library. QEMU targets the classic ESP32 model with 4 MiB emulated
@@ -142,7 +142,7 @@ After identifying the board's exact COM port, flash it explicitly and keep the
 serial monitor open:
 
 ```powershell
-.\scripts\esp32\Invoke-Idf.ps1 `
+.\scripts\esp32\dev\Invoke-Idf.ps1 `
   -ProjectPath .\firmware\dmdclock-esp32 `
   -p COM5 -B build-hw-esp32 flash monitor
 ```
@@ -168,7 +168,7 @@ From the repository root, create a one-time local bootstrap header. The password
 prompt is masked and the generated header is ignored by Git:
 
 ```powershell
-.\scripts\esp32\Set-DmdClockBootstrapWifi.ps1 `
+.\scripts\esp32\dev\Set-DmdClockBootstrapWifi.ps1 `
   -WifiSsid 'Your 2.4 GHz Wi-Fi name' `
   -Build
 ```
@@ -177,8 +177,8 @@ The ESP32-S3 supports 2.4 GHz Wi-Fi, not a 5 GHz-only network. Flash the current
 local build through the pinned ESP-IDF wrapper:
 
 ```powershell
-.\scripts\esp32\Doctor.ps1
-.\scripts\esp32\Invoke-Idf.ps1 `
+.\scripts\esp32\dev\Doctor.ps1
+.\scripts\esp32\dev\Invoke-Idf.ps1 `
   -ProjectPath .\firmware\dmdclock-esp32 `
   -p COM5 -B build-hw-esp32 flash monitor
 ```
@@ -191,8 +191,8 @@ After the home-network connection is confirmed, remove credentials from later
 firmware images while preserving NVS:
 
 ```powershell
-.\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build
-.\scripts\esp32\Invoke-Idf.ps1 `
+.\scripts\esp32\dev\Clear-DmdClockBootstrapWifi.ps1 -Build
+.\scripts\esp32\dev\Invoke-Idf.ps1 `
   -ProjectPath .\firmware\dmdclock-esp32 `
   -p COM5 -B build-hw-esp32 app-flash
 ```
@@ -205,22 +205,22 @@ build reached **Home Wi-Fi connected** before clearing the bootstrap header.
 After building and validating all packages, preview release publication:
 
 ```powershell
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.5.0 -WhatIf
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.0 -WhatIf
 ```
 
 When the release should appear in the ESP32 installer's download menu, build
 both credential-free targets into the same release directory:
 
 ```powershell
-.\scripts\esp32\Package-DmdClockEsp32.ps1 -Board Waveshare7 -CleanOutput
-.\scripts\esp32\Package-DmdClockEsp32.ps1 -Board Waveshare349B
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.5.0 -IncludeEsp32 -WhatIf
+.\scripts\esp32\dev\Package-DmdClockEsp32.ps1 -Board Waveshare7 -CleanOutput
+.\scripts\esp32\dev\Package-DmdClockEsp32.ps1 -Board Waveshare349B
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.0 -IncludeEsp32 -WhatIf
 ```
 
 Publish after reviewing the preflight output:
 
 ```powershell
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.5.0 -IncludeEsp32
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.0 -IncludeEsp32
 ```
 
 The script requires an authenticated GitHub CLI, a clean working tree whose `HEAD`

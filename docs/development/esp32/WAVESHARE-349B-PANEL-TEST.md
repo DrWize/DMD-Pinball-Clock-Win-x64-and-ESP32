@@ -19,7 +19,7 @@ plus the complete serial log under `output/esp32/reports/physical-349b`.
 Preview the complete build and hardware checks without writing:
 
 ```powershell
-.\scripts\esp32\Test-DmdClockPhysical349B.ps1 `
+.\scripts\esp32\tests\Test-DmdClockPhysical349B.ps1 `
   -Port COM5 -BoardRevision V2 -ConfirmHardware 3.49B `
   -DurationMinutes 1 -WhatIf
 ```
@@ -27,7 +27,7 @@ Preview the complete build and hardware checks without writing:
 Remove `-WhatIf` for a one-minute smoke test. For the P5 soak gate, use
 `-DurationMinutes 20`. The runner requires a final case-insensitive `FLASH`
 confirmation because the diagnostic replaces internal flash and settings. It
-does not touch the TF card.
+does not touch the microSD card.
 
 Serial automation cannot prove what the LCD physically shows. Observe the
 solid colors and grid throughout the run, checking orientation, RGB order,

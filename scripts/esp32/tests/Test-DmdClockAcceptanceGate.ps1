@@ -164,7 +164,7 @@ try {
         'WhatIf staging wrote a manifest.'
 
     # --- Firmware web UI: mobile/widescreen responsiveness and the guide name. ---
-    $webDir = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..\firmware\dmdclock-esp32\main\web'))
+    $webDir = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\firmware\dmdclock-esp32\main\web'))
     $indexHtml = Get-Content -LiteralPath (Join-Path $webDir 'index.html') -Raw
     $apiHtml = Get-Content -LiteralPath (Join-Path $webDir 'api.html') -Raw
     Assert-True ($indexHtml -match '<meta name="viewport"') `

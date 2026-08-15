@@ -33,7 +33,7 @@ this firmware for V1 hardware.
 | Pixel format | RGB565, RGB element order, 16 bits per pixel |
 | Touch | AXS15231B I2C at address `0x3b`, 300 kHz |
 | Touch bus | SDA GPIO 17, SCL GPIO 18 |
-| SD card | Native one-bit SDMMC: CMD 39, D0 40, CLK 41; D3/CD 38 is unused in one-bit mode |
+| microSD card | Native one-bit SDMMC: CMD 39, D0 40, CLK 41; D3/CD 38 is unused in one-bit mode |
 | Flash/log interface | ESP32-S3 native USB through the Type-C connector |
 
 The official example renders in portrait native coordinates (`172x640`). Its
@@ -79,7 +79,7 @@ Use only the factory image matching the confirmed PCB revision. The official
 image is flashed at address `0x0`. Enter download mode by holding BOOT and
 pressing RESET (or power-cycling while BOOT is held if synchronization fails),
 then flash through the Type-C USB port. After reset, exercise the factory test
-for the LCD, touch, SD card, and other onboard devices.
+for the LCD, touch, microSD card, and other onboard devices.
 
 P4 is complete only after the matching image hash has been rechecked and this
 recovery has succeeded on the actual 3.49B board. Research and a compilable

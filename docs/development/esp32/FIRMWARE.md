@@ -19,7 +19,7 @@ Waveshare `ESP32-S3-Touch-LCD-3.49B` V2 / Rev1.1:
 - optimized per-dot glow with persistent 0–100% halo strength;
 - optional stepped Hot-core dots with Classic warm, theme-derived, and custom
   dual-colour centres; the selected theme still controls each dot body and halo;
-- complete SD-card scene discovery from `/dmd/scenes` with original SCN timing;
+- complete microSD card scene discovery from `/dmd/scenes` with original SCN timing;
 - Windows-style one-shot scenes, clock layers, automatic cycling, random order,
   configurable scene count, and gaps;
 - large 5×7 clock digits, optional seconds, and 12/24-hour display;
@@ -37,7 +37,7 @@ Waveshare `ESP32-S3-Touch-LCD-3.49B` V2 / Rev1.1:
 - optional bounded `/dmd/logs/playback.log` recording of timestamped scene and
   theme events;
 - web/API diagnostics for approximate chip temperature, Wi-Fi RSSI, heap/PSRAM,
-  SD capacity, settings backup, flash/CPU, reset/boot, rendering, NTP, and touch;
+  microSD capacity, settings backup, flash/CPU, reset/boot, rendering, NTP, and touch;
 - optional local MQTT discovery for Home Assistant with display/brightness
   controls, scene/time buttons, diagnostics, birth/LWT availability, and
   independent broker reconnect;
@@ -72,7 +72,7 @@ Keep the archived factory image available so the board can be restored at addres
 The project uses the pinned workspace-local ESP-IDF 5.5.2 toolchain:
 
 ```powershell
-.\scripts\esp32\Build-DmdClock.ps1
+.\scripts\esp32\dev\Build-DmdClock.ps1
 ```
 
 The application binary is written to:
@@ -90,7 +90,7 @@ The SSID is supplied explicitly and the password is requested as a masked secure
 prompt:
 
 ```powershell
-.\scripts\esp32\Set-DmdClockBootstrapWifi.ps1 `
+.\scripts\esp32\dev\Set-DmdClockBootstrapWifi.ps1 `
   -WifiSsid 'My Wi-Fi' `
   -Build
 ```
@@ -103,8 +103,8 @@ header, even when it exists locally.
 After the board connects successfully:
 
 ```powershell
-.\scripts\esp32\Clear-DmdClockBootstrapWifi.ps1 -Build
-.\scripts\esp32\Invoke-Idf.ps1 `
+.\scripts\esp32\dev\Clear-DmdClockBootstrapWifi.ps1 -Build
+.\scripts\esp32\dev\Invoke-Idf.ps1 `
   -ProjectPath .\firmware\dmdclock-esp32 `
   -p COM5 -B build-hw-esp32 app-flash
 ```
@@ -122,35 +122,35 @@ virtual RGB MMIO device currently stalls on the ESP32-S3 model; the production
 profile remains ESP32-S3:
 
 ```powershell
-.\scripts\esp32\Build-DmdClockQemu.ps1
+.\scripts\esp32\dev\Build-DmdClockQemu.ps1
 ```
 
 Then start the emulator, virtual RGB panel, and serial monitor:
 
 ```powershell
-.\scripts\esp32\Run-DmdClockQemu.ps1 -SkipBuild
+.\scripts\esp32\dev\Run-DmdClockQemu.ps1 -SkipBuild
 ```
 
 To choose the panel resolution, use the model runner instead. Each model has its
 own build directory, so switching models never rebuilds the other one:
 
 ```powershell
-# Create separate writable SD images from the local scene library.
-.\scripts\esp32\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
+# Create separate writable microSD images from the local scene library.
+.\scripts\esp32\dev\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
   -OutputPath .\firmware\dmdclock-esp32\dmdclock-qemu-sd-waveshare7.img
-.\scripts\esp32\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
+.\scripts\esp32\dev\New-DmdClockQemuSdImage.ps1 -ScenesFolder .\scenes `
   -OutputPath .\firmware\dmdclock-esp32\dmdclock-qemu-sd-landscape349.img
 
 # Terminal 1 - Waveshare 800×480, web 8080, monitor 4444
-.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model Waveshare7
+.\scripts\esp32\dev\Run-DmdClockQemuModel.ps1 -Model Waveshare7
 
 # Terminal 2 - Landscape349 640×172, web 8081, monitor 4445
-.\scripts\esp32\Run-DmdClockQemuModel.ps1 -Model '640x172' -SkipBuild
+.\scripts\esp32\dev\Run-DmdClockQemuModel.ps1 -Model '640x172' -SkipBuild
 ```
 
 The profiles use separate `dmdclock-qemu-sd-waveshare7.img` and
 `dmdclock-qemu-sd-landscape349.img` files, so QEMU never opens the same writable
-SD image twice. Use `-WebPort`, `-MonitorPort`, or `-SdImage` to override a
+microSD image twice. Use `-WebPort`, `-MonitorPort`, or `-SdImage` to override a
 model default. The generator writes a power-of-two FAT32 superfloppy with the
 boot sector at LBA 0; MBR-partitioned and non-power-of-two images are rejected
 by the emulated SD/MMC device. The generated images are ignored by Git.
@@ -201,13 +201,13 @@ Connect a data-capable USB cable to the port labeled `UART`, then discover the
 port:
 
 ```powershell
-.\scripts\esp32\Doctor.ps1
+.\scripts\esp32\dev\Doctor.ps1
 ```
 
 After verifying the physical board model, flash an explicit port:
 
 ```powershell
-.\scripts\esp32\Invoke-Idf.ps1 `
+.\scripts\esp32\dev\Invoke-Idf.ps1 `
   -ProjectPath .\firmware\dmdclock-esp32 `
   -p COM5 -B build-hw-esp32 flash
 ```
@@ -215,16 +215,19 @@ After verifying the physical board model, flash an explicit port:
 After flashing, start the matching serial monitor when needed:
 
 ```powershell
-.\scripts\esp32\Invoke-Idf.ps1 `
+.\scripts\esp32\dev\Invoke-Idf.ps1 `
   -ProjectPath .\firmware\dmdclock-esp32 `
   -p COM5 -B build-hw-esp32 monitor
 ```
 
 Application mode writes only the application image and preserves the existing
-bootloader, partition table, NVS, and TF card. Full mode writes the bootloader,
-partition table, and application without erasing NVS. The installer requires an
+bootloader, partition table, NVS, and microSD card. Full mode writes the bootloader,
+partition table, and application without erasing NVS. FullReset erases only the NVS
+region before writing the same complete-installation files; it requires `RESET`,
+rejects `-Force`, and leaves the microSD card untouched. The installer requires an
 explicit COM-port selection, verifies an ESP32-S3 with 16 MB flash, requires the
-physical `7`-not-`7B` confirmation, and asks for `FLASH` before writing.
+physical `7`-not-`7B` confirmation, and asks for `FLASH` before a normal write or
+`RESET` before FullReset.
 The critical prompts are colour-coded, and `FLASH` is accepted in any mixture of
 uppercase and lowercase letters.
 
@@ -262,7 +265,7 @@ forward device port 80 from the internet.
 
 Remote controls:
 
-- any available embedded/TF-card scene, or clock content;
+- any available embedded/microSD card scene, or clock content;
 - Windows-style sequential/random clock and scene cycles;
 - screen on/off;
 - brightness from 0–100%;
@@ -308,10 +311,10 @@ Home Assistant's `homeassistant/status` birth message.
 
 The first delivery exposes display power, brightness, next pinball, next scene,
 manual NTP synchronization, current scene, firmware, uptime, approximate chip
-temperature, Wi-Fi signal, free heap, SD free space, SD presence, and time-sync
+temperature, Wi-Fi signal, free heap, microSD free space, microSD presence, and time-sync
 state. MQTT work runs in separate low-priority tasks. Invalid commands are
 rejected, and losing Wi-Fi, the broker, or Home Assistant does not stop the
-clock, touch controls, scenes, SD logging, or web remote.
+clock, touch controls, scenes, microSD logging, or web remote.
 
 The current broker transport is unencrypted MQTT/TCP, intended only for a
 trusted local network. Do not expose the broker port to the internet. The setup
@@ -320,14 +323,14 @@ QR is separate from MQTT discovery and contains only the DMDClock local URL.
 ## Secondary-storage layout
 
 The prepared card tree is under [`sdcard/dmd`](sdcard/dmd). Copy that `dmd`
-directory to the root of the microSD/TF card so the device sees `/dmd`.
+directory to the root of the microSD card so the device sees `/dmd`.
 
 ### Prepare a card from PowerShell
 
 Card creation and formatting are outside DMDClock. For the current physical-disk
 selection, FAT32 validation, and scene-library commands, use the single
 authoritative
-[Windows TF-card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md).
+[Windows microSD card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md).
 
 Running the same command again is safe: matching files remain untouched,
 missing files are added, damaged managed files are repaired, changed metadata
@@ -338,7 +341,7 @@ readers report media as a fixed disk; after checking the drive letter carefully,
 use `-AllowFixedDrive` for those readers.
 
 At boot, firmware gives the card three bounded mount attempts. Between attempts
-it resets the board's TF enable line and waits briefly for the card to settle.
+it resets the board's microSD enable line and waits briefly for the card to settle.
 This recovers cards left in a stale SPI state by a soft reset or reflash; after
 three failures the device continues safely in clock-only mode and never formats
 the card.
@@ -383,10 +386,10 @@ RD1891.scn
 ```
 
 The production ESP32-S3 build embeds no scenes and uses only `/dmd/scenes` on
-the TF card. The live prepared physical card currently indexes all 2,324 SCNs.
+the microSD card. The live prepared physical card currently indexes all 2,324 SCNs.
 QEMU indexes the attached writable image when present; the current local test
 images contain 2,416 SCNs. Without an attached image, QEMU falls back to its
-deterministic 11-scene projection. If no SD-card scene is available, production
+deterministic 11-scene projection. If no microSD card scene is available, production
 remains in clock mode.
 Required QEMU inputs fail configuration clearly when absent. The SCNs remain
 ignored by Git and are intended for local decoder and playback testing. Do not

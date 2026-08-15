@@ -1,6 +1,6 @@
-# Prepare an ESP32 TF card on Windows
+# Prepare an ESP32 microSD card on Windows
 
-This GitHub page is the single authoritative DMDClock source for ESP32 TF-card
+This GitHub page is the single authoritative DMDClock source for ESP32 microSD card
 requirements and scene-library preparation. Other DMDClock pages and the device
 web interface link here instead of maintaining separate card-creation steps.
 
@@ -32,7 +32,7 @@ DMDClock and its scripts. The user is responsible for supplying an already
 working FAT32 card and for backing up its contents before using any formatting
 tool.
 
-1. Insert the TF card into the Windows PC.
+1. Insert the microSD card into the Windows PC.
 2. Open **File Explorer > This PC** and note its drive letter, volume label, and
    capacity. Disconnect other removable drives if the identity is ambiguous.
 3. If the card is not already FAT32, stop. One option is **Rufus**, downloaded
@@ -56,6 +56,11 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 ```
 
 `-Scope Process` applies only to the current PowerShell window.
+
+> Tip: if you are also flashing the board, prefer the single
+> [`RUNME-Install-DmdClockEsp32.ps1`](INSTALL-ESP32.md) entry point, which prepares the
+> card (or reports it is already up to date) and then flashes in the right order.
+> The steps below drive the card step directly.
 
 ## 3. Preview the selected library
 

@@ -9,7 +9,7 @@ param(
     [ValidateSet('Waveshare7', 'Waveshare349B')]
     [string] $Board,
 
-    [ValidateSet('Application', 'Full')]
+    [ValidateSet('Application', 'Full', 'FullReset')]
     [string] $FlashMode,
 
     [switch] $FactoryRecovery,
@@ -24,6 +24,8 @@ param(
 
     [switch] $CheckRequirements,
 
+    [switch] $ProbePorts,
+
     [string] $Destination,
 
     [string] $Source,
@@ -33,7 +35,9 @@ param(
 
     [string] $ConfirmHardware,
 
-    [switch] $Force
+    [switch] $Force,
+
+    [switch] $Wizard
 )
 
 $ErrorActionPreference = 'Stop'
@@ -55,12 +59,15 @@ $cacheRoot = Join-Path $outputRoot 'cache\firmware'
 $toolCacheRoot = Join-Path $outputRoot 'tools\esptool'
 $esptoolRepository = 'espressif/esptool'
 $esptoolReleasesUrl = "https://github.com/$esptoolRepository/releases"
+$nvsRegionOffset = '0x9000'
+$nvsRegionSize = '0x6000'
 
 $hardwareTargets = @(
     [pscustomobject]@{
         Key = 'Waveshare7'
         Id = 'waveshare-esp32-s3-touch-lcd-7-800x480-n16r8'
         Product = 'Waveshare ESP32-S3-Touch-LCD-7'
+        ShortLabel = 'Waveshare 7'
         Display = '800x480'
         Module = 'ESP32-S3-WROOM-1-N16R8'
         Confirmation = '7'
@@ -68,6 +75,8 @@ $hardwareTargets = @(
         RequiredFirmwareRevision = $null
         SupportedBoard = '7'
         TouchEnabled = $true
+        TouchController = 'GT911'
+        Accelerometer = $null
         Homepage = 'https://www.waveshare.com/esp32-s3-touch-lcd-7.htm'
         Documentation = 'https://www.waveshare.com/wiki/ESP32-S3-Touch-LCD-7'
         Driver = 'https://www.wch-ic.com/downloads/CH343SER_EXE.html'
@@ -81,6 +90,7 @@ $hardwareTargets = @(
         Key = 'Waveshare349B'
         Id = 'waveshare-esp32-s3-touch-lcd-3-49b-v2-640x172-n16r8'
         Product = 'Waveshare ESP32-S3-Touch-LCD-3.49B'
+        ShortLabel = 'Waveshare 3.49B'
         Display = '640x172'
         Module = 'ESP32-S3-WROOM-1-N16R8'
         Confirmation = '3.49B'
@@ -88,6 +98,8 @@ $hardwareTargets = @(
         RequiredFirmwareRevision = 'V2'
         SupportedBoard = '3.49B V2 / Rev1.1'
         TouchEnabled = $true
+        TouchController = 'AXS15231B'
+        Accelerometer = 'QMI8658'
         Homepage = 'https://www.waveshare.com/esp32-s3-touch-lcd-3.49.htm'
         Documentation = 'https://docs.waveshare.com/ESP32-S3-Touch-LCD-3.49'
         Driver = $null
@@ -136,12 +148,21 @@ function Read-HighlightedConfirmation {
 }
 
 function Show-SupportedHardwareBanner {
+# END-USER SCRIPT - flashes a DMDClock board on Windows 11 x64 / PowerShell 7.
+# Usually driven by RUNME-Install-DmdClockEsp32.ps1. See docs\INSTALL-ESP32.md.
+# Developer tooling lives in scripts\esp32\dev; tests in scripts\esp32\tests.
+[CmdletBinding()]
+    param(
+        [switch] $ShowGuidance
+    )
     Write-Host ''
     Write-Host 'DMDClock ESP32-S3 installer/updater' -ForegroundColor Cyan
     Write-Host '----------------------------------' -ForegroundColor DarkCyan
-    Write-Host 'Select the exact physical board before choosing a firmware version.'
-    Write-Host 'Waveshare ESP32-S3-Touch-LCD-7B (1024x600) is not supported.' `
-        -ForegroundColor Red
+    if ($ShowGuidance) {
+        Write-Host 'Select the exact physical board before choosing a firmware version.'
+        Write-Host 'Waveshare ESP32-S3-Touch-LCD-7B (1024x600) is not supported.' `
+            -ForegroundColor Red
+    }
 }
 
 function Select-HardwareTarget {
@@ -149,6 +170,9 @@ function Select-HardwareTarget {
         return @($hardwareTargets | Where-Object { $_.Key -eq $Board })[0]
     }
 
+    if ($null -ne $wizardState) {
+        Show-DmdClockWizardHeader -Wizard $wizardState
+    }
     Write-Host ''
     Write-Host 'Select your hardware:'
     for ($index = 0; $index -lt $hardwareTargets.Count; $index++) {
@@ -158,7 +182,11 @@ function Select-HardwareTarget {
     $choice = Read-MenuChoice -Prompt 'Select hardware' -Minimum 1 `
         -Maximum ($hardwareTargets.Count + 1)
     if ($choice -eq $hardwareTargets.Count + 1) { return $null }
-    return $hardwareTargets[$choice - 1]
+    $target = $hardwareTargets[$choice - 1]
+    if ($null -ne $wizardState) {
+        Add-DmdClockWizardSelection -Wizard $wizardState -Label 'Board' -Value $target.Product
+    }
+    return $target
 }
 
 function Assert-WithinDirectory {
@@ -274,6 +302,9 @@ function Select-CompatibleRelease {
         throw "No published release currently contains an image for $($Target.Product). See $($Target.Homepage) and https://github.com/$Repository/releases."
     }
 
+    if ($null -ne $wizardState) {
+        Show-DmdClockWizardHeader -Wizard $wizardState
+    }
     Write-Host ''
     Write-Host "Available firmware for $($Target.Product):"
     for ($index = 0; $index -lt $releases.Count; $index++) {
@@ -283,7 +314,13 @@ function Select-CompatibleRelease {
         Write-Host ("  [{0}] {1,-14} {2,-8} {3}" -f ($index + 1), $release.tag_name, $channel, $date)
     }
     $choice = Read-MenuChoice -Prompt 'Select release' -Minimum 1 -Maximum $releases.Count -Default 1
-    return $releases[$choice - 1]
+    $selected = $releases[$choice - 1]
+    if ($null -ne $wizardState) {
+        $channel = if ($selected.Release.prerelease) { 'Preview' } else { 'Stable' }
+        Add-DmdClockWizardSelection -Wizard $wizardState -Label 'Release' `
+            -Value "$($selected.Release.tag_name) ($channel)"
+    }
+    return $selected
 }
 
 function Save-RemoteFile {
@@ -609,7 +646,22 @@ function Get-ConnectedPorts {
 }
 
 function Select-SerialPort {
+    param([string] $QuickPort)
+
     $ports = @(Get-ConnectedPorts)
+    if ($QuickPort) {
+        $identity = @($ports | Where-Object Port -eq $QuickPort) | Select-Object -First 1
+        if ($null -ne $identity) {
+            if ([string]::IsNullOrWhiteSpace($identity.InstanceId)) {
+                throw "Serial port '$QuickPort' has no Windows PnP instance identity; refusing an identity-weak selection."
+            }
+            $script:selectedPortIdentity = $identity
+            Write-Host "Using detected device on $QuickPort ($($identity.Name))." -ForegroundColor Green
+            return $QuickPort
+        }
+        Write-Warning "The detected device on $QuickPort is no longer connected; choose the port manually."
+        $QuickPort = $null
+    }
     if ($Port) {
         if ($Port -notin @($ports.Port)) {
             $available = if ($ports.Count) { $ports.Port -join ', ' } else { 'none' }
@@ -626,6 +678,9 @@ function Select-SerialPort {
         Show-PortHelp -Target $selectedTarget
         throw 'No serial port was detected.'
     }
+    if ($null -ne $wizardState) {
+        Show-DmdClockWizardHeader -Wizard $wizardState
+    }
     Write-Host ''
     Write-Host 'Connected serial ports:'
     for ($index = 0; $index -lt $ports.Count; $index++) {
@@ -636,6 +691,9 @@ function Select-SerialPort {
     $script:selectedPortIdentity = $ports[$choice - 1]
     if ([string]::IsNullOrWhiteSpace($script:selectedPortIdentity.InstanceId)) {
         throw "Serial port '$($script:selectedPortIdentity.Port)' has no Windows PnP instance identity; refusing an identity-weak selection."
+    }
+    if ($null -ne $wizardState) {
+        Add-DmdClockWizardSelection -Wizard $wizardState -Label 'Serial port' -Value $script:selectedPortIdentity.Port
     }
     return $script:selectedPortIdentity.Port
 }
@@ -664,14 +722,27 @@ function Select-FactoryRecoveryRevision {
         return $BoardRevision
     }
 
+    if ($null -ne $wizardState) {
+        Show-DmdClockWizardHeader -Wizard $wizardState
+    }
     Write-Host ''
     Write-Host '3.49B hardware revision:'
     Write-Host '  [1] V1'
     Write-Host '  [2] V2 (Rev1.1 PCB / V2 case sticker)' -ForegroundColor Green
     Write-Host '  [3] Exit' -ForegroundColor DarkGray
     switch (Read-MenuChoice -Prompt 'Select the exact physical revision' -Minimum 1 -Maximum 3) {
-        1 { return 'V1' }
-        2 { return 'V2' }
+        1 {
+            if ($null -ne $wizardState) {
+                Add-DmdClockWizardSelection -Wizard $wizardState -Label 'Revision' -Value 'V1'
+            }
+            return 'V1'
+        }
+        2 {
+            if ($null -ne $wizardState) {
+                Add-DmdClockWizardSelection -Wizard $wizardState -Label 'Revision' -Value 'V2'
+            }
+            return 'V2'
+        }
         3 { return $null }
     }
 }
@@ -1111,11 +1182,18 @@ function Invoke-EsptoolChecked {
 }
 
 function Assert-ConnectedHardware {
-    param([Parameter(Mandatory)] [string] $SelectedPort)
+    param(
+        [Parameter(Mandatory)] [string] $SelectedPort,
+        [switch] $SkipPhysicalConfirmation
+    )
 
-    Write-Host ''
-    Write-Warning 'Look at the model and revision printed on the physical board.'
-    $confirmation = if ($ConfirmHardware) {
+    if (-not $SkipPhysicalConfirmation) {
+        Write-Host ''
+        Write-Warning 'Look at the model and revision printed on the physical board.'
+    }
+    $confirmation = if ($SkipPhysicalConfirmation) {
+        $selectedTarget.Confirmation
+    } elseif ($ConfirmHardware) {
         $ConfirmHardware.Trim()
     } else {
         Read-HighlightedConfirmation `
@@ -1142,7 +1220,408 @@ function Assert-ConnectedHardware {
         throw 'The connected device did not report the required 16 MB flash. Refusing to continue.'
     }
     Write-Host '[OK] ESP32-S3 with 16 MB flash detected.' -ForegroundColor Green
-    Write-Warning 'Chip detection cannot distinguish display models or PCB revisions; the board-label confirmation remains required.'
+    if (-not $SkipPhysicalConfirmation) {
+        Write-Warning 'Chip detection cannot distinguish display models or PCB revisions; the board-label confirmation remains required.'
+    }
+    Assert-DmdClockBoardProbe -SelectedPort $SelectedPort
+}
+
+function Read-DmdClockSerialBuffer {
+    param(
+        [Parameter(Mandatory)] $SerialPort,
+        [int] $CaptureSeconds
+    )
+
+    $captured = ''
+    $sb = [Text.StringBuilder]::new()
+    $deadline = [DateTime]::UtcNow.AddSeconds($CaptureSeconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        while ($SerialPort.BytesToRead -gt 0) {
+            $buffer = New-Object byte[] ([Math]::Min($SerialPort.BytesToRead, 4096))
+            $count = $SerialPort.Read($buffer, 0, $buffer.Length)
+            if ($count -gt 0) {
+                [void]$sb.Append([Text.Encoding]::UTF8.GetString($buffer, 0, $count))
+            }
+        }
+        $captured = $sb.ToString()
+        if ($captured -match 'Initializing[^\r\n]*?\d+x\d+' -and
+            $captured -match 'App version:' -and $captured.Length -gt 400) {
+            break
+        }
+        Start-Sleep -Milliseconds 50
+    }
+    return $captured
+}
+
+function Read-DmdClockSerialBanner {
+    param(
+        [Parameter(Mandatory)] [string] $Port,
+        [int] $CaptureSeconds = 12,
+        [switch] $NativeUsbJtag
+    )
+
+    Add-Type -AssemblyName System.IO.Ports
+
+    if ($NativeUsbJtag) {
+        if ($null -eq $esptool -or -not (Test-Path -LiteralPath $esptool.Path -PathType Leaf)) {
+            try {
+                $script:esptool = Get-PortableEsptool
+            }
+            catch {
+                Write-Debug "Could not resolve esptool for the native USB probe on ${Port}: $($_.Exception.Message)"
+                return $null
+            }
+        }
+        $null = @(& $esptool.Path '--port' $Port '--before' 'default-reset' '--after' 'hard-reset' 'chip-id' 2>&1)
+        $sp = $null
+        for ($attempt = 0; $attempt -lt 25 -and $null -eq $sp; $attempt++) {
+            try {
+                $sp = [IO.Ports.SerialPort]::new(
+                    $Port, 115200, [IO.Ports.Parity]::None, 8, [IO.Ports.StopBits]::One)
+                $sp.ReadTimeout = 500
+                $sp.Open()
+            }
+            catch {
+                if ($null -ne $sp) {
+                    $sp.Dispose()
+                    $sp = $null
+                }
+                Start-Sleep -Milliseconds 250
+            }
+        }
+        if ($null -eq $sp) {
+            return $null
+        }
+        try {
+            $captured = Read-DmdClockSerialBuffer -SerialPort $sp -CaptureSeconds $CaptureSeconds
+        }
+        finally {
+            if ($sp.IsOpen) {
+                try {
+                    $sp.Close()
+                }
+                catch {
+                    Write-Debug "Could not close the native USB probe port ${Port}: $($_.Exception.Message)"
+                }
+            }
+            $sp.Dispose()
+        }
+        if ([string]::IsNullOrWhiteSpace($captured)) {
+            return $null
+        }
+        return $captured
+    }
+
+    $sequences = @(
+        @{ First = 'DtrEnable'; Second = 'RtsEnable' },
+        @{ First = 'RtsEnable'; Second = 'DtrEnable' }
+    )
+    foreach ($sequence in $sequences) {
+        $sp = [IO.Ports.SerialPort]::new(
+            $Port, 115200, [IO.Ports.Parity]::None, 8, [IO.Ports.StopBits]::One)
+        $sp.ReadTimeout = 500
+        $captured = ''
+        try {
+            $sp.DtrEnable = $true
+            $sp.RtsEnable = $true
+            $sp.Open()
+            Start-Sleep -Milliseconds 400
+            $sp.$($sequence.First) = $false
+            Start-Sleep -Milliseconds 120
+            $sp.$($sequence.Second) = $false
+            $captured = Read-DmdClockSerialBuffer -SerialPort $sp -CaptureSeconds $CaptureSeconds
+        }
+        catch {
+            $captured = ''
+        }
+        finally {
+            if ($sp.IsOpen) {
+                try {
+                    $sp.DtrEnable = $false
+                    $sp.RtsEnable = $true
+                    Start-Sleep -Milliseconds 150
+                    $sp.RtsEnable = $false
+                    $sp.Close()
+                }
+                catch {
+                    Write-Debug "Could not reset DTR/RTS on ${Port}: $($_.Exception.Message)"
+                }
+            }
+            $sp.Dispose()
+        }
+        if ($captured -match 'ESP-ROM|rst:') {
+            return $captured
+        }
+    }
+    return $null
+}
+
+function Get-DmdClockBoardProbe {
+    param([string] $BannerText)
+
+    $probe = [pscustomobject]@{
+        Resolution = $null
+        TouchController = $null
+        Accelerometer = $null
+        AppVersion = $null
+        LanIp = $null
+    }
+    if ($BannerText -match 'Initializing[^\r\n]*?\b(?<w>\d+)x(?<h>\d+)\b') {
+        $probe.Resolution = "$($Matches.w)x$($Matches.h)"
+    }
+    if ($BannerText -match 'GT911') {
+        $probe.TouchController = 'GT911'
+    } elseif ($BannerText -match 'AXS15231B') {
+        $probe.TouchController = 'AXS15231B'
+    }
+    if ($BannerText -match 'QMI8658') {
+        $probe.Accelerometer = 'QMI8658'
+    }
+    if ($BannerText -match 'App version:\s*([0-9][^\s]*)') {
+        $probe.AppVersion = $Matches[1]
+    }
+    if ($BannerText -match 'Home Wi-Fi connected at ([0-9]{1,3}(\.[0-9]{1,3}){3})') {
+        $probe.LanIp = $Matches[1]
+    } elseif ($BannerText -match 'sta ip: ([0-9]{1,3}(\.[0-9]{1,3}){3})') {
+        $probe.LanIp = $Matches[1]
+    }
+    return $probe
+}
+
+function Resolve-DmdClockBoardModel {
+    param([Parameter(Mandatory)] $Probe)
+
+    $scores = @{}
+    foreach ($target in $hardwareTargets) {
+        $scores[$target.Key] = 0
+        if ($Probe.Resolution -and $Probe.Resolution -eq $target.Display) {
+            $scores[$target.Key]++
+        }
+        if ($Probe.TouchController -and $Probe.TouchController -eq $target.TouchController) {
+            $scores[$target.Key]++
+        }
+        if ($Probe.Accelerometer -and $Probe.Accelerometer -eq $target.Accelerometer) {
+            $scores[$target.Key]++
+        }
+    }
+    $best = $null
+    $bestScore = 0
+    $tied = $false
+    foreach ($key in $scores.Keys) {
+        if ($scores[$key] -gt $bestScore) {
+            $best = $key
+            $bestScore = $scores[$key]
+            $tied = $false
+        } elseif ($scores[$key] -eq $bestScore -and $scores[$key] -gt 0) {
+            $tied = $true
+        }
+    }
+    if ($bestScore -eq 0 -or $tied) {
+        return $null
+    }
+    return $best
+}
+
+function Resolve-DmdClockModelLabel {
+    param([Parameter(Mandatory)] [string] $Value)
+
+    $trimmed = $Value.Trim()
+    foreach ($target in $hardwareTargets) {
+        if ($trimmed -ieq $target.Key -or
+            $trimmed -ieq $target.ShortLabel -or
+            $trimmed -ieq $target.Product) {
+            return $target.ShortLabel
+        }
+    }
+    $normalized = $trimmed.ToLowerInvariant() -replace '\s+', ' '
+    if ($normalized -eq '7' -or $normalized -eq '7 inch' -or $normalized -eq 'waveshare7') {
+        return 'Waveshare 7'
+    }
+    if ($normalized -match '3\.49' -or $normalized -match '349' -or $normalized -match '3xx') {
+        return 'Waveshare 3.49B'
+    }
+    return $trimmed
+}
+
+function Get-DmdClockSuggestedName {
+    param([Parameter(Mandatory)] [string] $Mac)
+
+    $hex = ($Mac -replace '[^0-9a-fA-F]', '')
+    if ($hex.Length -lt 4) { return $null }
+    return 'DMDClock-' + $hex.Substring($hex.Length - 4).ToUpperInvariant()
+}
+
+function Read-DmdClockPromptOrDefault {
+    param(
+        [Parameter(Mandatory)] [string] $Prompt,
+        [string] $Default
+    )
+
+    $answer = Read-Host $Prompt
+    if ($null -eq $answer -or [string]::IsNullOrWhiteSpace($answer)) {
+        return $Default
+    }
+    return $answer.Trim()
+}
+
+function Set-DmdClockDeviceName {
+    param(
+        [Parameter(Mandatory)] [string] $IpAddress,
+        [Parameter(Mandatory)] [string] $DeviceName
+    )
+
+    $url = "http://$IpAddress/api/settings"
+    $body = @{ deviceName = $DeviceName } | ConvertTo-Json
+    $response = Invoke-RestMethod -Uri $url -Method Post -Body $body `
+        -ContentType 'application/json' -TimeoutSec 10
+    return $response
+}
+
+function Write-DmdClockPortMap {
+    param([Parameter(Mandatory)] [object[]] $Entries)
+
+    $directory = Join-Path $outputRoot ''
+    [IO.Directory]::CreateDirectory($directory) | Out-Null
+    $path = Join-Path $directory 'ports.json'
+    $map = [ordered]@{
+        schema = 'dmdclock-port-map'
+        version = 1
+        probedAt = [DateTime]::UtcNow.ToString('o')
+        ports = @($Entries)
+    }
+    $json = $map | ConvertTo-Json -Depth 6
+    $temp = $path + '.tmp'
+    [IO.File]::WriteAllText($temp, $json, [Text.UTF8Encoding]::new($false))
+    [IO.File]::Move($temp, $path, $true)
+    return $path
+}
+
+function Assert-DmdClockBoardProbe {
+    param([Parameter(Mandatory)] [string] $SelectedPort)
+
+    $identity = @(Get-ConnectedPorts | Where-Object Port -eq $SelectedPort) | Select-Object -First 1
+    $native = $null -ne $identity -and $identity.InstanceId -match 'VID_303A&PID_1001'
+    Write-Host 'Probing the connected board over UART...'
+    $banner = Read-DmdClockSerialBanner -Port $SelectedPort -NativeUsbJtag:$native
+    if ([string]::IsNullOrWhiteSpace($banner)) {
+        Write-Warning 'Board probe could not read a boot banner; relying on the physical label confirmation.'
+        return
+    }
+    $probe = Get-DmdClockBoardProbe -BannerText $banner
+    $modelKey = Resolve-DmdClockBoardModel -Probe $probe
+    $signals = "resolution=$($probe.Resolution) touch=$($probe.TouchController) " +
+        "accelerometer=$($probe.Accelerometer) app=$($probe.AppVersion)"
+    if ($null -eq $modelKey) {
+        Write-Warning "Board probe was inconclusive ($signals); relying on the physical label confirmation."
+        return
+    }
+    if ($modelKey -ne $selectedTarget.Key) {
+        throw "Board probe mismatch: $SelectedPort looks like $modelKey ($signals) but the selected board is $($selectedTarget.Product). Refusing to continue."
+    }
+    Write-Host "[OK] UART probe confirms $($selectedTarget.Product): $signals" -ForegroundColor Green
+}
+
+function Get-DmdClockDeviceProbe {
+    $ports = @(Get-ConnectedPorts)
+    if ($ports.Count -eq 0) {
+        return @()
+    }
+    $rows = @()
+    foreach ($port in $ports) {
+        $native = $port.InstanceId -match 'VID_303A&PID_1001'
+        $banner = Read-DmdClockSerialBanner -Port $port.Port -NativeUsbJtag:$native
+        if ([string]::IsNullOrWhiteSpace($banner)) {
+            $rows += [pscustomobject]@{
+                Port = $port.Port
+                Model = 'no banner read'
+                App = '-'
+                Signals = '-'
+                Status = 'Not verified'
+                ModelKey = $null
+                Revision = $null
+            }
+            continue
+        }
+        $probe = Get-DmdClockBoardProbe -BannerText $banner
+        $modelKey = Resolve-DmdClockBoardModel -Probe $probe
+        $modelLabel = if ($modelKey) {
+            ($hardwareTargets | Where-Object Key -eq $modelKey | Select-Object -First 1).ShortLabel
+        } else { $null }
+        $recognized = $null -ne $modelKey -or -not [string]::IsNullOrWhiteSpace($probe.AppVersion)
+        $revision = if ($banner -match '3\.49B\s+V(?<rev>\d)') { "V$($Matches.rev)" } else { $null }
+        $signalParts = @(
+            $probe.Resolution,
+            $probe.TouchController,
+            $probe.Accelerometer
+        ) | Where-Object { $_ }
+        $rows += [pscustomobject]@{
+            Port = $port.Port
+            Model = if ($modelLabel) {
+                $modelLabel
+            } elseif ($recognized) {
+                'DMDClock (model unclear)'
+            } else {
+                'unrecognized'
+            }
+            App = if ($probe.AppVersion) { $probe.AppVersion } else { '-' }
+            Signals = if ($signalParts) { $signalParts -join ' / ' } else { '-' }
+            Status = if ($recognized) { 'OK to flash' } else { 'Not verified' }
+            ModelKey = $modelKey
+            Revision = $revision
+        }
+    }
+    return $rows
+}
+
+function Select-DmdClockDevice {
+    param([Parameter(Mandatory)] [object[]] $Rows)
+
+    if ($Board) {
+        return $null
+    }
+    $offered = @($Rows | Where-Object {
+        $_.Status -eq 'OK to flash' -and
+        $null -ne $_.ModelKey -and
+        $null -ne ($hardwareTargets | Where-Object Key -eq $_.ModelKey | Select-Object -First 1)
+    })
+    if ($offered.Count -eq 0) {
+        return $null
+    }
+    if ($null -ne $wizardState) {
+        Show-DmdClockWizardHeader -Wizard $wizardState
+    }
+    Write-Host ''
+    Write-Host 'Select a device to flash:'
+    for ($index = 0; $index -lt $offered.Count; $index++) {
+        $row = $offered[$index]
+        Write-Host ("  [{0}] {1,-7} {2,-18} {3,-7} {4,-34} {5}" -f
+            ($index + 1), $row.Port, $row.Model, $row.App, $row.Signals, $row.Status)
+    }
+    Write-Host ("  [{0}] Choose manually (board not detected / other)" -f ($offered.Count + 1))
+    Write-Host ("  [{0}] Exit" -f ($offered.Count + 2))
+    $choice = Read-MenuChoice -Prompt 'Select device' -Minimum 1 -Maximum ($offered.Count + 2) `
+        -Default $(if ($offered.Count -eq 1) { 1 } else { 0 })
+    if ($choice -eq $offered.Count + 2) {
+        return 'EXIT'
+    }
+    if ($choice -eq $offered.Count + 1) {
+        return $null
+    }
+    $row = $offered[$choice - 1]
+    $target = @($hardwareTargets | Where-Object Key -eq $row.ModelKey | Select-Object -First 1)[0]
+    if ($null -eq $target) {
+        return $null
+    }
+    if ($null -ne $wizardState) {
+        Add-DmdClockWizardSelection -Wizard $wizardState -Label 'Device' `
+            -Value "$($row.Port) $($row.Model)"
+    }
+    Write-Host ("Selected {0} on {1} (probed)." -f $target.Product, $row.Port) -ForegroundColor Green
+    return [pscustomobject]@{
+        Target = $target
+        Port = $row.Port
+        DetectedRevision = $row.Revision
+    }
 }
 
 function Assert-FactoryRecoveryRevision {
@@ -1165,13 +1644,24 @@ function Assert-FactoryRecoveryRevision {
 }
 
 function Assert-DmdFirmwareRevision {
-    param([Parameter(Mandatory)] $Target)
+    param(
+        [Parameter(Mandatory)] $Target,
+        [string] $DetectedRevision
+    )
 
     if ([string]::IsNullOrWhiteSpace($Target.RequiredFirmwareRevision)) {
         return
     }
 
     $requiredRevision = [string]$Target.RequiredFirmwareRevision
+    if (-not [string]::IsNullOrWhiteSpace($DetectedRevision)) {
+        if ($DetectedRevision -ieq $requiredRevision) {
+            Write-Host "[OK] UART probe confirms 3.49B $DetectedRevision / Rev1.1" -ForegroundColor Green
+            return
+        }
+        throw "The connected 3.49B reports $DetectedRevision, but this DMDClock image supports only 3.49B $requiredRevision / Rev1.1. Refusing to continue."
+    }
+
     Write-Host ''
     Write-Warning 'DMDClock firmware for 3.49B V1 and V2 is not interchangeable.'
     $confirmation = if ($BoardRevision) {
@@ -1194,7 +1684,7 @@ function Get-SelectedFlashFiles {
         [Parameter(Mandatory)] [string] $Mode
     )
 
-    $modeProperty = $Mode.ToLowerInvariant()
+    $modeProperty = if ($Mode -eq 'FullReset') { 'full' } else { $Mode.ToLowerInvariant() }
     $files = @($Package.Manifest.flash.$modeProperty.files)
     $resolved = @()
     foreach ($file in $files) {
@@ -1220,6 +1710,11 @@ function Invoke-FirmwareFlash {
         [Parameter(Mandatory)] [string] $SelectedPort
     )
 
+    $resetNvs = $Mode -eq 'FullReset'
+    if ($resetNvs -and $Force) {
+        throw 'Complete installation with settings reset requires the final RESET confirmation; -Force is not accepted.'
+    }
+
     $files = @(Get-SelectedFlashFiles -Package $Package -Mode $Mode)
     $settings = $Package.Manifest.flash.settings
     Write-Host ''
@@ -1232,14 +1727,19 @@ function Invoke-FirmwareFlash {
     Write-Host "  PnP ID:   $($selectedPortIdentity.InstanceId)"
     Write-Host "  Mode:     $Mode" -ForegroundColor Yellow
     Write-Host "  Package:  $($Package.Manifest.package.sha256) (SHA-256)"
-    Write-Host '  NVS:      preserved (no erase command is used)' -ForegroundColor Green
-    Write-Host '  TF card:  untouched' -ForegroundColor Green
+    if ($resetNvs) {
+        Write-Host "  NVS:      erased at $nvsRegionOffset (size $nvsRegionSize)" -ForegroundColor Yellow
+        Write-Warning 'The microSD card is untouched; dmd\config\settings.json can restore old settings at boot.'
+    } else {
+        Write-Host '  NVS:      preserved (no erase command is used)' -ForegroundColor Green
+    }
+    Write-Host '  microSD card:  untouched' -ForegroundColor Green
     foreach ($file in $files) {
         Write-Host "  $($file.Offset)  $($file.RelativePath)"
     }
     Write-DmdClockProvisioningLog -Event 'flash-plan' -Detail (
         "target=$($selectedTarget.Id) port=$SelectedPort pnp=$($selectedPortIdentity.InstanceId) " +
-        "mode=$Mode version=$($Package.Version) package_sha256=$($Package.Manifest.package.sha256) " +
+        "mode=$Mode reset_nvs=$resetNvs version=$($Package.Version) package_sha256=$($Package.Manifest.package.sha256) " +
         "files=$(($files | ForEach-Object { $_.Offset + ':' + $_.RelativePath }) -join ',')")
 
     Assert-SerialPortUnchanged -SelectedPort $SelectedPort
@@ -1252,17 +1752,42 @@ function Invoke-FirmwareFlash {
     }
 
     if (-not $Force) {
+        $confirmationToken = if ($resetNvs) { 'RESET' } else { 'FLASH' }
+        $confirmationAction = if ($resetNvs) {
+            'erase device settings and write the complete installation'
+        } else {
+            'write this firmware'
+        }
         $confirmation = Read-HighlightedConfirmation `
             -Prefix 'Type ' `
-            -Token 'FLASH' `
-            -Suffix ' (uppercase or lowercase) to write this firmware' `
+            -Token $confirmationToken `
+            -Suffix " (uppercase or lowercase) to $confirmationAction" `
             -Color Yellow
-        if ($confirmation -ine 'FLASH') {
+        if ($confirmation -ine $confirmationToken) {
             Write-Host 'Flash cancelled. The verified download remains cached.' `
                 -ForegroundColor Yellow
             Write-DmdClockProvisioningLog -Event 'flash-cancelled' -Detail "port=$SelectedPort mode=$Mode"
             return $false
         }
+    }
+
+    if ($resetNvs) {
+        Write-Host ''
+        Write-Host "Erasing NVS settings region $nvsRegionOffset (size $nvsRegionSize)..." -ForegroundColor Yellow
+        Write-DmdClockProvisioningLog -Event 'nvs-erase-started' `
+            -Detail "port=$SelectedPort region=$nvsRegionOffset size=$nvsRegionSize"
+        $null = Invoke-EsptoolChecked -Arguments @(
+            '--chip', 'esp32s3',
+            '--port', $SelectedPort,
+            '--baud', '460800',
+            '--before', 'default-reset',
+            '--after', 'no-reset',
+            'erase_region',
+            $nvsRegionOffset,
+            $nvsRegionSize
+        )
+        Write-DmdClockProvisioningLog -Event 'nvs-erase-complete' `
+            -Detail "port=$SelectedPort region=$nvsRegionOffset size=$nvsRegionSize"
     }
 
     $arguments = @(
@@ -1283,6 +1808,12 @@ function Invoke-FirmwareFlash {
     Write-Host ''
     Write-Host '[DONE] Firmware written and verified by esptool; the board was reset.' `
         -ForegroundColor Green
+    if ($resetNvs) {
+        Write-Host 'NVS settings were reset. Remove dmd\config\settings.json from the microSD card' `
+            -ForegroundColor Cyan
+        Write-Host 'before reinserting it if the saved card settings must also be discarded.' `
+            -ForegroundColor Cyan
+    }
     Write-DmdClockProvisioningLog -Event 'flash-complete' `
         -Detail "target=$($selectedTarget.Id) port=$SelectedPort mode=$Mode version=$($Package.Version)"
     return $true
@@ -1305,7 +1836,7 @@ function Invoke-FactoryRecoveryFlash {
     Write-Host "  Image:    $($Package.FileName)"
     Write-Host "  SHA-256:  $($Package.Sha256)"
     Write-Warning 'Factory recovery replaces the current internal-flash contents, including stored settings.'
-    Write-Host '  TF card:  untouched' -ForegroundColor Green
+    Write-Host '  microSD card:  untouched' -ForegroundColor Green
     Write-DmdClockProvisioningLog -Event 'factory-recovery-plan' -Detail (
         "target=$($selectedTarget.Id) revision=$($Package.Revision) port=$SelectedPort " +
         "pnp=$($selectedPortIdentity.InstanceId) image=$($Package.FileName) sha256=$($Package.Sha256)")
@@ -1345,7 +1876,7 @@ function Invoke-FactoryRecoveryFlash {
     Write-Host ''
     Write-Host '[DONE] Official factory image written and verified; the board was reset.' `
         -ForegroundColor Green
-    Write-Host 'Exercise the LCD, touch, and SD-card tests before installing custom firmware.'
+    Write-Host 'Exercise the LCD, touch, and microSD card tests before installing custom firmware.'
     Write-DmdClockProvisioningLog -Event 'factory-recovery-complete' `
         -Detail "revision=$($Package.Revision) port=$SelectedPort sha256=$($Package.Sha256)"
     return $true
@@ -1363,19 +1894,35 @@ function Show-FirmwareDryRun {
     }
     Write-Host ''
     Write-Host '[DRY RUN] No files, caches, serial ports, flash, or hardware will be changed.' -ForegroundColor Yellow
-    Write-Host "Target:   $($selectedTarget.Product)"
-    Write-Host "Revision: $($selectedTarget.SupportedBoard)"
-    Write-Host "Firmware: $($Package.Version)"
-    Write-Host "Package:  $($Package.Manifest.package.size) bytes"
-    Write-Host "SHA-256:  $($Package.Manifest.package.sha256)"
-    Write-Host "Mode:     $Mode"
-    Write-Host "Tool:     $(if ($esptool) { $esptool.Version } else { 'official esptool v5 (resolved only during execution)' })"
-    foreach ($file in @($Package.Manifest.flash.$($Mode.ToLowerInvariant()).files)) {
-        Write-Host "  $($file.offset)  $($file.path)  $($file.size) bytes  $($file.sha256)"
+    Write-Host ''
+    Write-Host 'Summary:' -ForegroundColor Cyan
+    Write-Host "  Target:    $($selectedTarget.Product)"
+    Write-Host "  Revision:  $($selectedTarget.SupportedBoard)"
+    Write-Host "  Firmware:  $($Package.Version)"
+    Write-Host "  Mode:      $Mode"
+    Write-Host "  Tool:      $(if ($esptool) { $esptool.Version } else { 'official esptool v5 (resolved only during execution)' })"
+    Write-Host "  Package:   $($Package.Manifest.package.size) bytes"
+    Write-Host "  SHA-256:   $($Package.Manifest.package.sha256)"
+    Write-Host ''
+    Write-Host 'Files to flash:' -ForegroundColor Cyan
+    Write-Host ('  {0,-9} {1,-28} {2,10}  {3}' -f 'Offset', 'File', 'Size (bytes)', 'SHA-256')
+    $packageMode = if ($Mode -eq 'FullReset') { 'full' } else { $Mode.ToLowerInvariant() }
+    foreach ($file in @($Package.Manifest.flash.$packageMode.files)) {
+        Write-Host ('  {0,-9} {1,-28} {2,10}  {3}' -f
+            [string]$file.offset, [string]$file.path,
+            [string]$file.size, [string]$file.sha256)
     }
+    if ($Mode -eq 'FullReset') {
+        Write-Host ''
+        Write-Host "NVS plan: erase settings region $nvsRegionOffset (size $nvsRegionSize)." `
+            -ForegroundColor Yellow
+        Write-Host 'The microSD card remains untouched; remove dmd\config\settings.json separately.' `
+            -ForegroundColor Yellow
+    }
+    Write-Host ''
     if ($Port) {
         $identity = @($ports | Where-Object Port -eq $Port)[0]
-        Write-Host "COM plan: $($identity.Port) - $($identity.Name) - $($identity.InstanceId)"
+        Write-Host "COM plan:  $($identity.Port) - $($identity.Name) - $($identity.InstanceId)"
     } elseif ($ports.Count) {
         Write-Host 'Available COM devices (none selected or opened):'
         foreach ($identity in $ports) {
@@ -1386,7 +1933,13 @@ function Show-FirmwareDryRun {
     }
 }
 
-Show-SupportedHardwareBanner
+$willPrompt = -not $CheckRequirements -and
+    (-not $Board -or
+        ([string]::IsNullOrWhiteSpace($Source) -and -not $ReleaseTag) -or
+        ($FactoryRecovery -and -not $BoardRevision) -or
+        (-not $WhatIf -and -not $FactoryRecovery -and -not $FlashMode) -or
+        (-not $WhatIf -and -not $Port))
+Show-SupportedHardwareBanner -ShowGuidance:($Wizard -or $willPrompt)
 
 $requirementsPath = if (-not [string]::IsNullOrWhiteSpace($Source)) {
     [IO.Path]::GetFullPath($Source)
@@ -1413,6 +1966,98 @@ if ($CheckRequirements) {
     if (-not $requirements.Passed) { exit 1 }
     return
 }
+if ($ProbePorts) {
+    $ports = @(Get-ConnectedPorts)
+    if ($ports.Count -eq 0) {
+        Write-Host ''
+        Write-Host '[FAILED] No serial port was detected.' -ForegroundColor Red
+        return
+    }
+    if ($null -eq $esptool) {
+        $esptool = Get-PortableEsptool
+    }
+    $entries = @()
+    foreach ($port in $ports) {
+        Write-Host ''
+        Write-Host "Probing $($port.Port) ($($port.Name))..." -ForegroundColor Cyan
+        $native = $port.InstanceId -match 'VID_303A&PID_1001'
+        $banner = Read-DmdClockSerialBanner -Port $port.Port -NativeUsbJtag:$native
+        $probe = if ($banner) { Get-DmdClockBoardProbe -BannerText $banner } else { $null }
+        $modelKey = if ($probe) { Resolve-DmdClockBoardModel -Probe $probe } else { $null }
+        $suggestedLabel = if ($modelKey) {
+            ($hardwareTargets | Where-Object Key -eq $modelKey | Select-Object -First 1).ShortLabel
+        } else { $null }
+        $mac = $null
+        try {
+            $chipOutput = Invoke-EsptoolChecked -Arguments @(
+                '--chip', 'esp32s3', '--port', $port.Port, 'chip-id')
+            if ($chipOutput -match 'MAC:\s*([0-9a-fA-F:]+)') {
+                $mac = $Matches[1]
+            }
+        }
+        catch {
+            Write-Warning "Could not read the chip identity on $($port.Port): $($_.Exception.Message)"
+        }
+        $suggestedName = if ($mac) { Get-DmdClockSuggestedName -Mac $mac } else { $null }
+        $confirmedName = Read-DmdClockPromptOrDefault `
+            -Prompt "  Device name (Enter keeps '$suggestedName')" -Default $suggestedName
+        $confirmedModel = Read-DmdClockPromptOrDefault `
+            -Prompt "  Model (Enter keeps '$suggestedLabel')" -Default $suggestedLabel
+        $confirmedModel = if ($confirmedModel) {
+            Resolve-DmdClockModelLabel -Value $confirmedModel
+        } else { $null }
+        $nameStatus = 'not applicable'
+        if ($confirmedName -and $probe -and $probe.LanIp) {
+            try {
+                Set-DmdClockDeviceName -IpAddress $probe.LanIp -DeviceName $confirmedName | Out-Null
+                $nameStatus = 'applied'
+            }
+            catch {
+                $nameStatus = "failed: $($_.Exception.Message)"
+            }
+        }
+        $probeObject = if ($probe) {
+            [pscustomobject]@{
+                resolution = $probe.Resolution
+                touch = $probe.TouchController
+                accelerometer = $probe.Accelerometer
+                app = $probe.AppVersion
+            }
+        } else { $null }
+        $entries += [pscustomobject]@{
+            port = $port.Port
+            deviceName = $confirmedName
+            model = $confirmedModel
+            probe = $probeObject
+            mac = $mac
+            pnp = $port.InstanceId
+            ip = if ($probe) { $probe.LanIp } else { $null }
+        }
+        $signalText = if ($probe) {
+            "$($probe.Resolution) / $($probe.TouchController) / $($probe.Accelerometer)"
+        } else { 'no boot banner read' }
+        Write-Host "  Detected: $signalText -> $confirmedModel; MAC=$mac; name='$confirmedName' ($nameStatus)"
+    }
+
+    Write-Host ''
+    Write-Host ('{0,-7} {1,-14} {2,-18} {3,-10} {4,-10} {5,-8} {6,-6} {7}' -f
+        'COM port', 'Device', 'Model', 'Resolution', 'Touch', 'IMU', 'App', 'IP') -ForegroundColor Cyan
+    foreach ($entry in $entries) {
+        Write-Host ('{0,-7} {1,-14} {2,-18} {3,-10} {4,-10} {5,-8} {6,-6} {7}' -f
+            $entry.port,
+            $(if ($entry.deviceName) { $entry.deviceName } else { '-' }),
+            $(if ($entry.model) { $entry.model } else { 'unknown' }),
+            $(if ($entry.probe -and $entry.probe.resolution) { $entry.probe.resolution } else { '-' }),
+            $(if ($entry.probe -and $entry.probe.touch) { $entry.probe.touch } else { '-' }),
+            $(if ($entry.probe -and $entry.probe.accelerometer) { $entry.probe.accelerometer } else { '-' }),
+            $(if ($entry.probe -and $entry.probe.app) { $entry.probe.app } else { '-' }),
+            $(if ($entry.ip) { $entry.ip } else { '-' }))
+    }
+    $mapPath = Write-DmdClockPortMap -Entries $entries
+    Write-Host ''
+    Write-Host "Port map saved: $mapPath" -ForegroundColor Green
+    return
+}
 if ($DownloadOnly -and -not [string]::IsNullOrWhiteSpace($Destination) -and
     -not [string]::IsNullOrWhiteSpace($Source)) {
     throw 'Do not combine -DownloadOnly -Destination with -Source.'
@@ -1421,6 +2066,20 @@ if ($DownloadOnly -and -not [string]::IsNullOrWhiteSpace($Destination) -and
 $runOutcome = 'cancelled'
 $runDetail = ''
 $logPath = $null
+$wizardState = $null
+$wizardDevices = $null
+if ($Wizard -or $willPrompt) {
+    if (-not $WhatIf -and -not $DownloadOnly -and -not $ProbePorts -and
+        -not [Console]::IsInputRedirected) {
+        $wizardDevices = @(Get-DmdClockDeviceProbe)
+    }
+    $wizardState = New-DmdClockWizard -Title 'DMDClock ESP32 flash' -Devices $wizardDevices
+}
+$quickSelect = $null
+if ($null -ne $wizardDevices -and -not $FactoryRecovery) {
+    $quickSelect = Select-DmdClockDevice -Rows $wizardDevices
+    if ($quickSelect -eq 'EXIT') { return }
+}
 if (-not $WhatIf) {
     $operation = if ($DownloadOnly -and -not [string]::IsNullOrWhiteSpace($Destination)) {
         'stage-firmware'
@@ -1457,7 +2116,11 @@ try {
         New-Item -ItemType Directory -Force -Path $cacheRoot, $toolCacheRoot | Out-Null
     }
 
-    $selectedTarget = Select-HardwareTarget
+    $selectedTarget = if ($null -ne $quickSelect) {
+        $quickSelect.Target
+    } else {
+        Select-HardwareTarget
+    }
     if ($null -eq $selectedTarget) { return }
     Write-DmdClockProvisioningLog -Event 'target-selected' -Detail (
         "key=$($selectedTarget.Key) id=$($selectedTarget.Id) product=$($selectedTarget.Product) " +
@@ -1569,20 +2232,34 @@ if ($DownloadOnly) {
 if ($WhatIf -and -not $FlashMode) {
     $FlashMode = 'Application'
 } elseif (-not $FlashMode) {
+    if ($null -ne $wizardState) {
+        Show-DmdClockWizardHeader -Wizard $wizardState
+    }
     Write-Host ''
     Write-Host 'Flash mode:'
     Write-Host '  [1] Application update (Recommended; preserves bootloader, partitions and NVS)' `
         -ForegroundColor Green
     Write-Host '  [2] Complete installation (bootloader, partition table and application; preserves NVS)' `
         -ForegroundColor Yellow
-    Write-Host '  [3] Keep download only and exit' -ForegroundColor DarkGray
-    switch (Read-MenuChoice -Prompt 'Select flash mode' -Minimum 1 -Maximum 3 -Default 1) {
+    Write-Host '  [3] Complete installation + reset device settings (erases NVS; microSD untouched)' `
+        -ForegroundColor Red
+    Write-Host '  [4] Keep download only and exit' -ForegroundColor DarkGray
+    switch (Read-MenuChoice -Prompt 'Select flash mode' -Minimum 1 -Maximum 4 -Default 1) {
         1 { $FlashMode = 'Application' }
         2 { $FlashMode = 'Full' }
-        3 {
+        3 { $FlashMode = 'FullReset' }
+        4 {
             Write-Host 'Nothing was flashed. The verified download remains cached.'
             return
         }
+    }
+    if ($null -ne $wizardState) {
+        Add-DmdClockWizardSelection -Wizard $wizardState -Label 'Flash mode' `
+            -Value $(switch ($FlashMode) {
+                'Application' { 'Application update' }
+                'Full' { 'Complete installation' }
+                'FullReset' { 'Complete installation + reset device settings' }
+            })
     }
 }
 
@@ -1594,12 +2271,13 @@ if ($WhatIf) {
 if ($null -eq $esptool) {
     $esptool = Get-PortableEsptool
 }
-$selectedPort = Select-SerialPort
+$selectedPort = Select-SerialPort -QuickPort $(if ($null -ne $quickSelect) { $quickSelect.Port } else { $null })
 Write-DmdClockProvisioningLog -Event 'serial-selected' -Detail (
     "port=$selectedPort name=$($selectedPortIdentity.Name) pnp=$($selectedPortIdentity.InstanceId) " +
     "tool_version=$($esptool.Version)")
-Assert-ConnectedHardware -SelectedPort $selectedPort
-Assert-DmdFirmwareRevision -Target $selectedTarget
+Assert-ConnectedHardware -SelectedPort $selectedPort -SkipPhysicalConfirmation:($null -ne $quickSelect)
+Assert-DmdFirmwareRevision -Target $selectedTarget `
+    -DetectedRevision $(if ($null -ne $quickSelect) { $quickSelect.DetectedRevision } else { $null })
     $flashed = Invoke-FirmwareFlash -Package $package -Mode $FlashMode -SelectedPort $selectedPort
     $runOutcome = if ($flashed) { 'completed' } else { 'cancelled' }
 }

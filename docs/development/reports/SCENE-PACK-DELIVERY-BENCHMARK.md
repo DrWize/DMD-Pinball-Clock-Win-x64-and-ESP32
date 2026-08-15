@@ -51,14 +51,14 @@ does not implement an individual-file download mode.
 Run the actual ZIP workflow against a running QEMU profile:
 
 ```powershell
-.\scripts\esp32\Measure-ScenePackDelivery.ps1 -Mode QemuZip `
+.\scripts\esp32\dev\Measure-ScenePackDelivery.ps1 -Mode QemuZip `
   -PackId dotclk-original -QemuUrl http://127.0.0.1:8081
 ```
 
 Run the controlled ZIP-versus-individual comparison:
 
 ```powershell
-.\scripts\esp32\Measure-ScenePackDelivery.ps1 -Mode HostComparison `
+.\scripts\esp32\dev\Measure-ScenePackDelivery.ps1 -Mode HostComparison `
   -PackId dotclk-original
 ```
 

@@ -1,7 +1,7 @@
 # ESP32 PowerShell provisioning design
 
 This document records the v1.6 safety audit and the parameter/staging design
-before the mature SD-card and firmware write paths are refactored. Automated
+before the mature microSD card and firmware write paths are refactored. Automated
 validation of this work must never format, partition, erase, or flash real
 hardware.
 
@@ -23,8 +23,10 @@ the Waveshare 7B, restricts production 3.49B firmware to V2/Rev1.1, verifies
 release metadata and every package hash, and obtains the official portable
 Espressif tool. It requires a connected COM port, detects ESP32-S3 and 16 MB
 flash, asks for the physical board marking, and retains an exact final `FLASH`
-confirmation. Normal application/full writes preserve NVS; factory recovery is
-separately revision-gated and replaces internal settings.
+confirmation. Normal application/full writes preserve NVS. FullReset erases only
+the known NVS region, rejects `-Force`, and requires `RESET` before writing the
+complete installation. Factory recovery is separately revision-gated and replaces
+internal settings.
 
 The remaining serial risk is lifecycle identity: package/tool verification and
 COM enumeration are interleaved, the selected PnP device is not snapshotted and
@@ -36,7 +38,7 @@ Before the v1.6 refactor, both scripts allowed Windows PowerShell 5.1. Their
 caches and downloads were independent, there was no common complete offline
 manifest, and no single
 inventory proves that firmware for both supported boards, the selected scene
-library, support files, and the verified flashing tool are present. SD support
+library, support files, and the verified flashing tool are present. microSD support
 files fetched from the repository are bounded but not pinned by a staging
 manifest. Earlier `-WhatIf` behavior could still populate temporary data, and
 neither script wrote a complete per-run evidence log; P2.7 closes both gaps.
@@ -81,7 +83,7 @@ it was downloaded, reused after verification, or replaced after failed
 verification. Downloads use a temporary sibling, validate before an atomic
 rename, and remove partial files on failure.
 
-`-DownloadOnly -Destination <path>` never enumerates disks or COM ports. The SD
+`-DownloadOnly -Destination <path>` never enumerates disks or COM ports. The microSD
 entry point stages the chosen scene library and support payload; the firmware
 entry point stages both supported production firmware packages/manifests and the
 portable tool. A small orchestration entry point may invoke both download-only
@@ -104,7 +106,7 @@ same PnP instance immediately before writing, retain board/revision guards, and
 retain exact `FLASH` confirmation.
 
 All mutating stages create exactly one non-secret evidence log. Staging writes
-under `<Destination>\Logs`; physical SD and flash operations write under
+under `<Destination>\Logs`; physical microSD and flash operations write under
 `%LOCALAPPDATA%\DmdClock\Logs\Provisioning`. Each log records host/runtime and
 elevation, requirement results, invocation context, URLs, destinations, sizes,
 hashes, selected disk or COM identity, tool versions, plans/commands, errors,

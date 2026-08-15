@@ -1,149 +1,235 @@
-# DMDClock for Windows and ESP32-S3
+# DMDClock — a classic pinball DMD clock
 
-DMDClock recreates the classic DotClk clock and `.scn` animation display on a
-Windows monitor or a supported Waveshare ESP32-S3 touchscreen.
+Turn your computer/esp32 into a retro pinball **Dot Matrix Display (DMD)** clock. It shows the current time with dot-matrix letters and numbers, animated classic-pinball-style scenes on the hour and half hour, and can be fully configured from a web page on your phone or PC.
 
-**Current stable release: [v1.6.0](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest)**
+- **Computer software (Windows / macOS)** runs on your desktop to manage scenes and preferences.
+- **Firmware (ESP32)** runs on the board; the microSD card holds the scene library.
 
-![DMDClock scene playback](docs/screenshots/setup/scene-playback.png)
+**Enjoying DMDClock?** [Buy me a coffee](https://buymeacoffee.com/drwize) to support development.
 
-## Install on Windows
+![Time display](docs/screenshots/time.png)
 
-> **For:** Windows 10 or Windows 11 x64  
-> **Recommended package:** `DMDClock-*-win-x64-setup.exe`  
-> **Administrator rights:** Not required
+![Scene playback with clock](docs/screenshots/readme/scene-01.png)
 
-![DMDClock running on Windows](docs/screenshots/install/windows-clock.png)
+---
 
-1. Open the [latest release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest).
-2. Expand **Assets** and download the file ending in `win-x64-setup.exe`.
-3. Run the installer and keep the default per-user installation folder.
-4. Start **DMDClock** from the Start Menu.
-5. Right-click the display and choose **Download DotClk scenes…**.
+## Supported hardware
 
-The setup package includes the required .NET runtime. It can also install the
-optional Windows screensaver and start-with-Windows shortcut. Installing a newer
-setup EXE preserves settings, scene choices, and downloaded libraries.
+| Platform / Board | Display | Notes |
+| --- | --- | --- |
+| **Windows 11** | — | Desktop app for managing scenes & preferences |
+| **macOS** | — | Desktop app for managing scenes & preferences (developer preview) |
+| Waveshare ESP32-S3-Touch-LCD-7 | 800×480, N16R8 | Supported |
+| Waveshare ESP32-S3-Touch-LCD-3.49B V2 / Rev1.1 | 640×172, N16R8 | Supported |
 
-For portable ZIPs, screensaver setup, keyboard controls, storage locations, and
-troubleshooting, use the [complete Windows installation guide](docs/INSTALL-WINDOWS.md).
 
-## Install on ESP32-S3
+**Stable release: [v1.7.0 for Windows, macOS, and ESP32-S3](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest)**
 
-> **Supported:** Waveshare ESP32-S3-Touch-LCD-7, original 800×480 N16R8  
-> **Supported:** Waveshare ESP32-S3-Touch-LCD-3.49B V2 / Rev1.1, 640×172 N16R8  
-> **Not compatible:** Waveshare 7B / 1024×600 or 3.49B V1
+---
 
-![DMDClock ESP32 web remote](docs/screenshots/install/esp32-web-remote.png)
+## Install the computer software
 
-### 1. Prepare the TF card
+### Windows 11
 
-The card can be prepared before flashing. Card creation and formatting are
-outside the DMDClock scripts: supply one healthy FAT32 volume and follow the
-[Windows TF-card preparation guide](docs/PREPARE-ESP32-SD-CARD.md).
+1. Download the **Windows** package from the [latest release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest).
+For testing use the standalone executable, which is a self-contained binary that does not require any additional software installed.
+2. Extract the archive to a folder of your choice.
+3. Run `DmdClock.App.exe`.
 
-### 2. Download the flasher
+### macOS
 
-Open PowerShell 7 in an empty folder and download the guarded flasher plus its
-shared module:
+> **Developer preview.** The macOS build is unsigned and not notarized. On first launch, right-click the app and choose **Open**, then confirm in the dialog.
+
+1. Download the **macOS** package from the [latest release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest).
+2. Move `DMDClock.app` to your `Applications` folder.
+3. Right-click **Open** → **Open** to bypass Gatekeeper the first time.
+
+Settings are stored in `~/Library/Application Support/DmdClock`.
+
+---
+
+## Install on the ESP32 platform
+
+Do it in this order: **prepare the microSD card → insert the prepared card into the ESP32 → flash the firmware → configure on the web page**.
+
+You need a FAT32 microSD card (256 MB or more) and a card reader, a USB-C data cable, the board, and Windows 11 with PowerShell 7.
+
+**Recommended: one-command installer.** Download the start script directly from
+the latest release. It fetches its verified companion scripts, stages every
+payload once, prepares the microSD card (or reports it is already up to date),
+then flashes the board:
 
 ```powershell
-Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/Flash-DmdClockEsp32.ps1' -OutFile 'Flash-DmdClockEsp32.ps1'
-Invoke-WebRequest 'https://raw.githubusercontent.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/master/scripts/esp32/DmdClock.Provisioning.psm1' -OutFile 'DmdClock.Provisioning.psm1'
-Unblock-File .\Flash-DmdClockEsp32.ps1, .\DmdClock.Provisioning.psm1
+Invoke-WebRequest 'https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest/download/RUNME-Install-DmdClockEsp32.ps1' -OutFile 'RUNME-Install-DmdClockEsp32.ps1'
+Unblock-File .\RUNME-Install-DmdClockEsp32.ps1
+.\RUNME-Install-DmdClockEsp32.ps1 -CheckRequirements # fetch companions and check the host
+.\RUNME-Install-DmdClockEsp32.ps1 -WhatIf   # preview the full plan
+.\RUNME-Install-DmdClockEsp32.ps1 -Wizard   # run the real installation
 ```
 
-### 3. Verify and flash
+To update an existing ESP32 installation, download the latest start script again
+and run `.\RUNME-Install-DmdClockEsp32.ps1 -Update -Wizard`. The update refreshes
+the staged scene library, firmware, and flashing tool before preparing and flashing.
 
-1. Connect a data-capable USB cable to the board's documented programming/UART
-   connector.
-2. Run `.\Flash-DmdClockEsp32.ps1`.
-3. Select the exact board, firmware release, flash mode, and COM port.
-4. Confirm the physical model and PCB revision shown by the script.
-5. Review the final summary and type `FLASH` only when every value is correct.
+Have both boards but no card handy yet? Stage everything once without any
+hardware, then flash each connected board from the staged payload:
 
-The application-update mode preserves NVS, Wi-Fi settings, and the TF card. The
-script verifies the release manifest, target, package hash, firmware image hashes,
-ESP32-S3 chip, and 16 MB flash before writing.
+```powershell
+.\RUNME-Install-DmdClockEsp32.ps1 -DownloadOnly         # stage library + both images + esptool
+.\RUNME-Install-DmdClockEsp32.ps1 -DownloadOnly -Update # re-check GitHub, re-stage latest
+.\RUNME-Install-DmdClockEsp32.ps1 -SkipCard -Board Waveshare7 -FlashMode Full -Port COM5 -Force
+.\RUNME-Install-DmdClockEsp32.ps1 -SkipCard -Board Waveshare349B -BoardRevision V2 -ConfirmHardware 3.49B -Port COM6 -Force
+```
 
-### 4. Configure the display
+`-SkipCard` runs only the flash phase (add `-Force` to accept the final `FLASH`
+prompt non-interactively). Run without `-SkipCard` once the microSD card is ready
+to prepare the card in the same pass.
 
-Connect the device to a 2.4 GHz Wi-Fi network and open the address shown on the
-screen. The local web remote controls scenes, fonts, colours, brightness, clock
-duration, schedules, and screen orientation. Automatic orientation is available
-only on the 3.49B V2 through its QMI8658 sensor; both boards support fixed 0° and
-180° orientation.
+For how the installer decides what to run, see [Install on the ESP32 — how the installer decides what to run](docs/INSTALL-ESP32.md#how-the-installer-decides-what-to-run).
 
-Use the [complete ESP32 installation guide](docs/INSTALL-ESP32.md) for first boot,
-offline staging, recovery, security notes, and model-specific USB guidance.
+**Manual alternative:** the two direct entry scripts below show the same flow step by step.
+
+### 1. Prepare the microSD card — from Windows 11
+
+The scene library and settings live on a FAT32 microSD card. Use the included script from **Windows 11** (PowerShell 7 or newer):
+
+1. Insert the microSD card and list physical disks to find its number:
+
+   ```powershell
+   .\scripts\esp32\Prepare-DmdClockSdCard.ps1 -ListDisks
+   ```
+
+2. Preview the operation (downloads the library, changes nothing) — replace `3` with your verified disk number:
+
+   ```powershell
+   .\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DiskNumber 3 -Library DmdLarge -WhatIf
+   ```
+
+3. Prepare the card:
+
+   ```powershell
+   .\scripts\esp32\Prepare-DmdClockSdCard.ps1 -DiskNumber 3 -Library DmdLarge
+   ```
+
+   The script validates every scene and synchronizes the card; it never formats or deletes existing content. Scripts live at [`scripts/esp32/`](scripts/esp32/).
+
+4. Safely eject the prepared card and insert it into the **powered-off** ESP32. Then proceed to flashing.
+
+### 2. Flash the firmware
+
+1. Connect the board with a data-capable USB cable to its USB-C programming port (named UART on the 7" ESP32-S3).
+2. Note the COM port in **Device Manager > Ports (COM & LPT)**.
+3. Flash the pre-built firmware from the release — replace `COM5` with your port and pick your board (use PowerShell 7.4.x or later):
+
+   ```powershell
+   .\scripts\esp32\Flash-DmdClockEsp32.ps1 -Board Waveshare349B -FlashMode Application -BoardRevision V2 -Port COM5 -ConfirmHardware 3.49B
+   ```
+
+   ```powershell
+   .\scripts\esp32\Flash-DmdClockEsp32.ps1 -Board Waveshare7 -FlashMode Application -Port COM5 -ConfirmHardware 7
+   ```
+
+   The script verifies the firmware hash and detects the 16 MB flash. Leave off `-ConfirmHardware` to review the final prompt interactively. `-FlashMode Application` updates an existing install; `Full` performs a complete install (bootloader, partition table, app) while preserving NVS; `FullReset` performs the complete install and erases NVS after a required `RESET` confirmation. Every mode leaves the microSD card untouched. `-BoardRevision` only applies to the 3.49B (V2 vs Rev1.1).
+
+### 3. Configure on the web page
+
+- The prepared card is already inserted, so just power the board on, connect to its Wi-Fi access point, open the built-in web page, and set your time zone, display preferences, and which scene library to play.
+
+> Full firmware and flashing instructions: see the docs in the repository.
+
+---
 
 ## Scene libraries
 
-Animations are not embedded in the application or firmware.
+A *scene* is one animated display — a clock, game, or effect — that the board cycles through; the scene library is the full collection stored on the microSD card.
 
-- **DMD-Large** is the preferred library with 2,416 scenes and includes the
-  complete Original collection.
-- **Original DotCLK-Orig** remains selectable separately with 2,324 scenes.
-- User-provided compatible `.scn` files can also be selected.
+| Library | Scenes | Notes |
+| --- | --- | --- |
+| **DMD-Large** | 2,416 | Recommended. Download as release [`scene-pack-v2026.08.10`](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/tag/scene-pack-v2026.08.10) |
+| **DotCLK-Orig** | 2,324 | The original dot-clock scene set |
 
-Windows installs a selected library through **Download DotClk scenes…**. ESP32
-libraries are prepared on Windows and copied to an already-FAT32 card with
-`Prepare-DmdClockSdCard.ps1`; the firmware never formats or repartitions a card.
+The scene libraries build on the original DotClk resources by [sigmafx](https://github.com/sigmafx) — the [DotClk-Resources repository](https://github.com/sigmafx/DotClk-Resources) — which DMDClock references and extends with thanks. The original dot-clock project's animations, fonts, and scene format are the basis of the `DotCLK-Orig` library. The `DMD-Large` library contains those original scenes plus the community scene set curated by this project.
 
-## Everyday controls
+---
 
-### Windows
+## Docs
 
-- Right-click the display for clock, date, scene, colour, and screensaver settings.
-- Press `T` for the clock, `D` for the date, `N` for the next scene, and `F11` for
-  fullscreen.
-- Open **Review and choose scenes…** to enable games and allow or block individual
-  animations.
+Detailed guides live under `docs/` in this repository:
 
-### ESP32-S3
+- [Windows installer & troubleshooting](docs/INSTALL-WINDOWS.md)
+- [macOS install](docs/development/macos/ARM64.md)
+- [ESP32 firmware build & flashing](docs/INSTALL-ESP32.md)
+- [microSD card layout & preparation](docs/PREPARE-ESP32-SD-CARD.md)
+- [Settings reference](docs/SETTINGS.md)
+- [Development history & changelog](docs/development/DEVELOPMENT-HISTORY.md)
 
-- Use the touchscreen for the main playback actions.
-- Use the local web remote for the full settings interface.
-- Settings are saved in NVS and mirrored to the TF card when available.
-- Wi-Fi credentials and the HTTP web interface stay on the local network; there
-  is currently no web login or HTTPS, so use the device only on a trusted LAN.
+---
 
 ## Screenshots
 
-| Windows settings | Scene Reviewer |
-| --- | --- |
-| ![Windows settings menu](docs/screenshots/setup/settings-menu.png) | ![Scene Reviewer](docs/screenshots/setup/scene-reviewer.png) |
-| C64 rainbow theme | Hot-core glow |
-| ![C64 rainbow theme](docs/screenshots/colors/c64-rainbow.png) | ![Hot-core glow](docs/screenshots/colors/hot-core-classic.png) |
+Sample scenes from application.
 
-## Documentation
+<table>
+  <tr>
+    <td><img src="docs/screenshots/readme/scene-01.png" alt="scene-01"></td>
+    <td><img src="docs/screenshots/readme/scene-02.png" alt="scene-02"></td>
+    <td><img src="docs/screenshots/readme/scene-03.png" alt="scene-03"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/readme/scene-04.png" alt="scene-04"></td>
+    <td><img src="docs/screenshots/readme/scene-05.png" alt="scene-05"></td>
+    <td><img src="docs/screenshots/readme/scene-06.png" alt="scene-06"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/readme/scene-07.png" alt="scene-07"></td>
+    <td><img src="docs/screenshots/readme/scene-08.png" alt="scene-08"></td>
+    <td><img src="docs/screenshots/readme/scene-09.png" alt="scene-09"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/readme/scene-10.png" alt="scene-10"></td>
+    <td><img src="docs/screenshots/readme/scene-11.png" alt="scene-11"></td>
+    <td><img src="docs/screenshots/readme/scene-12.png" alt="scene-12"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/readme/scene-13.png" alt="scene-13"></td>
+    <td><img src="docs/screenshots/readme/scene-14.png" alt="scene-14"></td>
+    <td><img src="docs/screenshots/readme/scene-15.png" alt="scene-15"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/readme/scene-16.png" alt="scene-16"></td>
+    <td><img src="docs/screenshots/readme/scene-17.png" alt="scene-17"></td>
+    <td><img src="docs/screenshots/readme/scene-18.png" alt="scene-18"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/readme/scene-19.png" alt="scene-19"></td>
+    <td><img src="docs/screenshots/readme/scene-20.png" alt="scene-20"></td>
+    <td><img src="docs/screenshots/readme/scene-21.png" alt="scene-21"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/readme/scene-22.png" alt="scene-22"></td>
+    <td><img src="docs/screenshots/readme/scene-23.png" alt="scene-23"></td>
+    <td><img src="docs/screenshots/readme/scene-24.png" alt="scene-24"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/readme/scene-25.png" alt="scene-25"></td>
+    <td><img src="docs/screenshots/readme/scene-26.png" alt="scene-26"></td>
+    <td><img src="docs/screenshots/readme/scene-27.png" alt="scene-27"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/readme/scene-28.png" alt="scene-28"></td>
+    <td><img src="docs/screenshots/readme/scene-29.png" alt="scene-29"></td>
+    <td><img src="docs/screenshots/readme/scene-30.png" alt="scene-30"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/readme/scene-31.png" alt="scene-31"></td>
+    <td><img src="docs/screenshots/readme/scene-32.png" alt="scene-32"></td>
+    <td><img src="docs/screenshots/readme/scene-33.png" alt="scene-33"></td>
+  </tr>
+</table>
 
-End users:
+---
 
-- [Install on Windows](docs/INSTALL-WINDOWS.md)
-- [Install on ESP32-S3](docs/INSTALL-ESP32.md)
-- [Prepare an ESP32 TF card](docs/PREPARE-ESP32-SD-CARD.md)
-- [Settings reference](docs/SETTINGS.md)
-
-Developers:
-
-- [Development documentation](docs/development/README.md)
-- [Active TODO](TODO.md)
-- [Completed development history](docs/development/DEVELOPMENT-HISTORY.md)
-
-## Data and privacy
-
-Windows stores settings, indexes, review decisions, and logs under
-`%LOCALAPPDATA%\DmdClock\`. ESP32 Wi-Fi credentials and settings remain on the
-device and its TF card backup. Normal playback does not send scenes or preferences
-to an AI service.
-
-## Acknowledgements
-
-DMDClock is inspired by sigmafx's original DotClk work. Source provenance and
-technical references are recorded in
-[the development reference](docs/development/reference/SOURCES.md), with bundled
-font hashes in [the font reference](docs/development/reference/FONTS.md).
+## Support
 
 If DMDClock brings a little colour or nostalgia to your day, you can
-[buy me a coffee](https://buymeacoffee.com/drwize).
+[buy me a coffee](https://buymeacoffee.com/drwize) to support development.

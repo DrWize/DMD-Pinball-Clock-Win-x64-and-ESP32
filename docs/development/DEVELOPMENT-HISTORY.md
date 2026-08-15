@@ -14,7 +14,7 @@ published GitHub releases.
 - [x] Remove only clean, fully merged feature branches and stale worktrees; audit
       local and remote branch reachability before each deletion and retain any
       branch containing unique or uncommitted work.
-- [x] Document current Wi-Fi storage, plain-text SD backup, recovery AP password,
+- [x] Document current Wi-Fi storage, plain-text microSD backup, recovery AP password,
       lack of web login/HTTPS, release links, and compatible enclosure links.
 - [x] Keep font-licensing research outside the release gates; retain source
       attribution and recorded hashes without making it part of this release work.
@@ -240,6 +240,19 @@ published GitHub releases.
 
 ## ESP32-S3
 
+### Live web-remote settings on the 3.49B
+
+- [x] Make brightness and glow sliders, screen on/off, scene/clock content mode,
+      automatic cycle, random playback, microSD playback log, scenes per cycle, clock
+      duration, and time-between-scenes apply immediately through
+      `POST /api/settings` (150 ms debounce for the sliders). Wi-Fi, LAN-only,
+      MQTT, and the weekly screen and reboot schedules still require their Save
+      actions.
+- [x] Rebuild and app-flash the 3.49B (COM5, `build-hw-349b`) and verify live
+      apply on the device: `animationsPerCycle` changed 5→3→5 through the same
+      endpoint the new page JavaScript uses, with the change reflected in
+      `/api/state` without a reload.
+
 ### v1.6.0 provisioning and documentation closure
 
 - [x] Validate required PowerShell commands, writable staging and log locations,
@@ -248,7 +261,7 @@ published GitHub releases.
       administrator rights; require elevation only when a selected Windows
       operation genuinely needs it.
 - [x] Document requirements checks, download-only staging, dry-run behavior,
-      offline SD preparation, and verified release flashing in the end-user guides.
+      offline microSD preparation, and verified release flashing in the end-user guides.
 
 ### DMDClock ESP32-S3 roadmap / Remaining safety and shared-data work / P0 — repository and recovery safety
 
@@ -266,7 +279,7 @@ published GitHub releases.
 - [x] Data-capable USB cable connected to the port labeled `UART` for initial
       flashing and serial logs.
 - [x] Stable 5 V USB power.
-- [x] Reliable TF/microSD card prepared as FAT32.
+- [x] Reliable microSD card prepared as FAT32.
 - [x] A local folder containing the vendor schematic, current example source,
       factory binary, and recovery notes.
 
@@ -320,7 +333,7 @@ published GitHub releases.
       logical 128×32 framebuffer. Do not duplicate fonts or rendering in the
       Waveshare 7 and 3.49B panel drivers.
 - [x] Persist the selected clock font and expose it through settings, `/api/state`,
-      the web remote, the TF-card settings mirror, and `/api-docs`.
+      the web remote, the microSD card settings mirror, and `/api-docs`.
 - [x] Keep a separate date-font setting deferred until the planned ESP32 date
       renderer exists; it is not part of the completed clock-font gate.
 - [x] Preserve the internal 5×7 fallback for missing, invalid, or unavailable font
@@ -349,10 +362,10 @@ published GitHub releases.
       ESP32 package, manifests, and checksums all reference the integrated commit.
 - [x] Show a non-blocking latest-release notice in the normal Windows startup and
       ESP32 web remote; never auto-download or auto-install an update.
-- [x] Add separate beginner workflows for Windows and ESP32 plus SD-card setup.
+- [x] Add separate beginner workflows for Windows and ESP32 plus microSD card setup.
 - [x] Default the complete ESP32 web/API server to LAN-only source addresses and
       expose the persistent switch in the remote.
-- [x] Recover a stale TF-card SPI state with three bounded enable/settle mount
+- [x] Recover a stale microSD card SPI state with three bounded enable/settle mount
       attempts; verify the live card remounts and all 2,324 scenes return.
 
 ### DMDClock for Windows x64 — development TODO / Current baseline / Version 1.6 roadmap — ESP32 font parity and screen orientation / P0 — desktop-compatible ESP32 DotClk font pipeline — complete 2026-08-14
@@ -371,7 +384,7 @@ published GitHub releases.
       interpretation: embedded resource IDs, variable glyph widths, kerning,
       four-bit intensities, overlap masks, centring, clipping, and generated
       fallback separators must produce the same logical 128×32 result.
-- [x] Add persisted clock-font selection to the ESP32 settings, state API, TF-card
+- [x] Add persisted clock-font selection to the ESP32 settings, state API, microSD card
       settings mirror, web remote, and API documentation.
 - [x] Keep independent date-font selection outside this clock-font P0; add it with
       the separately planned ESP32 date renderer rather than creating a dormant
@@ -400,7 +413,7 @@ published GitHub releases.
 - [x] Complete the Waveshare 3.49B V2 physical font matrix: all five fonts were
       visually confirmed, 12/24-hour and seconds combinations rendered while the
       physical frame counter advanced, scene playback remained healthy, touch had
-      zero read errors, NVS/TF saves stayed `ESP_OK`, heap/PSRAM stayed healthy,
+      zero read errors, NVS/microSD saves stayed `ESP_OK`, heap/PSRAM stayed healthy,
       and TWILIGHT persisted across the final-image reboot from boot count 31 to
       32. The corrected built-in 12-hour AM/PM layout was visually confirmed.
 - [x] Complete the Waveshare 7 physical font matrix: all five fonts were visually
@@ -476,8 +489,8 @@ published GitHub releases.
 - [x] Add a `-DownloadOnly -Destination <path>` workflow with a documented local
       structure such as `DmdClockFiles\ESP32`, `SDCard`, `Tools`, and `Logs`.
       Identify and stage everything later required by both supported ESP32 board
-      variants and the selected SD-card scene-library workflow.
-- [x] Guarantee that download-only mode never enumerates or requires an SD card or
+      variants and the selected microSD card scene-library workflow.
+- [x] Guarantee that download-only mode never enumerates or requires a microSD card or
       ESP32, never writes removable media, and never invokes a format, partition,
       erase, or flash command.
 - [x] Validate HTTP success, non-zero content, expected size when known, and
@@ -488,19 +501,19 @@ published GitHub releases.
       on failure and abort safely when GitHub or another required source cannot be
       reached.
 - [x] Produce a final inventory containing source URL, local path, size, SHA-256,
-      version/target, and status for every staged firmware, SD payload, and tool.
+      version/target, and status for every staged firmware, microSD payload, and tool.
 
 ### DMDClock for Windows x64 — development TODO / Current baseline / Version 1.6 roadmap — ESP32 font parity and screen orientation / P2 — safe staged PowerShell provisioning — v1.6 release blocker / P2.4 — complete offline consumption
 
-- [x] Add `-Source <staging-path>` support so SD preparation can run without new
+- [x] Add `-Source <staging-path>` support so microSD preparation can run without new
       network access when the staging inventory is complete and verified.
 - [x] Provide the equivalent offline firmware/tool consumption path for ESP32
       flashing where technically possible.
-- [x] Validate the complete staged manifest before touching an SD card or ESP32.
+- [x] Validate the complete staged manifest before touching a microSD card or ESP32.
       If anything is missing, corrupt, stale, or for the wrong board/revision,
       report the exact artifacts and stop before the destructive phase.
 
-### DMDClock for Windows x64 — development TODO / Current baseline / Version 1.6 roadmap — ESP32 font parity and screen orientation / P2 — safe staged PowerShell provisioning — v1.6 release blocker / P2.5 — physical SD-disk safety
+### DMDClock for Windows x64 — development TODO / Current baseline / Version 1.6 roadmap — ESP32 font parity and screen orientation / P2 — safe staged PowerShell provisioning — v1.6 release blocker / P2.5 — physical microSD disk safety
 
 - [x] Never automatically select the first USB/removable disk. Enumerate plausible
       physical candidates with disk number, drive letter, model, size, bus type,
@@ -533,7 +546,7 @@ published GitHub releases.
 ### DMDClock for Windows x64 — development TODO / Current baseline / Version 1.6 roadmap — ESP32 font parity and screen orientation / P2 — safe staged PowerShell provisioning — v1.6 release blocker / P2.7 — dry-run, errors, and per-run evidence
 
 - [x] Provide consistent `-WhatIf` or `-DryRun` behavior for requirements,
-      download, SD, and flash modes. Show files, destinations, physical disk,
+      download, microSD, and flash modes. Show files, destinations, physical disk,
       copies, commands, COM device, and firmware without changing files, media, or
       hardware.
 - [x] Use `Set-StrictMode -Version Latest`, `$ErrorActionPreference = 'Stop'`, and
@@ -546,7 +559,7 @@ published GitHub releases.
       COM port, external tool versions, planned/executed commands, outcome, and
       errors. Keep secrets, Wi-Fi credentials, tokens, and passwords out of logs.
 
-### DMDClock for Windows x64 — development TODO / Priority 0 — unified scene-library downloads on every platform / P0.3 — Windows-prepared ESP32 TF card
+### DMDClock for Windows x64 — development TODO / Priority 0 — unified scene-library downloads on every platform / P0.3 — Windows-prepared ESP32 microSD card
 
 - [x] Extend `Prepare-DmdClockSdCard.ps1` with explicit `Original` and `DmdLarge`
       choices backed by the shared catalog, exact archive size/SHA-256 checks,
@@ -556,7 +569,7 @@ published GitHub releases.
       previously managed scenes as well as unrelated/custom card content.
 - [x] Remove full-library download controls from the ESP32 web remote and replace
       them with read-only installed-library status plus a link to the Windows
-      TF-card preparation article. Keep the existing API path only as an internal
+      microSD card preparation article. Keep the existing API path only as an internal
       compatibility surface for firmware 1.4.0.
 
 ### DMDClock for Windows x64 — development TODO / Priority 0 — unified scene-library downloads on every platform / P0.4 — tests and release acceptance
@@ -584,10 +597,10 @@ published GitHub releases.
 - [x] Create the ESP-IDF project from the official Waveshare board example.
 - [x] Pin RGB timing, LCD GPIO mapping, CH422G backlight control, GT911 touch
       configuration, and PSRAM for the original 800×480 board.
-- [x] Verify GT911 orientation and add TF-card pin handling on the
+- [x] Verify GT911 orientation and add microSD card pin handling on the
       physical board.
 - [x] Read touch points and validate orientation on the live overlay.
-- [x] Mount and read/write the prepared FAT32 TF card.
+- [x] Mount and read/write the prepared FAT32 microSD card.
 
 ### Produce the USB install/update ZIP, manifest, and checksum artifacts. / Delivery phases / Phase 3 — DMD renderer
 
@@ -629,24 +642,24 @@ published GitHub releases.
       frame-boundary handoff and diagnose actual underruns separately.
 - [x] Show last synchronization, elapsed age, clock source, progress, and failure
       state through the diagnostics API and web remote.
-- [x] Migrate existing NVS settings into the editable SD settings backup and
-      prefer valid SD settings at boot.
+- [x] Migrate existing NVS settings into the editable microSD settings backup and
+      prefer valid microSD settings at boot.
 - [x] Preserve the running clock across temporary network or NTP loss.
 
-### Produce the USB install/update ZIP, manifest, and checksum artifacts. / Delivery phases / Phase 6 — SCN and TF-card playback
+### Produce the USB install/update ZIP, manifest, and checksum artifacts. / Delivery phases / Phase 6 — SCN and microSD card playback
 
 - [x] Port the bounds-checked SCN parser and validate every frame/storyboard
       boundary before decoding.
 - [x] Reuse an 11-scene compatibility corpus in QEMU.
 - [x] Implement first/regular/final storyboard timing, masks, blanking, clock
       layers, one-shot completion, and Windows-style clock/scene cycling for the
-      QEMU corpus and SD library.
+      QEMU corpus and microSD library.
 - [x] Resolve the ESP32 scene catalog from the same schema-1
       `scene-metadata.json` used by Windows, including exact-file and
       longest-prefix rules, while leaving timing and masks in the SCN.
-- [x] Scan the complete flat TF-card scene directory into a compact PSRAM index.
+- [x] Scan the complete flat microSD card scene directory into a compact PSRAM index.
 - [x] Add sequential/random playback and automatic clock/animation cycles for
-      the QEMU corpus and SD library.
+      the QEMU corpus and microSD library.
 
 ### Produce the USB install/update ZIP, manifest, and checksum artifacts. / Delivery phases / Phase 7 — Touch and local web settings
 
@@ -675,7 +688,7 @@ published GitHub releases.
 - [x] Add scene, clock, brightness, colour, network, schedule, and NTP settings.
 - [x] Provide `Sync NTP` with non-blocking status and last-sync age.
 - [x] Publish a compact diagnostics footer and `/api/state` values for chip
-      temperature, Wi-Fi, memory, SD, time, reset, rendering, touch, settings,
+      temperature, Wi-Fi, memory, microSD, time, reset, rendering, touch, settings,
       screen state, build, and uptime.
 - [x] Label internal temperature as chip-only and not ambient.
 - [x] Keep HTTP request handling outside the display render loop.
@@ -683,7 +696,7 @@ published GitHub releases.
 ### Produce the USB install/update ZIP, manifest, and checksum artifacts. / Delivery phases / Phase 7b — Home Assistant
 
 - [x] Add optional local MQTT broker configuration, disabled by default, with
-      credentials mirrored in NVS and the explicitly plaintext SD backup.
+      credentials mirrored in NVS and the explicitly plaintext microSD backup.
 - [x] Publish Home Assistant MQTT discovery and birth/LWT availability.
 - [x] Add the first display, brightness, scene-navigation, NTP, playback, system,
       storage, Wi-Fi, time, and firmware entities.
@@ -705,7 +718,7 @@ published GitHub releases.
 - [x] Render scene information as one compact metadata row with selectable
       discreet-grey, follow-theme, and custom standalone colours.
 - [x] Keep editable, backup-friendly settings in `/dmd/config/settings.json`
-      with NVS fallback; web changes update both stores and SD wins at boot.
+      with NVS fallback; web changes update both stores and microSD wins at boot.
 - [x] Move the guided touch test from mandatory startup into a web action.
 - [x] Publish chip, network, memory, storage, reset, rendering, touch, time, and
       settings-save diagnostics for the web footer and future HA discovery.
@@ -732,7 +745,7 @@ published GitHub releases.
 
 - [x] Default to LAN-only HTTP access and enforce it at socket acceptance so the
       remote, API documentation, and every API route share the same boundary.
-- [x] Persist the LAN-only switch in NVS and the editable SD settings backup.
+- [x] Persist the LAN-only switch in NVS and the editable microSD settings backup.
 - [x] State clearly that the filter is not authentication: private-LAN clients
       remain trusted and HTTP traffic is unencrypted.
 
@@ -743,7 +756,7 @@ published GitHub releases.
 - [x] Capture real Windows clock comparisons for all three Hot-core colour modes
       and document the controls in the settings guide.
 - [x] Port the accepted Hot-core style to ESP32-S3 with persistent web/API, NVS,
-      and SD-card settings while retaining the selected theme for body and halo.
+      and microSD card settings while retaining the selected theme for body and halo.
 - [x] Render three controlled Windows layers: a small warm or selected core, the
       saturated dot body, and a soft colour-matched halo that ends before the
       midpoint between neighbouring dots.
@@ -790,7 +803,7 @@ published GitHub releases.
 - [x] Compact scene metadata to one fitted
       `game - scene - year - manufacturer` row and add persistent information
       colours for discreet grey, follow-theme, or a standalone custom colour.
-- [x] Mirror all web-editable settings to the human-readable SD file
+- [x] Mirror all web-editable settings to the human-readable microSD file
       `/dmd/config/settings.json`, load it over NVS at boot, migrate existing
       NVS settings on first boot, and use atomic temporary-file replacement.
 - [x] Apply the 24-hour-clock and show-seconds switches immediately, matching
@@ -804,7 +817,7 @@ published GitHub releases.
       `reboot` action to `POST /api/action`, allowing the HTTP response to
       complete before the ESP32 restarts.
 - [x] Add Home Assistant-ready diagnostics to `/api/state` and a compact web
-      footer: approximate chip temperature, RSSI, heap/PSRAM, SD capacity,
+      footer: approximate chip temperature, RSSI, heap/PSRAM, microSD capacity,
       settings-file health, flash/CPU, boot/reset data, render counts, NTP, and
       touch health.
 - [x] Show the effective physical screen state in the diagnostics footer,
@@ -861,10 +874,10 @@ published GitHub releases.
       normal continuous DMA at the Waveshare 16 MHz baseline. The current
       820×500 total timing produces approximately 39.0 Hz and is visually stable
       on the connected board.
-- [x] Define a single `/dmd` TF-card root for scenes, fonts, Plasma assets,
+- [x] Define a single `/dmd` microSD card root for scenes, fonts, Plasma assets,
       extended web assets, exported configuration, backups, bounded logs,
       rebuildable caches, and verified downloads
-- [x] Add non-fatal SPI TF mounting on GPIO11/12/13 with CH422G EXIO4 enable,
+- [x] Add non-fatal SPI microSD mounting on GPIO11/12/13 with CH422G EXIO4 enable,
       create the `/dmd` content root, scan the complete flat SCN directory into
       PSRAM,
       embed no production SCN files, and remain in clock-only mode when storage
@@ -872,14 +885,14 @@ published GitHub releases.
 - [x] Remove the production 11-scene filename allowlist, widen scene IDs to
       16 bits, and verify all 2,324 prepared SCNs appear in the live ESP32 API
       and web scene catalog. Keep the deterministic 11-scene QEMU projection.
-- [x] Add optional bounded SD playback logging at
+- [x] Add optional bounded microSD playback logging at
       `/dmd/logs/playback.log`: record timestamped SCN/game/title and colour
       family/subtheme events, expose its path/size/state in the API and webpage,
       cap it at 256 KB, and keep one rotated previous log.
 - [x] Make Windows and ESP32 resolve scene titles, games, manufacturers, years,
       prefix rules, and exact overrides from the same schema-1
       `scene-metadata.json`; keep SCN storyboard timing authoritative
-- [x] Keep the 243 KB shared metadata catalog on TF storage in production,
+- [x] Keep the 243 KB shared metadata catalog on microSD storage in production,
       embed an automatically generated 11-scene projection in QEMU for
       deterministic tests, and release its parsed JSON tree after the ESP32
       scene records have been resolved
@@ -893,7 +906,7 @@ published GitHub releases.
       progress/status APIs, cancellation, a single-operation lock, and clear
       browser feedback that never blocks the display or HTTP server task.
 - [x] Download the shared catalog and selected archive over certificate-verified
-      HTTPS into TF-card staging, support restart-safe resume, enforce archive and
+      HTTPS into microSD card staging, support restart-safe resume, enforce archive and
       free-space limits, and verify the exact catalog byte size and SHA-256.
 - [x] Extract the versioned ZIP into a separate flat staged scene directory,
       reject unsafe paths and unsupported entries, validate every SCN plus shared
@@ -904,19 +917,19 @@ published GitHub releases.
 - [x] Add one-click complete-pack `Install`, `Update`, `Repair`, and `Cancel`
       controls plus live progress and reboot-required feedback to the ESP32 web
       interface.
-- [x] Run the published complete ZIP through both writable-SD QEMU profiles:
+- [x] Run the published complete ZIP through both writable microSD QEMU profiles:
       Waveshare7 800x480 and Landscape349 640x172 each downloaded, verified,
       extracted, activated, rebooted, and indexed all 2,416 scenes.
 - [x] Label the built-in ESP32-S3 temperature explicitly as **Chip temperature
       (approximate)**; never present it as room/ambient temperature
 - [x] Add the first optional Home Assistant track through local MQTT discovery,
-      birth/LWT availability, and broker credentials mirrored in NVS and the SD
+      birth/LWT availability, and broker credentials mirrored in NVS and the microSD
       settings backup; keep it disabled by default
 - [x] Add a credential-free on-screen QR shortcut to the current local device
       web address; MQTT discovery itself does not use QR pairing
 - [x] Expose the initial display power, brightness, next pinball, next scene,
       NTP sync, current scene, firmware, uptime, RSSI, approximate chip
-      temperature, heap, SD free/present, and time-sync entities
+      temperature, heap, microSD free/present, and time-sync entities
 
 ### Replace selected local repositories with fresh clones. / Completed work / Next prioritized work — Priority 1 — play a selected SCN file
 
@@ -925,7 +938,7 @@ published GitHub releases.
 ### Waveshare ESP32-S3-Touch-LCD-3.49B — 640×172 landscape TODO / Current baseline
 
 - [x] Define separate `Waveshare7` and `Landscape349` QEMU profiles with
-      independent build directories, writable SD images, web ports, and HMP
+      independent build directories, writable microSD images, web ports, and HMP
       ports.
 - [x] Configure `Landscape349` as 640×172 with a 5× DMD scale.
 - [x] Run both QEMU profiles concurrently with 2,416-scene images and persistent
@@ -1006,7 +1019,7 @@ published GitHub releases.
 - [x] Document LCD color format and maximum/recommended bus clock.
 - [x] Document backlight GPIO and control behavior for both revisions.
 - [x] Document touch controller, bus pins, interrupt pin, and reset behavior.
-- [x] Document SD-card pins and bus mode.
+- [x] Document microSD card pins and bus mode.
 - [x] Document the USB flashing and logging interface.
 - [x] Record official factory images, source revisions, and integrity hashes.
 - [x] Confirm the actual board's PCB silkscreen and enclosure QC sticker.
