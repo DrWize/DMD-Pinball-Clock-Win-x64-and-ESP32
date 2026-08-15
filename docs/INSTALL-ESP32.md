@@ -230,7 +230,7 @@ When home Wi-Fi has a DHCP lease, open the IP shown on the ESP32 startup screen.
 The device name is also displayed, for example `DMDClock-59D9`.
 
 To add or change the full scene library, power down the ESP32, remove the TF card,
-and use the [Windows TF-card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md).
+and use the [Windows microSD card preparation guide](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/blob/master/docs/PREPARE-ESP32-SD-CARD.md).
 Windows and macOS keep their normal in-app **Download scenes…** workflow for
 desktop libraries. Full ESP32 library downloads are prepared on Windows to avoid
 competing for the device's display, TLS, and SDMMC memory.
@@ -241,6 +241,31 @@ The remote is arranged from frequently used display controls at the top to
 network, automation, and diagnostics farther down. Changes that say they apply
 immediately are saved directly; use the section's **Save** button where one is
 shown.
+
+The table below summarizes which controls apply immediately (and save
+automatically) and which wait for a **Save** button.
+
+| Control | When it applies | Saved by |
+| --- | --- | --- |
+| Quick controls (next pinball/scene/theme, information, glow, NTP sync, clock, touch test) | Immediately on click | Automatically |
+| Screen switch (`displayOn`) | Immediately on toggle | Automatically |
+| Content mode and scene selection | Immediately | Automatically |
+| Brightness and dot glow | Immediately as you slide | Automatically |
+| Hot-core dots and centre colour | Immediately | Automatically |
+| Colour theme, plasma palette, and motion loop | Immediately | Automatically |
+| Clock font, 24-hour clock, show seconds, fixed clock duration | Immediately | Automatically |
+| Scene information row and colour | Immediately | Automatically |
+| Orientation (fixed 0°/180°, automatic) | Immediately | Automatically |
+| Time zone and browser-time fallback | Immediately | Automatically |
+| Scene cycling (automatic cycle, random order, per-cycle count, clock interval, playback log) | Immediately | Automatically |
+| Weekly screen schedule | When you click **Save schedule** | **Save schedule** |
+| Automatic weekly reboot | When you click **Save reboot schedule** | **Save reboot schedule** |
+| Home Wi-Fi SSID/password and LAN-only web access | When you click **Save changes** | **Save changes** |
+| MQTT discovery, broker, and credentials | When you click **Save changes** | **Save changes** |
+
+The main **Save changes** button also re-sends a full snapshot of the display,
+clock, theme, schedule, and cycling settings, so it is a safe fallback after
+any direct control change.
 
 ### Quick controls and display
 
@@ -351,7 +376,7 @@ and that the model says `ESP32-S3-Touch-LCD-7`, not `7B`, before printing:
 - [Official Waveshare dimensions and 3D drawing][waveshare-board]
 
 For firmware internals, recovery, QEMU, and diagnostic details, see the
-[firmware reference](../firmware/dmdclock-esp32/README.md).
+[firmware reference](development/esp32/FIRMWARE.md).
 
 [latest-release]: https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest
 [printables-case]: https://www.printables.com/model/1030369-waveshare-esp32-s3-7inch-capacitive-touch-display

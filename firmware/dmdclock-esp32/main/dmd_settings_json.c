@@ -285,6 +285,7 @@ static cJSON *settings_to_json(const dmd_settings_t *settings)
     cJSON_AddStringToObject(json, "timezone", settings->timezone);
     cJSON_AddStringToObject(json, "wifiSsid", settings->wifi_ssid);
     cJSON_AddStringToObject(json, "wifiPassword", settings->wifi_password);
+    cJSON_AddStringToObject(json, "deviceName", settings->device_name);
     cJSON_AddBoolToObject(json, "lanOnlyWeb", settings->lan_only_web);
     cJSON_AddBoolToObject(json, "mqttEnabled", settings->mqtt_enabled);
     cJSON_AddStringToObject(json, "mqttHost", settings->mqtt_host);
@@ -456,6 +457,11 @@ esp_err_t dmd_settings_json_load(dmd_settings_t *settings)
         "wifiPassword",
         settings->wifi_password,
         sizeof(settings->wifi_password));
+    load_string(
+        json,
+        "deviceName",
+        settings->device_name,
+        sizeof(settings->device_name));
     load_bool(json, "lanOnlyWeb", &settings->lan_only_web);
     load_bool(json, "mqttEnabled", &settings->mqtt_enabled);
     load_string(

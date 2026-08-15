@@ -116,6 +116,14 @@ esp_err_t dmd_network_init(void)
         s_info.device_name,
         s_info.access_point_ssid,
         sizeof(s_info.device_name));
+    dmd_settings_t settings;
+    dmd_settings_get(&settings);
+    if (settings.device_name[0] != '\0') {
+        strlcpy(
+            s_info.device_name,
+            settings.device_name,
+            sizeof(s_info.device_name));
+    }
     strlcpy(s_info.access_point_ip, "localhost:8080", sizeof(s_info.access_point_ip));
 
     ESP_RETURN_ON_ERROR(esp_netif_init(), TAG, "initialize TCP/IP");
@@ -161,6 +169,17 @@ esp_err_t dmd_network_init(void)
         "register QEMU IP event");
     ESP_RETURN_ON_ERROR(esp_eth_start(s_eth_handle), TAG, "start QEMU Ethernet");
     ESP_LOGI(TAG, "QEMU remote uses host forwarding at http://localhost:8080/");
+    return ESP_OK;
+}
+
+esp_err_t dmd_network_apply_device_name(const char *name)
+{
+    if (name == NULL || s_info_lock == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    xSemaphoreTake(s_info_lock, portMAX_DELAY);
+    strlcpy(s_info.device_name, name, sizeof(s_info.device_name));
+    xSemaphoreGive(s_info_lock);
     return ESP_OK;
 }
 
@@ -263,10 +282,19 @@ esp_err_t dmd_network_init(void)
         "DMDClock-%02X%02X",
         mac[4],
         mac[5]);
-    strlcpy(
-        s_info.device_name,
-        s_info.access_point_ssid,
-        sizeof(s_info.device_name));
+    dmd_settings_t settings;
+    dmd_settings_get(&settings);
+    if (settings.device_name[0] != '\0') {
+        strlcpy(
+            s_info.device_name,
+            settings.device_name,
+            sizeof(s_info.device_name));
+    } else {
+        strlcpy(
+            s_info.device_name,
+            s_info.access_point_ssid,
+            sizeof(s_info.device_name));
+    }
     ESP_RETURN_ON_ERROR(
         esp_netif_set_hostname(s_station_netif, s_info.device_name),
         TAG,
@@ -292,8 +320,6 @@ esp_err_t dmd_network_init(void)
     access_point.ap.pmf_cfg.capable = true;
     access_point.ap.pmf_cfg.required = false;
 
-    dmd_settings_t settings;
-    dmd_settings_get(&settings);
     wifi_config_t station = {0};
     strlcpy(
         (char *)station.sta.ssid,
@@ -323,6 +349,31 @@ esp_err_t dmd_network_init(void)
         "Remote control: connect to %s using password '%s', then open http://192.168.4.1/",
         s_info.access_point_ssid,
         AP_PASSWORD);
+    return ESP_OK;
+}
+
+esp_err_t dmd_network_apply_device_name(const char *name)
+{
+    if (name == NULL || s_info_lock == NULL ||
+        s_station_netif == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    xSemaphoreTake(s_info_lock, portMAX_DELAY);
+    strlcpy(s_info.device_name, name, sizeof(s_info.device_name));
+    xSemaphoreGive(s_info_lock);
+    esp_netif_t *ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+    esp_err_t error = esp_netif_set_hostname(s_station_netif, name);
+    if (error != ESP_OK) {
+        ESP_LOGW(TAG, "Could not apply station hostname: %s", esp_err_to_name(error));
+        return error;
+    }
+    if (ap_netif != NULL) {
+        error = esp_netif_set_hostname(ap_netif, name);
+        if (error != ESP_OK) {
+            ESP_LOGW(TAG, "Could not apply access-point hostname: %s", esp_err_to_name(error));
+        }
+    }
+    ESP_LOGI(TAG, "Device name applied: %s", name);
     return ESP_OK;
 }
 

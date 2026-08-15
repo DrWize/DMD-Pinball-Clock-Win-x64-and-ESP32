@@ -21,6 +21,7 @@ typedef struct {
 
 esp_err_t dmd_network_init(void);
 esp_err_t dmd_network_apply_credentials(const char *ssid, const char *password);
+esp_err_t dmd_network_apply_device_name(const char *name);
 void dmd_network_get_info(dmd_network_info_t *info);
 esp_err_t dmd_network_request_ntp_sync(void);
 void dmd_network_note_browser_time(void);

@@ -11,6 +11,7 @@
 
 #define DMD_WIFI_SSID_MAX 32
 #define DMD_WIFI_PASSWORD_MAX 64
+#define DMD_DEVICE_NAME_MAX 32
 #define DMD_MQTT_HOST_MAX 253
 #define DMD_MQTT_USERNAME_MAX 64
 #define DMD_MQTT_PASSWORD_MAX 64
@@ -80,6 +81,7 @@ typedef struct {
     char timezone[DMD_TIMEZONE_MAX];
     char wifi_ssid[DMD_WIFI_SSID_MAX + 1];
     char wifi_password[DMD_WIFI_PASSWORD_MAX + 1];
+    char device_name[DMD_DEVICE_NAME_MAX + 1];
     bool lan_only_web;
     bool mqtt_enabled;
     char mqtt_host[DMD_MQTT_HOST_MAX + 1];

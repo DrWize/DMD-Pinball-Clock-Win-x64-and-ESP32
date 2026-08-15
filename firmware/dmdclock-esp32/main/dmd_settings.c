@@ -27,6 +27,35 @@ static dmd_settings_t s_settings;
 static esp_err_t s_last_nvs_save_error = ESP_OK;
 static esp_err_t s_last_sd_save_error = ESP_OK;
 
+static bool device_name_is_valid(const char *name)
+{
+    if (name == NULL) {
+        return false;
+    }
+    size_t length = strlen(name);
+    if (length > DMD_DEVICE_NAME_MAX) {
+        return false;
+    }
+    if (length == 0) {
+        return true;
+    }
+    if (name[0] == '-' || name[length - 1] == '-') {
+        return false;
+    }
+    for (size_t index = 0; index < length; index++) {
+        char value = name[index];
+        bool valid =
+            (value >= 'A' && value <= 'Z') ||
+            (value >= 'a' && value <= 'z') ||
+            (value >= '0' && value <= '9') ||
+            value == '-';
+        if (!valid) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static void set_defaults(void)
 {
     memset(&s_settings, 0, sizeof(s_settings));
@@ -132,6 +161,10 @@ static esp_err_t finalize_settings_init(void)
         persist = true;
     }
 #endif
+    if (!device_name_is_valid(s_settings.device_name)) {
+        s_settings.device_name[0] = '\0';
+        persist = true;
+    }
     dmd_settings_apply_timezone(s_settings.timezone);
     if (DMD_BOOTSTRAP_WIFI_SSID[0] != '\0' &&
         (strcmp(s_settings.wifi_ssid, DMD_BOOTSTRAP_WIFI_SSID) != 0 ||
@@ -344,6 +377,7 @@ esp_err_t dmd_settings_init(void)
     load_string(handle, "timezone", s_settings.timezone, sizeof(s_settings.timezone));
     load_string(handle, "wifi_ssid", s_settings.wifi_ssid, sizeof(s_settings.wifi_ssid));
     load_string(handle, "wifi_pass", s_settings.wifi_password, sizeof(s_settings.wifi_password));
+    load_string(handle, "dev_name", s_settings.device_name, sizeof(s_settings.device_name));
     load_string(handle, "mqtt_host", s_settings.mqtt_host, sizeof(s_settings.mqtt_host));
     load_string(handle, "mqtt_user", s_settings.mqtt_username, sizeof(s_settings.mqtt_username));
     load_string(handle, "mqtt_pass", s_settings.mqtt_password, sizeof(s_settings.mqtt_password));
@@ -443,6 +477,10 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
     normalized.timezone[DMD_TIMEZONE_MAX - 1] = '\0';
     normalized.wifi_ssid[DMD_WIFI_SSID_MAX] = '\0';
     normalized.wifi_password[DMD_WIFI_PASSWORD_MAX] = '\0';
+    normalized.device_name[DMD_DEVICE_NAME_MAX] = '\0';
+    if (!device_name_is_valid(normalized.device_name)) {
+        normalized.device_name[0] = '\0';
+    }
     normalized.mqtt_host[DMD_MQTT_HOST_MAX] = '\0';
     normalized.mqtt_username[DMD_MQTT_USERNAME_MAX] = '\0';
     normalized.mqtt_password[DMD_MQTT_PASSWORD_MAX] = '\0';
@@ -560,6 +598,7 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
         (error = nvs_set_str(handle, "timezone", normalized.timezone)) == ESP_OK &&
         (error = nvs_set_str(handle, "wifi_ssid", normalized.wifi_ssid)) == ESP_OK &&
         (error = nvs_set_str(handle, "wifi_pass", normalized.wifi_password)) == ESP_OK &&
+        (error = nvs_set_str(handle, "dev_name", normalized.device_name)) == ESP_OK &&
         (error = nvs_set_str(handle, "mqtt_host", normalized.mqtt_host)) == ESP_OK &&
         (error = nvs_set_str(handle, "mqtt_user", normalized.mqtt_username)) == ESP_OK &&
         (error = nvs_set_str(handle, "mqtt_pass", normalized.mqtt_password)) == ESP_OK &&

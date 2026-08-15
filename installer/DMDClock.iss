@@ -78,7 +78,9 @@ Source: "{#SourceDir}\SHA256SUMS.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\i18n\*"; DestDir: "{app}\i18n"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#SourceDir}\fonts\*"; DestDir: "{app}\fonts"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#SourceDir}\scenes\scene-metadata.json"; DestDir: "{app}\scenes"; Flags: ignoreversion
-Source: "{#ProjectRoot}\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#ProjectRoot}\docs\INSTALL-WINDOWS.md"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "{#ProjectRoot}\docs\SETTINGS.md"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "{#ProjectRoot}\docs\screenshots\*"; DestDir: "{app}\docs\screenshots"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\DMDClock"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
@@ -86,7 +88,7 @@ Name: "{group}\Configure DMDClock"; Filename: "{app}\{#AppScrName}"; Parameters:
 Name: "{group}\Preview DMDClock screen saver"; Filename: "{app}\{#AppScrName}"; Parameters: "/s"; WorkingDir: "{app}"
 Name: "{group}\Screen Saver Settings"; Filename: "{sys}\control.exe"; Parameters: "desk.cpl,,1"
 Name: "{group}\Get DotClk scenes"; Filename: "{#SceneSourceUrl}"
-Name: "{group}\User setup and scene instructions"; Filename: "{app}\docs\USER-SETUP.md"
+Name: "{group}\User setup and scene instructions"; Filename: "{app}\docs\INSTALL-WINDOWS.md"
 Name: "{group}\Uninstall DMDClock"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\DMDClock"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 Name: "{userstartup}\DMDClock"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: autostart

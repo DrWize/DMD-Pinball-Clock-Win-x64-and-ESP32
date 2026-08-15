@@ -1108,6 +1108,45 @@ static esp_err_t settings_post(httpd_req_t *request)
             password->valuestring,
             sizeof(updated.wifi_password));
     }
+    cJSON *device_name = cJSON_GetObjectItemCaseSensitive(json, "deviceName");
+    if (device_name != NULL) {
+        if (!cJSON_IsString(device_name)) {
+            cJSON_Delete(json);
+            return httpd_resp_send_err(
+                request,
+                HTTPD_400_BAD_REQUEST,
+                "deviceName must be a string");
+        }
+        const char *value = device_name->valuestring;
+        size_t length = strlen(value);
+        if (length > DMD_DEVICE_NAME_MAX) {
+            cJSON_Delete(json);
+            return httpd_resp_send_err(
+                request,
+                HTTPD_400_BAD_REQUEST,
+                "deviceName must be 32 characters or fewer");
+        }
+        bool valid = length > 0 && value[0] != '-' && value[length - 1] != '-';
+        for (size_t index = 0; valid && index < length; index++) {
+            char character = value[index];
+            valid =
+                (character >= 'A' && character <= 'Z') ||
+                (character >= 'a' && character <= 'z') ||
+                (character >= '0' && character <= '9') ||
+                character == '-';
+        }
+        if (!valid) {
+            cJSON_Delete(json);
+            return httpd_resp_send_err(
+                request,
+                HTTPD_400_BAD_REQUEST,
+                "deviceName may only contain letters, digits, and hyphens, must not start or end with a hyphen");
+        }
+        strlcpy(
+            updated.device_name,
+            value,
+            sizeof(updated.device_name));
+    }
     update_bool(json, "mqttEnabled", &updated.mqtt_enabled);
     cJSON *mqtt_host = cJSON_GetObjectItemCaseSensitive(json, "mqttHost");
     if (cJSON_IsString(mqtt_host)) {
@@ -1189,6 +1228,12 @@ static esp_err_t settings_post(httpd_req_t *request)
             updated.wifi_password);
         if (error != ESP_OK) {
             ESP_LOGW(TAG, "Wi-Fi reconfiguration failed: %s", esp_err_to_name(error));
+        }
+    }
+    if (strcmp(before.device_name, updated.device_name) != 0) {
+        error = dmd_network_apply_device_name(updated.device_name);
+        if (error != ESP_OK) {
+            ESP_LOGW(TAG, "Device name apply failed: %s", esp_err_to_name(error));
         }
     }
 
