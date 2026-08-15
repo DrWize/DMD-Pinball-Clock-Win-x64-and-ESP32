@@ -62,7 +62,7 @@ idf_component_register(
 )
 
 set(DMD_FONT_GENERATOR
-    "${CMAKE_CURRENT_LIST_DIR}/../../../scripts/esp32/Generate-DmdClockFonts.py")
+    "${CMAKE_CURRENT_LIST_DIR}/../../../scripts/esp32/tests/Generate-DmdClockFonts.py")
 set(DMD_FONT_SOURCE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/../../../assets/fonts/DotClk")
 set(DMD_FONT_GENERATED_DIR
@@ -115,7 +115,7 @@ if(CONFIG_DMD_QEMU)
         "${DMD_SCENE_SOURCE_DIR}/scene-metadata.json"
     )
     set(DMD_SCENE_METADATA_TOOL
-        "${DMD_SCENE_SOURCE_DIR}/../scripts/esp32/New-DmdSceneMetadataSubset.py")
+        "${DMD_SCENE_SOURCE_DIR}/../scripts/esp32/dev/New-DmdSceneMetadataSubset.py")
     set_property(
         DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
         "${DMD_SCENE_METADATA_SOURCE_FILE}"
