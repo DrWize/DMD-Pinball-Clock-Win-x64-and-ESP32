@@ -3,7 +3,7 @@
 This file contains unfinished work only. Completed implementation and decision
 records are archived in [`docs/development/DEVELOPMENT-HISTORY.md`](docs/development/DEVELOPMENT-HISTORY.md).
 
-Current stable release: **v1.7.0**. Supported embedded targets are the original
+Current stable release: **v1.7.1**. Supported embedded targets are the original
 Waveshare ESP32-S3-Touch-LCD-7 (800×480, N16R8) and the 3.49B V2 /
 Rev1.1 (640×172, N16R8). The 7B and 3.49B V1 remain incompatible.
 

@@ -205,7 +205,7 @@ build reached **Home Wi-Fi connected** before clearing the bootstrap header.
 After building and validating all packages, preview release publication:
 
 ```powershell
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.0 -WhatIf
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.1 -WhatIf
 ```
 
 When the release should appear in the ESP32 installer's download menu, build
@@ -214,13 +214,13 @@ both credential-free targets into the same release directory:
 ```powershell
 .\scripts\esp32\dev\Package-DmdClockEsp32.ps1 -Board Waveshare7 -CleanOutput
 .\scripts\esp32\dev\Package-DmdClockEsp32.ps1 -Board Waveshare349B
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.0 -IncludeEsp32 -WhatIf
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.1 -IncludeEsp32 -WhatIf
 ```
 
 Publish after reviewing the preflight output:
 
 ```powershell
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.0 -IncludeEsp32
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.1 -IncludeEsp32
 ```
 
 The script requires an authenticated GitHub CLI, a clean working tree whose `HEAD`

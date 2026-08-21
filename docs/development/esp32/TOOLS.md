@@ -59,7 +59,7 @@ require Python, ESP-IDF, .NET, Git, CMake, Ninja, or the Xtensa compiler.
 .\scripts\esp32\dev\Package-DmdClockEsp32.ps1 -Board Waveshare349B
 
 # Include both verified ESP32 targets when previewing the combined release.
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.0 -IncludeEsp32 -WhatIf
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.1 -IncludeEsp32 -WhatIf
 
 # Generate a one-time, ignored first-flash Wi-Fi header and build with it.
 # The password is entered through a masked SecureString prompt.
