@@ -23,7 +23,7 @@ Turn your computer/esp32 into a retro pinball **Dot Matrix Display (DMD)** clock
 | Waveshare ESP32-S3-Touch-LCD-3.49B V2 / Rev1.1 | 640×172, N16R8 | Supported |
 
 
-**Stable release: [v1.7.1 for Windows, macOS, and ESP32-S3](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest)**
+**Stable release: [v1.7.2 for Windows, macOS, and ESP32-S3](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest)**
 
 ---
 
