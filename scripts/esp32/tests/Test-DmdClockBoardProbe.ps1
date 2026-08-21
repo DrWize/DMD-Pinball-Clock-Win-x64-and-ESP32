@@ -5,6 +5,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $flashPath = Join-Path $PSScriptRoot '..\Flash-DmdClockEsp32.ps1'
+$modulePath = Join-Path $PSScriptRoot '..\DmdClock.Provisioning.psm1'
+Import-Module $modulePath -Force
 
 function Assert-True {
     param([bool] $Condition, [string] $Message)
@@ -25,17 +27,15 @@ function Assert-Throws {
     throw "Expected an error matching '$Pattern', but no error was raised."
 }
 
-# --- Extract the probe functions and the $hardwareTargets table from the flash
-#     script without running its top-level body. ---
+# --- Extract only the flash-local helpers without running its top-level body.
+#     Shared probe and target functions come from the provisioning module. ---
 $tokens = $null
 $errors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile(
     $flashPath, [ref] $tokens, [ref] $errors)
 foreach ($functionName in @(
-    'Get-DmdClockBoardProbe', 'Resolve-DmdClockBoardModel',
     'Resolve-DmdClockModelLabel', 'Get-DmdClockSuggestedName',
-    'Write-DmdClockPortMap', 'Assert-DmdClockBoardProbe',
-    'Get-DmdClockDeviceProbe', 'Select-DmdClockDevice',
+    'Write-DmdClockPortMap', 'Get-DmdClockDeviceProbe',
     'Assert-DmdFirmwareRevision')) {
     $function = $ast.FindAll({
         param($node)
@@ -45,20 +45,13 @@ foreach ($functionName in @(
     if ($null -eq $function) { throw "Flash function not found: $functionName" }
     Invoke-Expression $function.Extent.Text
 }
-$hardwareTargetsNode = $ast.FindAll({
-    param($node)
-    $node -is [Management.Automation.Language.AssignmentStatementAst] -and
-        $node.Left -is [Management.Automation.Language.VariableExpressionAst] -and
-        $node.Left.VariablePath.UserPath -eq 'hardwareTargets'
-}, $true) | Select-Object -First 1
-if ($null -eq $hardwareTargetsNode) {
-    throw 'The $hardwareTargets assignment was not found in Flash-DmdClockEsp32.ps1.'
-}
-Invoke-Expression $hardwareTargetsNode.Extent.Text
+$hardwareTargets = @(Get-DmdClockHardwareTargets)
 
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ("DmdClockBoardProbeTests-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 $outputRoot = Join-Path $testRoot 'DmdClock'
+$DmdClockCacheRoot = $outputRoot
+$toolCacheRoot = Join-Path $DmdClockCacheRoot 'tools\esptool'
 
 # --- Real captured boot-banner fixtures. ---
 $banner7 = @'
@@ -107,13 +100,13 @@ Assert-True ($null -eq $probeEmpty.Resolution -and $null -eq $probeEmpty.TouchCo
     $null -eq $probeEmpty.LanIp) 'An empty banner must yield an all-null probe.'
 
 # --- The classifier maps full probes to the matching hardware target. ---
-Assert-True ((Resolve-DmdClockBoardModel -Probe $probe7) -eq 'Waveshare7') `
+Assert-True ((Resolve-DmdClockDeviceFromProbe -Probe $probe7).Key -eq 'Waveshare7') `
     'A 7-inch probe must classify as Waveshare7.'
-Assert-True ((Resolve-DmdClockBoardModel -Probe $probe349) -eq 'Waveshare349B') `
+Assert-True ((Resolve-DmdClockDeviceFromProbe -Probe $probe349).Key -eq 'Waveshare349B') `
     'A 3.49B probe must classify as Waveshare349B.'
 
 # --- No usable signals, or a tie between targets, is inconclusive. ---
-Assert-True ($null -eq (Resolve-DmdClockBoardModel -Probe $probeEmpty)) `
+Assert-True ($null -eq (Resolve-DmdClockDeviceFromProbe -Probe $probeEmpty)) `
     'A zero-signal probe must be inconclusive.'
 $contradictory = [pscustomobject]@{
     Resolution = '800x480'
@@ -122,7 +115,7 @@ $contradictory = [pscustomobject]@{
     AppVersion = '1.0.0'
     LanIp = $null
 }
-Assert-True ($null -eq (Resolve-DmdClockBoardModel -Probe $contradictory)) `
+Assert-True ($null -eq (Resolve-DmdClockDeviceFromProbe -Probe $contradictory)) `
     'A contradictory probe (800x480 + AXS15231B) must tie and be inconclusive.'
 
 # --- Device names derive from the trailing bytes of the chip MAC. ---
@@ -147,57 +140,18 @@ Assert-True ((Resolve-DmdClockModelLabel -Value 'Waveshare ESP32-S3-Touch-LCD-3.
 Assert-True ((Resolve-DmdClockModelLabel -Value 'unknown board') -eq 'unknown board') `
     'Unknown input must be echoed unchanged.'
 
-# --- Assert-DmdClockBoardProbe confirms the selected target or refuses. ---
+# --- The startup device probe lists recognized boards and flags the rest. ---
 $MockPorts = @()
-$selectedTarget = @($hardwareTargets | Where-Object Key -eq 'Waveshare349B')[0]
 $MockNativeProbeCalls = [Collections.Generic.List[string]]::new()
 function Read-DmdClockSerialBanner {
-    param([string] $Port, [int] $CaptureSeconds, [switch] $NativeUsbJtag)
+    param([string] $Port, [int] $CaptureSeconds, [switch] $NativeUsbJtag, [string] $ToolCacheRoot)
     if ($NativeUsbJtag) { [void]$MockNativeProbeCalls.Add($Port) }
     if ($Port -eq 'COM8') { return '' }
     return $MockBanner
 }
-function Get-ConnectedPorts {
+function Get-DmdClockConnectedPorts {
     return @($MockPorts)
 }
-
-$MockBanner = $banner349
-try {
-    Assert-DmdClockBoardProbe -SelectedPort 'COM5'
-    $probeError = $null
-}
-catch {
-    $probeError = $_
-}
-Assert-True ($null -eq $probeError) `
-    "A matching 3.49B probe was rejected: $probeError"
-
-$selectedTarget = @($hardwareTargets | Where-Object Key -eq 'Waveshare7')[0]
-Assert-Throws { Assert-DmdClockBoardProbe -SelectedPort 'COM5' } 'mismatch'
-
-$MockBanner = ''
-try {
-    Assert-DmdClockBoardProbe -SelectedPort 'COM5'
-    $probeError = $null
-}
-catch {
-    $probeError = $_
-}
-Assert-True ($null -eq $probeError) `
-    "An unreadable banner must be best-effort, not a failure: $probeError"
-
-$MockBanner = 'ESP-ROM:esp32s3-20210327`nrst:0x1 (POWERON),boot:0x8 (SPI_FAST_FLASH_BOOT)'
-try {
-    Assert-DmdClockBoardProbe -SelectedPort 'COM5'
-    $probeError = $null
-}
-catch {
-    $probeError = $_
-}
-Assert-True ($null -eq $probeError) `
-    "An inconclusive banner must be best-effort, not a failure: $probeError"
-
-# --- The startup device probe lists recognized boards and flags the rest. ---
 $MockPorts = @(
     [pscustomobject]@{ Port = 'COM5'; Name = 'USB JTAG/serial debug unit (COM5)'; InstanceId = 'USB\VID_303A&PID_1001\1' },
     [pscustomobject]@{ Port = 'COM8'; Name = 'Unknown (COM8)'; InstanceId = 'USB\VID_1A86&PID_7523\8' }
@@ -253,44 +207,9 @@ $probeRows = @(Get-DmdClockDeviceProbe)
 $row7 = @($probeRows | Where-Object Port -eq 'COM5')[0]
 Assert-True ($null -eq $row7.Revision) 'A 7-inch banner must carry no PCB revision.'
 
-# --- Select-DmdClockDevice quick-selects a probed row or falls back manually. ---
-function Read-MenuChoice {
-    param([string] $Prompt, [int] $Minimum, [int] $Maximum, [int] $Default = 0)
-    return $MockDeviceChoice
-}
-$Board = $null
-$wizardState = $null
-$MockBanner = $banner349
-$probeRows = @(Get-DmdClockDeviceProbe)
-
-$MockDeviceChoice = 1
-$quick = Select-DmdClockDevice -Rows $probeRows
-Assert-True ($null -ne $quick) 'A probed row must yield a quick-select result.'
-Assert-True ($quick.Target.Key -eq 'Waveshare349B') "Quick-select target key wrong: $($quick.Target.Key)"
-Assert-True ($quick.Port -eq 'COM5') "Quick-select port wrong: $($quick.Port)"
-Assert-True ($quick.DetectedRevision -eq 'V2') "Quick-select revision wrong: $($quick.DetectedRevision)"
-
-$MockDeviceChoice = 2
-Assert-True ($null -eq (Select-DmdClockDevice -Rows $probeRows)) `
-    'Choosing manual must return null so the hardware menu runs.'
-
-$MockDeviceChoice = 3
-Assert-True ((Select-DmdClockDevice -Rows $probeRows) -eq 'EXIT') `
-    'Choosing exit must return the EXIT sentinel.'
-
-$Board = '7'
-$MockDeviceChoice = 1
-Assert-True ($null -eq (Select-DmdClockDevice -Rows $probeRows)) `
-    'An explicit -Board must bypass the device quick-select.'
-$Board = $null
-
-$rowsNotVerified = @($probeRows | Where-Object Status -eq 'Not verified')
-Assert-True ($null -eq (Select-DmdClockDevice -Rows $rowsNotVerified)) `
-    'Rows without a resolvable model must not be offered for quick selection.'
-
 # --- Assert-DmdFirmwareRevision uses the detected revision or falls back. ---
-function Read-HighlightedConfirmation {
-    param([string] $Prefix, [string] $Token, [string] $Suffix, [string] $Color)
+function Read-DmdClockHighlightedConfirmation {
+    param([string] $Prefix, [string] $Token, [string] $Suffix, [string] $RequiredParameter, [string] $Color)
     return $MockRevisionConfirmation
 }
 $target349 = @($hardwareTargets | Where-Object Key -eq 'Waveshare349B')[0]
@@ -350,4 +269,4 @@ Assert-True (@([IO.Directory]::GetFiles($outputRoot, '*.tmp')).Count -eq 0) `
 
 Remove-Item -LiteralPath $testRoot -Recurse -Force
 
-Write-Host '[PASS] Board probe: boot banners are parsed into signals, classifiers resolve the model (with inconclusive ties), probe rows carry a model key and PCB revision, the device quick-select picks or falls back to the manual menu, the firmware revision is confirmed from the probe or the physical board, and the port map is written atomically without a BOM.' -ForegroundColor Green
+Write-Host '[PASS] Board probe: boot banners are parsed into signals, classifiers resolve the model, probe rows carry model and PCB revision, firmware revision is confirmed from the probe or physical board, and the port map is written atomically without a BOM.' -ForegroundColor Green

@@ -64,10 +64,26 @@ function Test-DmdClockStagingManifest {
     }
     throw 'stub: staging incomplete'
 }
-Export-ModuleMember -Function Test-DmdClockStagingManifest
+function Set-DmdClockOperationResult {
+    param([string] $Status, [string] $Operation, [string] $Detail = '')
+    $global:DmdClockOperationResult = [pscustomobject]@{
+        PSTypeName = 'DmdClock.OperationResult'
+        Status = $Status
+        Operation = $Operation
+        Detail = $Detail
+    }
+}
+function Invoke-DmdClockChildOperation {
+    param([string] $Operation, [string] $ScriptPath, [hashtable] $Arguments = @{})
+    $global:DmdClockOperationResult = $null
+    & $ScriptPath @Arguments
+    if ($null -eq $global:DmdClockOperationResult) { throw "$Operation did not report an operation result." }
+    return $global:DmdClockOperationResult
+}
+Export-ModuleMember -Function Test-DmdClockStagingManifest,Set-DmdClockOperationResult,Invoke-DmdClockChildOperation
 '@ -Encoding utf8NoBOM
 
-    # --- Recording fakes for the two real entry scripts. ---
+    # --- Recording fakes for the three real entry scripts. ---
     Set-Content -LiteralPath (Join-Path $scratch 'Prepare-DmdClockSdCard.ps1') -Value @'
 [CmdletBinding()]
 param(
@@ -91,6 +107,11 @@ $entry = '{0}|dest={1}|src={2}|lib={3}|disk={4}|dry={5}|wiz={6}|check={7}|refres
     $kind, $Destination, $StagingSource, $Library, $DiskNumber, [bool]$DryRun, [bool]$Wizard, `
     [bool]$CheckRequirements, [bool]$RefreshSource
 [IO.File]::AppendAllText((Join-Path $PSScriptRoot 'calls.txt'), $entry + [Environment]::NewLine)
+if ($env:DMD_TEST_CANCEL_KIND -eq $kind) {
+    Set-DmdClockOperationResult -Status cancelled -Operation $kind
+} else {
+    Set-DmdClockOperationResult -Status $(if ($DryRun) { 'dry-run' } else { 'completed' }) -Operation $kind
+}
 '@ -Encoding utf8NoBOM
 
     Set-Content -LiteralPath (Join-Path $scratch 'Flash-DmdClockEsp32.ps1') -Value @'
@@ -117,6 +138,26 @@ $entry = '{0}|src={1}|board={2}|mode={3}|port={4}|dest={5}|wi={6}|check={7}|rev=
     $kind, $Source, $Board, $FlashMode, $Port, $Destination, [bool]$WhatIf, [bool]$CheckRequirements, `
     $BoardRevision, [bool]$FactoryRecovery, $ReleaseTag, $ConfirmHardware, [bool]$Force
 [IO.File]::AppendAllText((Join-Path $PSScriptRoot 'calls.txt'), $entry + [Environment]::NewLine)
+if ($env:DMD_TEST_CANCEL_KIND -eq $kind) {
+    Set-DmdClockOperationResult -Status cancelled -Operation $kind
+} else {
+    Set-DmdClockOperationResult -Status $(if ($WhatIf) { 'dry-run' } else { 'completed' }) -Operation $kind
+}
+'@ -Encoding utf8NoBOM
+
+    Set-Content -LiteralPath (Join-Path $scratch 'Reset-DmdClockSettings.ps1') -Value @'
+[CmdletBinding()]
+param(
+    [string] $Port,
+    [switch] $CheckRequirements,
+    [switch] $WhatIf,
+    [string] $ConfirmHardware,
+    [switch] $Force,
+    [string] $Repository
+)
+$kind = if ($CheckRequirements) { 'reset-check' } else { 'reset-settings' }
+[IO.File]::AppendAllText((Join-Path $PSScriptRoot 'calls.txt'), $kind + [Environment]::NewLine)
+Set-DmdClockOperationResult -Status $(if ($WhatIf) { 'dry-run' } else { 'completed' }) -Operation $kind
 '@ -Encoding utf8NoBOM
 
     Copy-Item -LiteralPath $installScript -Destination (Join-Path $scratch 'RUNME-Install-DmdClockEsp32.ps1')
@@ -234,6 +275,26 @@ $entry = '{0}|src={1}|board={2}|mode={3}|port={4}|dest={5}|wi={6}|check={7}|rev=
     Assert-True ($callsK[0] -match 'force=True') 'Scenario K must forward -Force.'
     Assert-True ($callsK[0] -match 'port=COM5') 'Scenario K must forward -Port.'
 
+    # --- Scenario M: a child cancellation stops orchestration and must never
+    #     become an install or flash completion message. ---
+    $beforeM = $script:total
+    $env:DMD_TEST_CANCEL_KIND = 'sd-prepare'
+    try {
+        $outputM = @(& (Join-Path $scratch 'RUNME-Install-DmdClockEsp32.ps1') `
+            -Destination $destFull -DiskNumber 3 6>&1)
+    }
+    finally {
+        Remove-Item Env:\DMD_TEST_CANCEL_KIND -ErrorAction SilentlyContinue
+    }
+    $callsM = Get-CallsSince -From $beforeM
+    $script:total += $callsM.Count
+    Assert-True ($callsM.Count -eq 1 -and $callsM[0] -match '^sd-prepare') `
+        'Scenario M must stop immediately after the cancelled card operation.'
+    Assert-True (($outputM -join "`n") -notmatch '\[DONE\]|Flash complete|Install complete') `
+        'Scenario M converted child cancellation into a completion message.'
+    Assert-True ($global:DmdClockOperationResult.Status -eq 'cancelled') `
+        'Scenario M did not propagate the cancelled operation result.'
+
     # --- Scenario D: -CheckRequirements passes through to both scripts. ---
     $callsD = Invoke-Scenario 'D' {
         & (Join-Path $scratch 'RUNME-Install-DmdClockEsp32.ps1') -CheckRequirements
@@ -263,6 +324,7 @@ $entry = '{0}|src={1}|board={2}|mode={3}|port={4}|dest={5}|wi={6}|check={7}|rev=
     Copy-Item -LiteralPath (Join-Path $scratch 'DmdClock.Provisioning.psm1') -Destination (Join-Path $fetchSrc 'DmdClock.Provisioning.psm1')
     Copy-Item -LiteralPath (Join-Path $scratch 'Prepare-DmdClockSdCard.ps1') -Destination (Join-Path $fetchSrc 'Prepare-DmdClockSdCard.ps1')
     Copy-Item -LiteralPath (Join-Path $scratch 'Flash-DmdClockEsp32.ps1') -Destination (Join-Path $fetchSrc 'Flash-DmdClockEsp32.ps1')
+    Copy-Item -LiteralPath (Join-Path $scratch 'Reset-DmdClockSettings.ps1') -Destination (Join-Path $fetchSrc 'Reset-DmdClockSettings.ps1')
     $lonelyB = Join-Path $testRoot 'lonely-b'
     [IO.Directory]::CreateDirectory($lonelyB) | Out-Null
     Copy-Item -LiteralPath $installScript -Destination (Join-Path $lonelyB 'RUNME-Install-DmdClockEsp32.ps1')
@@ -273,6 +335,7 @@ $entry = '{0}|src={1}|board={2}|mode={3}|port={4}|dest={5}|wi={6}|check={7}|rev=
     Assert-True (Test-Path -LiteralPath (Join-Path $lonelyB 'DmdClock.Provisioning.psm1')) 'Scenario L must self-fetch the provisioning module.'
     Assert-True (Test-Path -LiteralPath (Join-Path $lonelyB 'Prepare-DmdClockSdCard.ps1')) 'Scenario L must self-fetch Prepare-DmdClockSdCard.ps1.'
     Assert-True (Test-Path -LiteralPath (Join-Path $lonelyB 'Flash-DmdClockEsp32.ps1')) 'Scenario L must self-fetch Flash-DmdClockEsp32.ps1.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $lonelyB 'Reset-DmdClockSettings.ps1')) 'Scenario L must self-fetch Reset-DmdClockSettings.ps1.'
     $callsL = @(Get-Content -LiteralPath (Join-Path $lonelyB 'calls.txt'))
     Assert-True ($callsL.Count -eq 4) "Scenario L expected 4 calls; got: $($callsL -join ' | ')"
     Assert-True ($callsL[0] -match '^sd-stage') 'Scenario L must run sd staging after fetching.'

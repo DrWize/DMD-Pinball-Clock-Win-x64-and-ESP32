@@ -29,6 +29,9 @@ function Assert-Throws {
 }
 
 try {
+    [IO.Directory]::CreateDirectory($testRoot) | Out-Null
+    Import-Module $modulePath -Force
+
     # --- Static evidence: the reset script parses cleanly and has no empty catch. ---
     $tokens = $null
     $errors = $null
@@ -47,9 +50,10 @@ try {
     $resetSource = Get-Content -LiteralPath $resetScript -Raw
     Assert-True ($resetSource -match 'erase_region') `
         'Reset script does not call esptool erase_region.'
-    Assert-True ($resetSource -match "\`$nvsRegionOffset = '0x9000'") `
+    $config = Get-DmdClockConfig
+    Assert-True ($config.NvsRegionOffset -eq '0x9000') `
         'NVS region offset is not the expected 0x9000.'
-    Assert-True ($resetSource -match "\`$nvsRegionSize = '0x6000'") `
+    Assert-True ($config.NvsRegionSize -eq '0x6000') `
         'NVS region size is not the expected 0x6000.'
     Assert-True ($resetSource -notmatch '(?im)\berase_flash\b') `
         'Reset script contains a full-flash erase command.'
@@ -63,7 +67,7 @@ try {
         'Reset script contains a command that deletes an SD card settings file.'
     Assert-True ($resetSource -notmatch '(?im)(settings\.json|/sd)[\s\S]{0,200}\b(Remove-Item|Delete-Item|Clear-Item)\b') `
         'Reset script deletes the SD card settings file.'
-    Assert-True ($resetSource -match 'Delete  dmd\\config\\settings\.json') `
+    Assert-True ($resetSource -match 'manually delete dmd\\config\\settings\.json') `
         'Reset script does not instruct removing /dmd/config/settings.json.'
     Assert-True ($resetSource -match 'that file wins at boot') `
         'Reset script does not explain that settings.json wins at boot.'
@@ -74,13 +78,13 @@ try {
         'Reset script does not reject -Force.'
     Assert-True ($resetSource -match "Token 'RESET'") `
         'Reset script does not require the RESET confirmation token.'
-    Assert-True ($resetSource -match 'Settings reset confirmation was not accepted') `
+    Assert-True ($resetSource -match 'Reset cancelled') `
         'Reset script does not reject a wrong confirmation token.'
-    Assert-True ($resetSource -match 'Assert-SerialPortUnchanged') `
+    Assert-True ($resetSource -match 'Assert-DmdClockSerialPortUnchanged') `
         'Reset script does not revalidate the serial port before erasing.'
-    Assert-True ($resetSource -match 'Assert-ConnectedHardware') `
+    Assert-True ($resetSource -match 'Assert-DmdClockEsp32s3WithFlash') `
         'Reset script does not verify the chip and flash before erasing.'
-    Assert-True ($resetSource -match 'refusing an identity-weak selection') `
+    Assert-True ($resetSource -match 'Select-DmdClockSerialPort') `
         'Reset script does not require a strong PnP port identity.'
 
     # --- Static evidence: the reset script never stages firmware or downloads an
@@ -91,68 +95,32 @@ try {
     Assert-True ($moduleSource -match "ValidateSet\('Check', 'Download', 'Offline', 'SdCard', 'Flash', 'Reset'\)") `
         'Provisioning module does not advertise the Reset requirements operation.'
 
-    # --- Extract only the hardware-check function, leaving Invoke-EsptoolChecked
-    # undefined so a local mock drives chip/flash results (mirrors
-    # Test-DmdClockBoardProbe). ---
-    $functionNode = $resetAst.FindAll({
-        param($node)
-        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
-            $node.Name -eq 'Assert-ConnectedHardware'
-    }, $true) | Select-Object -First 1
-    if ($null -eq $functionNode) {
-        throw 'Reset function not found: Assert-ConnectedHardware'
-    }
-    Invoke-Expression $functionNode.Extent.Text
+    # --- Unit: shared hardware verification accepts only ESP32-S3 with 16 MB. ---
+    $validTool = Join-Path $testRoot 'valid-esptool.ps1'
+    Set-Content -LiteralPath $validTool -Value @'
+$joined = $args -join ' '
+if ($joined -match '\bchip-id\b') { 'Chip is ESP32-S3 (revision v0.1)'; exit 0 }
+if ($joined -match '\bflash-id\b') { 'Detected flash size: 16MB'; exit 0 }
+'@ -Encoding utf8NoBOM
+    Assert-DmdClockEsp32s3WithFlash -EsptoolPath $validTool -Port 'COM9'
 
-    Import-Module $modulePath -Force
-
-    # --- Unit: Assert-ConnectedHardware accepts a matching ESP32-S3 with 16 MB. ---
-    $global:MockEsptoolCalls = [Collections.Generic.List[string[]]]::new()
-    function Invoke-EsptoolChecked {
-        param([Parameter(Mandatory)] [string[]] $Arguments)
-        $global:MockEsptoolCalls.Add(@($Arguments))
-        $joined = $Arguments -join ' '
-        if ($joined -match '\bchip-id\b') {
-            return 'Chip is ESP32-S3 (revision v0.1)'
-        }
-        if ($joined -match '\bflash-id\b') {
-            return 'Detected flash size: 16MB'
-        }
-        return ''
-    }
-
-    $output = Assert-ConnectedHardware -SelectedPort 'COM9'
-    $mockAllArgs = @($global:MockEsptoolCalls | ForEach-Object { $_ })
-    Assert-True (@($mockAllArgs | Where-Object { $_ -eq 'chip-id' }).Count -ge 1) `
-        'Assert-ConnectedHardware did not run chip-id.'
-    Assert-True (@($mockAllArgs | Where-Object { $_ -eq 'flash-id' }).Count -ge 1) `
-        'Assert-ConnectedHardware did not run flash-id.'
-
-    # --- Unit: a non-ESP32-S3 chip is refused. ---
-    function Invoke-EsptoolChecked {
-        param([Parameter(Mandatory)] [string[]] $Arguments)
-        if (($Arguments -join ' ') -match '\bchip-id\b') {
-            return 'Chip is ESP32 (revision v1.0)'
-        }
-        return ''
-    }
+    $wrongChipTool = Join-Path $testRoot 'wrong-chip-esptool.ps1'
+    Set-Content -LiteralPath $wrongChipTool -Value @'
+$joined = $args -join ' '
+if ($joined -match '\bchip-id\b') { 'Chip is ESP32 (revision v1.0)'; exit 0 }
+'@ -Encoding utf8NoBOM
     Assert-Throws {
-        Assert-ConnectedHardware -SelectedPort 'COM9'
+        Assert-DmdClockEsp32s3WithFlash -EsptoolPath $wrongChipTool -Port 'COM9'
     } 'not an ESP32-S3'
 
-    # --- Unit: an ESP32-S3 with the wrong flash size is refused. ---
-    function Invoke-EsptoolChecked {
-        param([Parameter(Mandatory)] [string[]] $Arguments)
-        if (($Arguments -join ' ') -match '\bchip-id\b') {
-            return 'Chip is ESP32-S3 (revision v0.1)'
-        }
-        if (($Arguments -join ' ') -match '\bflash-id\b') {
-            return 'Detected flash size: 8MB'
-        }
-        return ''
-    }
+    $wrongFlashTool = Join-Path $testRoot 'wrong-flash-esptool.ps1'
+    Set-Content -LiteralPath $wrongFlashTool -Value @'
+$joined = $args -join ' '
+if ($joined -match '\bchip-id\b') { 'Chip is ESP32-S3 (revision v0.1)'; exit 0 }
+if ($joined -match '\bflash-id\b') { 'Detected flash size: 8MB'; exit 0 }
+'@ -Encoding utf8NoBOM
     Assert-Throws {
-        Assert-ConnectedHardware -SelectedPort 'COM9'
+        Assert-DmdClockEsp32s3WithFlash -EsptoolPath $wrongFlashTool -Port 'COM9'
     } '16 MB flash'
 
     Write-Host '[PASS] Settings reset: source-inspection (region-only erase, no firmware download, no card-file mutation, -Force rejection, RESET token, serial identity) and unit chip/flash checks passed.' -ForegroundColor Green

@@ -70,7 +70,8 @@ try {
     # --- Invalid input is rejected and the prompt is repeated until a valid
     #     answer arrives (no crash, no early/partial return). ---
     Reset-Answers @('abc', '5')
-    $choice = Read-DmdClockMenuChoice -Prompt 'Select' -Minimum 1 -Maximum 5
+    $choice = Read-DmdClockMenuChoice -Prompt 'Select' -Minimum 1 -Maximum 5 `
+        -AllowRetryOnRedirectedInput
     Assert-True ($choice -eq 5) 'Invalid input did not re-prompt before accepting a valid answer.'
     Assert-True ($global:MockReadHostQueue.Count -eq 0) `
         'The prompt loop did not retry after invalid input.'
@@ -78,20 +79,31 @@ try {
     # --- An empty answer without an in-range default re-prompts instead of
     #     silently returning a value. ---
     Reset-Answers @('', '2')
-    $choice = Read-DmdClockMenuChoice -Prompt 'Select' -Minimum 1 -Maximum 3
+    $choice = Read-DmdClockMenuChoice -Prompt 'Select' -Minimum 1 -Maximum 3 `
+        -AllowRetryOnRedirectedInput
     Assert-True ($choice -eq 2) 'An empty answer without a default did not re-prompt.'
 
     # --- Out-of-range numbers are rejected and the prompt repeats. ---
     Reset-Answers @('9', '1')
-    $choice = Read-DmdClockMenuChoice -Prompt 'Select' -Minimum 1 -Maximum 3
+    $choice = Read-DmdClockMenuChoice -Prompt 'Select' -Minimum 1 -Maximum 3 `
+        -AllowRetryOnRedirectedInput
     Assert-True ($choice -eq 1) 'An out-of-range number did not re-prompt.'
 
     # --- An out-of-range default is ignored (no default text, no silent return). ---
     Reset-Answers @('', '2')
-    $choice = Read-DmdClockMenuChoice -Prompt 'Select' -Minimum 1 -Maximum 3 -Default 0
+    $choice = Read-DmdClockMenuChoice -Prompt 'Select' -Minimum 1 -Maximum 3 -Default 0 `
+        -AllowRetryOnRedirectedInput
     Assert-True ($choice -eq 2) 'An out-of-range default was not ignored.'
     Assert-True ($global:MockReadHostQueue.Count -eq 0) `
         'The prompt loop did not re-prompt when the default was out of range.'
+
+    # --- Redirected invalid input fails once and names the selector instead of
+    #     retrying against exhausted input. ---
+    Reset-Answers @('not-a-number')
+    Assert-Throws {
+        Read-DmdClockMenuChoice -Prompt 'Select board' -Minimum 1 -Maximum 2 `
+            -RequiredParameter '-Board'
+    } 'Provide -Board when input is redirected'
 
     # --- The wizard-header branch still returns the selected answer. ---
     $wizard = New-DmdClockWizard -Title 'DMDClock SD card wizard'
@@ -120,6 +132,7 @@ try {
             App = '1.6.0'
             Signals = '640x172 / AXS15231B / QMI8658'
             Status = 'OK to flash'
+            Identified = $true
         },
         [pscustomobject]@{
             Port = 'COM8'
@@ -127,6 +140,7 @@ try {
             App = '-'
             Signals = '-'
             Status = 'Not verified'
+            Identified = $false
         }
     )
     $wizardProbe = New-DmdClockWizard -Title 'DMDClock ESP32 flash' -Devices $probeRows
@@ -154,7 +168,21 @@ try {
     Assert-True ($logText -match 'operation=sync-sd-DmdLarge') `
         'The provisioning log did not record the operation.'
 
-    Write-Host '[PASS] Cancellation: menu-choice input handling (valid, default, empty, invalid, out-of-range, wizard) and the cancelled log outcome all behave correctly.' -ForegroundColor Green
+    # --- Child scripts may emit formatted display objects. They must be shown
+    #     without contaminating the single structured operation result. ---
+    $childScript = Join-Path $testRoot 'display-output-child.ps1'
+    Set-Content -LiteralPath $childScript -Value @'
+[pscustomobject]@{ Artifact = 'sd.library'; Status = 'reused' } | Format-Table
+Set-DmdClockOperationResult -Status completed -Operation 'Display output child'
+'@ -Encoding utf8NoBOM
+    $childResult = Invoke-DmdClockChildOperation -Operation 'Display output child' `
+        -ScriptPath $childScript
+    Assert-True ($childResult.PSTypeNames -contains 'DmdClock.OperationResult') `
+        'Formatted child output contaminated the structured operation result.'
+    Assert-True ($childResult.Status -eq 'completed') `
+        'Child operation did not return its completed status.'
+
+    Write-Host '[PASS] Cancellation: menu-choice input handling, child display/result separation, and the cancelled log outcome all behave correctly.' -ForegroundColor Green
 }
 finally {
     $temporaryBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'

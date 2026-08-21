@@ -34,6 +34,7 @@ function Assert-Throws {
 $global:MockDownloadFixture = $null
 $global:MockGitHubReachable = $true
 $global:MockDownloadCallCount = 0
+$global:MockTransientFailuresRemaining = 0
 
 function global:Invoke-WebRequest {
     [CmdletBinding()]
@@ -43,7 +44,8 @@ function global:Invoke-WebRequest {
         [hashtable] $Headers,
         [string] $Method = 'Default',
         [int] $ConnectionTimeoutSeconds = 0,
-        [int] $OperationTimeoutSeconds = 0
+        [int] $OperationTimeoutSeconds = 0,
+        [switch] $UseBasicParsing
     )
     $global:MockDownloadCallCount++
     if ($Method -ieq 'Head') {
@@ -51,6 +53,12 @@ function global:Invoke-WebRequest {
             throw "Simulated GitHub outage for $($Uri.AbsoluteUri)"
         }
         return [pscustomobject]@{ StatusCode = 200 }
+    }
+    if ($global:MockTransientFailuresRemaining -gt 0) {
+        $global:MockTransientFailuresRemaining--
+        throw [Net.Http.HttpRequestException]::new(
+            'Simulated HTTP 504 Gateway Time-out.', $null,
+            [Net.HttpStatusCode]::GatewayTimeout)
     }
     if ($null -eq $global:MockDownloadFixture) {
         throw "Simulated network failure for $($Uri.AbsoluteUri)"
@@ -73,6 +81,22 @@ try {
             Where-Object { $_.Name -match '\.partial-[0-9a-f]{32}$' })
         Assert-True ($partials.Count -eq 0) 'A partial download file was left behind.'
     }
+
+    # --- Shared GitHub downloader retries transient gateway failures and still
+    # --- lands the verified file atomically when a later attempt succeeds. ---
+    $global:MockDownloadFixture = $payload
+    $global:MockDownloadCallCount = 0
+    $global:MockTransientFailuresRemaining = 2
+    $retryDest = Join-Path $layout.Tools 'retry.bin'
+    Save-DmdClockRemoteFile -Uri ([uri]'https://github.com/example/retry.bin') `
+        -Destination $retryDest -MaximumBytes 1MB -MaximumAttempts 3 `
+        -RetryDelaySeconds 0
+    Assert-True ($global:MockDownloadCallCount -eq 3) `
+        "Transient download expected 3 attempts; received $global:MockDownloadCallCount."
+    Assert-True ((Get-DmdClockSha256 -Path $retryDest) -eq $payloadHash) `
+        'Transient download retry did not land the expected payload.'
+    Assert-NoPartialFiles $layout.Tools
+    $global:MockTransientFailuresRemaining = 0
 
     # --- Fresh download verifies size and digest, then lands atomically. ---
     $global:MockDownloadFixture = $payload
@@ -224,7 +248,7 @@ try {
             -DataPath (Join-Path $testRoot 'gh-bad') -RequireNetwork -ThrowOnFailure
     } "Requirements check failed for 'Download'"
 
-    Write-Host '[PASS] Download robustness: fresh, zero-byte, over-maximum, size-mismatch, SHA-256 mismatch, non-HTTPS, malformed digest, network failure, -WhatIf, reuse, stale replacement, unpinned refresh, and GitHub reachable/unreachable tests passed.' -ForegroundColor Green
+    Write-Host '[PASS] Download robustness: transient retry, fresh, zero-byte, over-maximum, size-mismatch, SHA-256 mismatch, non-HTTPS, malformed digest, network failure, -WhatIf, reuse, stale replacement, unpinned refresh, and GitHub reachable/unreachable tests passed.' -ForegroundColor Green
 }
 finally {
     $temporaryBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'

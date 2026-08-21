@@ -4,7 +4,7 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$flashPath = Join-Path $PSScriptRoot '..\Flash-DmdClockEsp32.ps1'
+$modulePath = Join-Path $PSScriptRoot '..\DmdClock.Provisioning.psm1'
 
 function Assert-True {
     param([bool] $Condition, [string] $Message)
@@ -34,7 +34,7 @@ $global:MockPnPEntities = @()
 $global:MockSerialcomm = $null
 $global:MockReadHostQueue = [Collections.Generic.Queue[string]]::new()
 
-function Get-CimInstance {
+function global:Get-CimInstance {
     [CmdletBinding()]
     param([string] $ClassName)
     switch ($ClassName) {
@@ -44,7 +44,7 @@ function Get-CimInstance {
     }
 }
 
-function Get-ItemProperty {
+function global:Get-ItemProperty {
     [CmdletBinding()]
     param([string] $Path)
     if ($Path -like '*SERIALCOMM*') { return $global:MockSerialcomm }
@@ -72,35 +72,7 @@ function Set-MockPorts {
     $global:MockSerialcomm = $Serialcomm
 }
 
-# --- Extract the port-related functions from the flash script without running
-#     its top-level body. ---
-$tokens = $null
-$errors = $null
-$ast = [Management.Automation.Language.Parser]::ParseFile(
-    $flashPath, [ref] $tokens, [ref] $errors)
-foreach ($functionName in @(
-    'Get-ConnectedPorts', 'Select-SerialPort', 'Assert-SerialPortUnchanged',
-    'Show-PortHelp', 'Read-MenuChoice')) {
-    $function = $ast.FindAll({
-        param($node)
-        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
-            $node.Name -eq $functionName
-    }, $true) | Select-Object -First 1
-    if ($null -eq $function) { throw "Flash function not found: $functionName" }
-    Invoke-Expression $function.Extent.Text
-}
-
-# --- Script-level state the extracted functions read. ---
-$Port = ''
-$selectedTarget = [pscustomobject]@{
-    Product = 'Waveshare ESP32-S3-Touch-LCD-3.49B'
-    PortInstructions = @('Use the included USB-C cable.')
-    Homepage = 'https://www.waveshare.com/'
-    Documentation = 'https://www.waveshare.com/wiki/'
-    Driver = ''
-}
-$wizardState = $null
-$script:selectedPortIdentity = $null
+Import-Module $modulePath -Force
 
 # --- Mock inventory: two serial ports (COM1 deduplicated against the registry,
 #     COM5 from PnP), one PnP-only port (COM7), one registry-only port (COM4). ---
@@ -136,7 +108,7 @@ $fullSerialcomm = [pscustomobject]@{
 
 # --- Multiple connected ports are enumerated, deduplicated, and sorted. ---
 Set-MockPorts -SerialPorts $fullSerialPorts -PnPEntities $fullPnPEntities -Serialcomm $fullSerialcomm
-$ports = @(Get-ConnectedPorts)
+$ports = @(Get-DmdClockConnectedPorts)
 Assert-True ($ports.Count -eq 4) "Expected 4 connected ports; received $($ports.Count)."
 Assert-True (($ports.Port -join ',') -eq 'COM1,COM4,COM5,COM7') `
     "Ports were not sorted and deduplicated: $($ports.Port -join ',')."
@@ -151,47 +123,42 @@ Assert-True ($com7.Manufacturer -eq 'WCH' -and $com7.Service -eq 'usbser') `
     'PnP entity metadata was not merged into the port record.'
 
 # --- Explicit port selection captures the PnP identity. ---
-$Port = 'COM7'
-$selected = Select-SerialPort
-Assert-True ($selected -eq 'COM7') 'Explicit port selection returned the wrong port.'
-Assert-True ($script:selectedPortIdentity.InstanceId -eq 'USB\VID_1A86&PID_7523\6&ABC') `
+$selected = Select-DmdClockSerialPort -Port 'COM7'
+Assert-True ($selected.Port -eq 'COM7') 'Explicit port selection returned the wrong port.'
+Assert-True ($selected.Identity.InstanceId -eq 'USB\VID_1A86&PID_7523\6&ABC') `
     'Explicit selection did not capture the Windows PnP instance identity.'
 
 # --- An identity-weak explicit selection is refused. ---
-$Port = 'COM4'
-Assert-Throws { $null = Select-SerialPort } 'no Windows PnP instance identity'
+Assert-Throws { $null = Select-DmdClockSerialPort -Port 'COM4' } 'no Windows PnP instance identity'
 
 # --- A port that is not connected is refused with the available list. ---
-$Port = 'COM9'
-Assert-Throws { $null = Select-SerialPort } "Serial port 'COM9' is not connected"
+Assert-Throws { $null = Select-DmdClockSerialPort -Port 'COM9' } "Serial port 'COM9' is not connected"
 
 # --- The menu path (no explicit port) honors the selection. ---
-$Port = ''
 $global:MockReadHostQueue.Clear()
 $global:MockReadHostQueue.Enqueue('3')
-$selected = Select-SerialPort
-Assert-True ($selected -eq 'COM5') 'Menu selection did not return the chosen port.'
-Assert-True ($script:selectedPortIdentity.Name -match 'CP210x') `
+$selected = Select-DmdClockSerialPort
+Assert-True ($selected.Port -eq 'COM5') 'Menu selection did not return the chosen port.'
+Assert-True ($selected.Identity.Name -match 'CP210x') `
     'Menu selection did not capture the chosen identity.'
 
 # --- A single detected port defaults to itself without prompting. ---
 Set-MockPorts -SerialPorts @() -PnPEntities @($fullPnPEntities[0]) -Serialcomm $null
 $global:MockReadHostQueue.Clear()
 $global:MockReadHostQueue.Enqueue('')
-$selected = Select-SerialPort
-Assert-True ($selected -eq 'COM7') 'Single-port selection did not apply the default.'
+$selected = Select-DmdClockSerialPort
+Assert-True ($selected.Port -eq 'COM7') 'Single-port selection did not apply the default.'
 
 # --- No detected port is refused. ---
 Set-MockPorts -SerialPorts @() -PnPEntities @() -Serialcomm $null
-Assert-Throws { $null = Select-SerialPort } 'No serial port was detected'
+Assert-Throws { $null = Select-DmdClockSerialPort } 'No serial port was detected'
 
 # --- The captured identity is revalidated unchanged. ---
 Set-MockPorts -SerialPorts $fullSerialPorts -PnPEntities $fullPnPEntities -Serialcomm $fullSerialcomm
-$Port = 'COM7'
-$null = Select-SerialPort
+$selected = Select-DmdClockSerialPort -Port 'COM7'
 $unchangedError = $null
 try {
-    Assert-SerialPortUnchanged -SelectedPort 'COM7'
+    Assert-DmdClockSerialPortUnchanged -SelectedPort 'COM7' -PortIdentity $selected.Identity
 }
 catch {
     $unchangedError = $_
@@ -200,15 +167,15 @@ Assert-True ($null -eq $unchangedError) `
     "An unchanged serial port was rejected: $unchangedError"
 
 # --- A port that disappears before flashing is refused. ---
-$Port = 'COM7'
-$null = Select-SerialPort
+$selected = Select-DmdClockSerialPort -Port 'COM7'
 Set-MockPorts -SerialPorts $fullSerialPorts -PnPEntities @($fullPnPEntities[1]) -Serialcomm $fullSerialcomm
-Assert-Throws { Assert-SerialPortUnchanged -SelectedPort 'COM7' } 'disappeared or became ambiguous'
+Assert-Throws {
+    Assert-DmdClockSerialPortUnchanged -SelectedPort 'COM7' -PortIdentity $selected.Identity
+} 'disappeared or became ambiguous'
 
 # --- A port whose PnP identity changed before flashing is refused. ---
 Set-MockPorts -SerialPorts $fullSerialPorts -PnPEntities $fullPnPEntities -Serialcomm $fullSerialcomm
-$Port = 'COM7'
-$null = Select-SerialPort
+$selected = Select-DmdClockSerialPort -Port 'COM7'
 $movedCom7 = [pscustomobject]@{
     Name = 'USB Serial (COM7)'
     PNPDeviceID = 'USB\VID_1A86&PID_7523\DIFFERENT'
@@ -217,12 +184,13 @@ $movedCom7 = [pscustomobject]@{
     Status = 'OK'
 }
 Set-MockPorts -SerialPorts $fullSerialPorts -PnPEntities @($movedCom7, $fullPnPEntities[1]) -Serialcomm $fullSerialcomm
-Assert-Throws { Assert-SerialPortUnchanged -SelectedPort 'COM7' } 'changed before flashing'
+Assert-Throws {
+    Assert-DmdClockSerialPortUnchanged -SelectedPort 'COM7' -PortIdentity $selected.Identity
+} 'changed before flashing'
 
 # --- A port whose friendly name changed before flashing is refused. ---
 Set-MockPorts -SerialPorts $fullSerialPorts -PnPEntities $fullPnPEntities -Serialcomm $fullSerialcomm
-$Port = 'COM7'
-$null = Select-SerialPort
+$selected = Select-DmdClockSerialPort -Port 'COM7'
 $renamedCom7 = [pscustomobject]@{
     Name = 'USB Serial CH340 (COM7)'
     PNPDeviceID = 'USB\VID_1A86&PID_7523\6&ABC'
@@ -231,10 +199,8 @@ $renamedCom7 = [pscustomobject]@{
     Status = 'OK'
 }
 Set-MockPorts -SerialPorts $fullSerialPorts -PnPEntities @($renamedCom7, $fullPnPEntities[1]) -Serialcomm $fullSerialcomm
-Assert-Throws { Assert-SerialPortUnchanged -SelectedPort 'COM7' } 'changed before flashing'
-
-# --- Revalidation without a captured identity is refused. ---
-$script:selectedPortIdentity = $null
-Assert-Throws { Assert-SerialPortUnchanged -SelectedPort 'COM7' } 'no captured Windows identity'
+Assert-Throws {
+    Assert-DmdClockSerialPortUnchanged -SelectedPort 'COM7' -PortIdentity $selected.Identity
+} 'changed before flashing'
 
 Write-Host '[PASS] Serial ports: multiple connected ports are enumerated, deduplicated, sorted, explicitly or interactively selectable, identity-checked on selection, and revalidated unchanged before flashing.' -ForegroundColor Green

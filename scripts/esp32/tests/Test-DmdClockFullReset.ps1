@@ -5,6 +5,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $flashScript = Join-Path $PSScriptRoot '..\Flash-DmdClockEsp32.ps1'
+$modulePath = Join-Path $PSScriptRoot '..\DmdClock.Provisioning.psm1'
+Import-Module $modulePath -Force
 
 function Assert-True {
     param([bool] $Condition, [string] $Message)
@@ -34,9 +36,10 @@ Assert-True ($errors.Count -eq 0) "PowerShell parser rejected '$flashScript'."
 $source = Get-Content -LiteralPath $flashScript -Raw
 Assert-True ($source -match "ValidateSet\('Application', 'Full', 'FullReset'\)") `
     'FlashMode does not advertise FullReset.'
-Assert-True ($source -match "\`$nvsRegionOffset = '0x9000'") `
+$config = Get-DmdClockConfig
+Assert-True ($config.NvsRegionOffset -eq '0x9000') `
     'FullReset NVS offset is not 0x9000.'
-Assert-True ($source -match "\`$nvsRegionSize = '0x6000'") `
+Assert-True ($config.NvsRegionSize -eq '0x6000') `
     'FullReset NVS size is not 0x6000.'
 Assert-True ($source -notmatch '(?im)\berase_flash\b') `
     'The flash script contains a full-chip erase command.'
@@ -57,6 +60,7 @@ $selectedTarget = [pscustomobject]@{ Product = 'Test ESP32-S3 board'; Id = 'test
 $selectedPortIdentity = [pscustomobject]@{ Name = 'Test serial port'; InstanceId = 'USB\TEST' }
 $nvsRegionOffset = '0x9000'
 $nvsRegionSize = '0x6000'
+$esptool = [pscustomobject]@{ Path = 'mock-esptool.exe'; Version = 'test' }
 $WhatIf = $false
 $Force = $false
 $script:confirmation = 'RESET'
@@ -85,10 +89,12 @@ function Get-SelectedFlashFiles {
     return $fullFiles
 }
 
-function Assert-SerialPortUnchanged { param([string] $SelectedPort) }
+function Assert-DmdClockSerialPortUnchanged {
+    param([string] $SelectedPort, $PortIdentity, [string] $Context)
+}
 
-function Read-HighlightedConfirmation {
-    param([string] $Prefix, [string] $Token, [string] $Suffix, [ConsoleColor] $Color)
+function Read-DmdClockHighlightedConfirmation {
+    param([string] $Prefix, [string] $Token, [string] $Suffix, [string] $RequiredParameter, [ConsoleColor] $Color)
     return $script:confirmation
 }
 
@@ -96,8 +102,8 @@ function Write-DmdClockProvisioningLog {
     param([string] $Event, [string] $Detail)
 }
 
-function Invoke-EsptoolChecked {
-    param([string[]] $Arguments)
+function Invoke-DmdClockEsptoolChecked {
+    param([string] $EsptoolPath, [string[]] $Arguments)
     $script:commands.Add(($Arguments -join ' '))
     return 'mock esptool success'
 }

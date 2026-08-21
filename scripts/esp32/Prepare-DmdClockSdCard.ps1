@@ -99,39 +99,6 @@ function Get-NormalizedRoot {
         [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
 }
 
-function Assert-PathBelowRoot {
-    param(
-        [Parameter(Mandatory)][string]$Path,
-        [Parameter(Mandatory)][string]$Root,
-        [Parameter(Mandatory)][string]$Description
-    )
-
-    $fullPath = [IO.Path]::GetFullPath($Path)
-    $fullRoot = Get-NormalizedRoot $Root
-    if (-not $fullPath.StartsWith($fullRoot, [StringComparison]::OrdinalIgnoreCase)) {
-        throw "$Description resolves outside its required root: $fullPath"
-    }
-
-    return $fullPath
-}
-
-function Get-Sha256 {
-    param([Parameter(Mandatory)][string]$Path)
-
-    # Use the framework directly so the caller's WhatIf preference cannot
-    # propagate into the provider used by Get-FileHash.
-    $stream = [IO.File]::OpenRead([IO.Path]::GetFullPath($Path))
-    $algorithm = [Security.Cryptography.SHA256]::Create()
-    try {
-        $hash = $algorithm.ComputeHash($stream)
-        return ([BitConverter]::ToString($hash)).Replace('-', '')
-    }
-    finally {
-        $algorithm.Dispose()
-        $stream.Dispose()
-    }
-}
-
 function Get-CardTarget {
     if ($PSCmdlet.ParameterSetName -eq 'Test') {
         $testBase = Get-NormalizedRoot ([IO.Path]::GetTempPath())
@@ -290,14 +257,16 @@ function Invoke-CardWizard {
     Write-Host '  [1] DMD-Large (Recommended)' -ForegroundColor Green
     Write-Host '  [2] Original DotCLK-Orig'
     $libraryChoice = Read-DmdClockMenuChoice -Prompt 'Select scene library' `
-        -Minimum 1 -Maximum 2 -Default 1
+        -Minimum 1 -Maximum 2 -Default 1 -RequiredParameter '-Library'
     $library = if ($libraryChoice -eq 1) { 'DmdLarge' } else { 'Original' }
     Add-DmdClockWizardSelection -Wizard $state -Label 'Library' -Value $library
 
     $candidates = @(Get-DmdClockDiskCandidates | Where-Object IsCandidate)
     if ($candidates.Count -eq 0) {
         Show-DmdClockDiskCandidates
-        throw 'No eligible external microSD card was found. Insert a FAT32 card and rerun.'
+        Write-Host ''
+        Write-Host 'No eligible external microSD card was found. Insert a FAT32 card and rerun.' -ForegroundColor Yellow
+        return $null
     }
 
     Show-DmdClockWizardHeader -Wizard $state
@@ -315,7 +284,7 @@ function Invoke-CardWizard {
         }
     }
     $choice = Read-DmdClockMenuChoice -Prompt 'Select the microSD card' `
-        -Minimum 1 -Maximum $candidates.Count
+        -Minimum 1 -Maximum $candidates.Count -RequiredParameter '-DiskNumber'
     $target = $candidates[$choice - 1]
     Add-DmdClockWizardSelection -Wizard $state -Label 'Disk' `
         -Value "Disk $($target.Number) - $($target.FriendlyName)"
@@ -367,7 +336,7 @@ function Expand-CheckedArchive {
             }
 
             $entryName = $entry.FullName.Replace('/', [IO.Path]::DirectorySeparatorChar)
-            $entryPath = Assert-PathBelowRoot `
+            $entryPath = Assert-DmdClockPathBelowRoot `
                 -Path (Join-Path $Destination $entryName) `
                 -Root $destinationRoot `
                 -Description "Archive entry '$($entry.FullName)'"
@@ -483,7 +452,7 @@ function Get-SceneSource {
         }
         return [pscustomobject]@{
             Scenes = Resolve-SceneSource $resourceRoot.FullName
-            ArchiveHash = Get-Sha256 $archivePath
+            ArchiveHash = Get-DmdClockSha256 $archivePath
             Source = $archivePath
         }
     }
@@ -498,7 +467,7 @@ function Get-SceneSource {
 
     if (Test-Path -LiteralPath $cacheArchive -PathType Leaf) {
         $cachedItem = Get-Item -LiteralPath $cacheArchive
-        $cachedHash = Get-Sha256 $cacheArchive
+        $cachedHash = Get-DmdClockSha256 $cacheArchive
         $cacheValid = $cachedItem.Length -eq $Definition.DownloadBytes -and
             $cachedHash -eq $Definition.ArchiveSha256
         if (-not $cacheValid) {
@@ -511,7 +480,7 @@ function Get-SceneSource {
         Write-Host "Downloading $($Definition.DisplayName) v$($Definition.Version)..."
         Invoke-WebRequest -Uri $Definition.DownloadUrl -OutFile $downloadPath
         $downloadItem = Get-Item -LiteralPath $downloadPath
-        $downloadHash = Get-Sha256 $downloadPath
+        $downloadHash = Get-DmdClockSha256 $downloadPath
         if ($downloadItem.Length -ne $Definition.DownloadBytes) {
             throw (
                 "Downloaded archive size mismatch. Expected $($Definition.DownloadBytes) " +
@@ -548,7 +517,7 @@ function Get-SceneSource {
 
     return [pscustomobject]@{
         Scenes = Resolve-SceneSource $resourceRoot.FullName
-        ArchiveHash = Get-Sha256 $archivePath
+        ArchiveHash = Get-DmdClockSha256 $archivePath
         Source = $Definition.DownloadUrl
     }
 }
@@ -732,7 +701,7 @@ function Get-ManagedFile {
         RelativeTarget = $RelativeTarget.Replace('/', '\')
         Category = $Category
         Length = $item.Length
-        Hash = Get-Sha256 $item.FullName
+        Hash = Get-DmdClockSha256 $item.FullName
     }
 }
 
@@ -742,7 +711,7 @@ function Install-FileAtomically {
         [Parameter(Mandatory)][string]$CardRoot
     )
 
-    $destination = Assert-PathBelowRoot `
+    $destination = Assert-DmdClockPathBelowRoot `
         -Path (Join-Path $CardRoot $File.RelativeTarget) `
         -Root $CardRoot `
         -Description "Destination '$($File.RelativeTarget)'"
@@ -754,7 +723,7 @@ function Install-FileAtomically {
 
     try {
         Copy-Item -LiteralPath $File.SourcePath -Destination $temporaryPath
-        $copiedHash = Get-Sha256 $temporaryPath
+        $copiedHash = Get-DmdClockSha256 $temporaryPath
         if ($copiedHash -ne $File.Hash) {
             throw "Hash verification failed while staging $($File.RelativeTarget)"
         }
@@ -916,11 +885,17 @@ $requirements = Invoke-DmdClockRequirementsCheck `
     -RequireNetwork:$DownloadOnly `
     -ThrowOnFailure:(-not $CheckRequirements)
 if ($CheckRequirements) {
-    if (-not $requirements.Passed) { exit 1 }
+    if (-not $requirements.Passed) {
+        Set-DmdClockOperationResult -Status failed -Operation 'Check requirements' `
+            -Detail 'One or more requirements checks failed.'
+        exit 1
+    }
+    Set-DmdClockOperationResult -Status completed -Operation 'Check requirements'
     return
 }
 if ($ListDisks) {
     Show-DmdClockDiskCandidates
+    Set-DmdClockOperationResult -Status completed -Operation 'List disks'
     return
 }
 
@@ -928,6 +903,11 @@ $wizardSelection = $null
 if ($PSCmdlet.ParameterSetName -eq 'Card' -and
     ($Wizard -or -not $PSBoundParameters.ContainsKey('DiskNumber'))) {
     $wizardSelection = Invoke-CardWizard
+    if ($null -eq $wizardSelection) {
+        Set-DmdClockOperationResult -Status cancelled -Operation 'Prepare microSD card' `
+            -Detail 'No microSD card was selected.'
+        return
+    }
     $DiskNumber = $wizardSelection.DiskNumber
     $Library = $wizardSelection.Library
 }
@@ -1148,7 +1128,7 @@ try {
     }
     $copyBytes = [long]0
     foreach ($file in $managed) {
-        $destination = Assert-PathBelowRoot `
+        $destination = Assert-DmdClockPathBelowRoot `
             -Path (Join-Path $target.Root $file.RelativeTarget) `
             -Root $target.Root `
             -Description "Destination '$($file.RelativeTarget)'"
@@ -1160,7 +1140,7 @@ try {
 
         $destinationItem = Get-Item -LiteralPath $destination
         $matches = $destinationItem.Length -eq $file.Length -and
-            (Get-Sha256 $destination) -eq $file.Hash
+            (Get-DmdClockSha256 $destination) -eq $file.Hash
         if ($matches) {
             $counts.Unchanged++
         }
@@ -1185,7 +1165,7 @@ try {
     foreach ($relative in $previousManagedPaths) {
         $managedRelative = "dmd/scenes/$relative"
         if (-not $managedScenePaths.Contains($managedRelative)) {
-            $obsoletePath = Assert-PathBelowRoot `
+            $obsoletePath = Assert-DmdClockPathBelowRoot `
                 -Path (Join-Path $target.Root $managedRelative) `
                 -Root $target.Root `
                 -Description "Previously managed scene '$relative'"
@@ -1253,7 +1233,7 @@ try {
     }
 
     foreach ($directory in $directories) {
-        $directoryPath = Assert-PathBelowRoot `
+        $directoryPath = Assert-DmdClockPathBelowRoot `
             -Path (Join-Path $target.Root $directory) `
             -Root $target.Root `
             -Description "Directory '$directory'"
@@ -1264,7 +1244,7 @@ try {
         if (Test-Path -LiteralPath $destination -PathType Leaf) {
             $destinationItem = Get-Item -LiteralPath $destination
             if ($destinationItem.Length -eq $file.Length -and
-                (Get-Sha256 $destination) -eq $file.Hash) {
+                (Get-DmdClockSha256 $destination) -eq $file.Hash) {
                 continue
             }
         }
@@ -1277,7 +1257,7 @@ try {
         if (Test-Path -LiteralPath $destination -PathType Leaf) {
             $destinationItem = Get-Item -LiteralPath $destination
             if ($destinationItem.Length -eq $file.Length -and
-                (Get-Sha256 $destination) -eq $file.Hash) {
+                (Get-DmdClockSha256 $destination) -eq $file.Hash) {
                 continue
             }
         }
@@ -1313,19 +1293,16 @@ catch {
     catch {
         Write-Warning "Could not append the original failure to the provisioning log: $($_.Exception.Message)"
     }
+    Set-DmdClockOperationResult -Status failed -Operation 'Prepare microSD card' `
+        -Detail $originalError.Exception.Message
     throw $originalError
 }
 finally {
-    if ($logPath) {
-        if ($runOutcome -eq 'failed') {
-            try {
-                Complete-DmdClockProvisioningLog -Outcome $runOutcome -Detail $runDetail
-            }
-            catch {
-                Write-Warning "Could not finalize the failed provisioning log: $($_.Exception.Message)"
-            }
-        } else {
-            Complete-DmdClockProvisioningLog -Outcome $runOutcome -Detail $runDetail
-        }
+    Complete-DmdClockProvisioningLogSafely -LogPath $logPath `
+        -Outcome $runOutcome -Detail $runDetail
+    if ($runOutcome -ne 'failed') {
+        $resultStatus = if ($WhatIfPreference) { 'dry-run' } else { $runOutcome }
+        Set-DmdClockOperationResult -Status $resultStatus -Operation 'Prepare microSD card' `
+            -Detail $runDetail
     }
 }

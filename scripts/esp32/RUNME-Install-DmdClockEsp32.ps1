@@ -8,11 +8,12 @@
 #     staging already exists (unchanged artifacts are reused, not re-downloaded).
 #   -SkipCard skips the microSD card phase for flash-only runs.
 #   -Force skips the interactive FLASH confirmation (testing/automation).
-#   If Prepare-DmdClockSdCard.ps1, Flash-DmdClockEsp32.ps1, or
-#   DmdClock.Provisioning.psm1 is missing next to this script, it is downloaded
-#   automatically from GitHub (network required on the first run).
+#   If Prepare-DmdClockSdCard.ps1, Flash-DmdClockEsp32.ps1,
+#   Reset-DmdClockSettings.ps1, or DmdClock.Provisioning.psm1 is missing next to
+#   this script, it is downloaded automatically from GitHub (network required on
+#   the first run).
 #   -CompanionScriptSource overrides the source: an https URL base or a local
-#   folder path containing the three companion scripts (offline mirror).
+#   folder path containing the four companion files (offline mirror).
 # See docs\INSTALL-ESP32.md. Developer tooling lives in scripts\esp32\dev;
 # automated tests live in scripts\esp32\tests.
 [CmdletBinding()]
@@ -61,11 +62,103 @@ param(
     [string] $Repository = 'DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32',
 
     [Alias('DryRun')]
-    [switch] $WhatIf
+    [switch] $WhatIf,
+
+    [Parameter(DontShow)]
+    [switch] $MenuChild
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$showStartupMenu = ($PSBoundParameters.Count -eq 0 -and -not [Console]::IsInputRedirected)
+
+function Show-DmdClockBanner {
+    Write-Host '     :::    :::       :::::::::::::::::::::::::    :::::::::::::::::::::::::::::::: :::    ::: ' -ForegroundColor Cyan
+    Write-Host '   :+: :+:  :+:           :+:    :+:       :+:+:   :+:    :+:    :+:      :+:    :+::+:    :+: ' -ForegroundColor Cyan
+    Write-Host '  +:+   +:+ +:+           +:+    +:+       :+:+:+  +:+    +:+    +:+      +:+       +:+    +:+ ' -ForegroundColor Cyan
+    Write-Host ' +#++:++#++:+#+           +#+    +#++:++#  +#+ +:+ +#+    +#+    +#++:++# +#++:++# +#++:++#++ ' -ForegroundColor Cyan
+    Write-Host ' #+#     +#++#+           +#+    +#+       +#+  +#+#+#    +#+    +#+      +#+       +#+    +#+ ' -ForegroundColor Cyan
+    Write-Host ' #+#     #+##+#           #+#    #+#       #+#   #+#+#    #+#    #+#      #+#    #+##+#    #+# ' -ForegroundColor Cyan
+    Write-Host ' ###     #####################################    ####    ###    ################## ###    ### ' -ForegroundColor Cyan
+    Write-Host ' DMD clock flasher for esp32-s3 devices.' -ForegroundColor Yellow
+    Write-Host ' https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32'
+    Write-Host ''
+}
+
+function Show-DmdClockStartupMenu {
+    if (-not [Console]::IsOutputRedirected) {
+        Clear-Host
+    }
+    Show-DmdClockBanner
+    Write-Host '  [1] Prepare microSD card' -ForegroundColor White
+    Write-Host '  [2] Flash firmware' -ForegroundColor White
+    Write-Host '  [3] Reset device settings' -ForegroundColor White
+    Write-Host '  [4] Download only' -ForegroundColor White
+    Write-Host '  [5] Complete install / update' -ForegroundColor White
+    Write-Host '  [6] Exit' -ForegroundColor DarkGray
+    Write-Host ''
+}
+
+if (-not $showStartupMenu -and -not $MenuChild) {
+    Show-DmdClockBanner
+}
+
+function Wait-DmdClockForMenuReturn {
+    if ([Console]::IsInputRedirected) {
+        return
+    }
+
+    Write-Host ''
+    try {
+        $null = Read-Host 'Press Enter to return to the main menu'
+    }
+    catch {
+        Write-Warning "Could not wait for input: $($_.Exception.Message)"
+    }
+}
+
+function Invoke-DmdClockStartupMenuOperation {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $Operation,
+        [Parameter(Mandatory)][scriptblock] $Action
+    )
+
+    try {
+        Write-Host ''
+        Write-Host "=== $Operation ===" -ForegroundColor Cyan
+        $result = & $Action
+        if ($null -eq $result -or $result.PSTypeNames -notcontains 'DmdClock.OperationResult') {
+            throw "$Operation did not report an operation result."
+        }
+        Write-Host ''
+        switch ($result.Status) {
+            'completed' {
+                Write-Host "[DONE] $Operation completed successfully." -ForegroundColor Green
+            }
+            'dry-run' {
+                Write-Host "[DRY RUN] $Operation plan completed without making changes." -ForegroundColor Yellow
+            }
+            'cancelled' {
+                Write-Host "[CANCELLED] $Operation did not complete." -ForegroundColor Yellow
+            }
+            default {
+                throw "$Operation reported unsupported status '$($result.Status)'."
+            }
+        }
+        Wait-DmdClockForMenuReturn
+    }
+    catch {
+        $originalError = $_
+        Write-Host ''
+        Write-Host "[ERROR] $Operation failed." -ForegroundColor Red
+        Write-Host $originalError.Exception.Message -ForegroundColor Red
+        if (-not [string]::IsNullOrWhiteSpace($originalError.ScriptStackTrace)) {
+            Write-Host $originalError.ScriptStackTrace -ForegroundColor DarkGray
+        }
+        Wait-DmdClockForMenuReturn
+    }
+}
 
 if ($PSBoundParameters.ContainsKey('DiskNumber') -and
     ($DiskNumber -lt 0 -or $DiskNumber -gt 999)) {
@@ -75,6 +168,8 @@ if ($PSBoundParameters.ContainsKey('DiskNumber') -and
 $provisioningModule = Join-Path $PSScriptRoot 'DmdClock.Provisioning.psm1'
 $sdScript = Join-Path $PSScriptRoot 'Prepare-DmdClockSdCard.ps1'
 $flashScript = Join-Path $PSScriptRoot 'Flash-DmdClockEsp32.ps1'
+$resetScript = Join-Path $PSScriptRoot 'Reset-DmdClockSettings.ps1'
+$installScript = Join-Path $PSScriptRoot 'RUNME-Install-DmdClockEsp32.ps1'
 
 # --- Self-fetch any missing companion script so a single downloaded file works. ---
 $scriptSource = if (-not [string]::IsNullOrWhiteSpace($CompanionScriptSource)) {
@@ -82,7 +177,7 @@ $scriptSource = if (-not [string]::IsNullOrWhiteSpace($CompanionScriptSource)) {
 } else {
     "https://raw.githubusercontent.com/$Repository/master/scripts/esp32"
 }
-$missingScripts = @($provisioningModule, $sdScript, $flashScript |
+$missingScripts = @($provisioningModule, $sdScript, $flashScript, $resetScript |
     Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) })
 if ($missingScripts.Count -gt 0) {
     if ($WhatIf) {
@@ -92,7 +187,7 @@ if ($missingScripts.Count -gt 0) {
         }
         throw ('Required companion scripts are missing next to RUNME-Install-DmdClockEsp32.ps1: ' +
             ($missingScripts -join ', ') +
-            '. A real run downloads them automatically; -WhatIf works only when the four scripts are already present.')
+            '. A real run downloads them automatically; -WhatIf works only when all five files are already present.')
     }
     foreach ($missingPath in $missingScripts) {
         $missingName = [IO.Path]::GetFileName($missingPath)
@@ -120,7 +215,7 @@ if ($missingScripts.Count -gt 0) {
         }
         catch {
             throw ("Failed to fetch missing companion script '$missingName' from $sourcePath. " +
-                "$($_.Exception.Message) Download the four scripts together; see https://github.com/$Repository/blob/master/docs/INSTALL-ESP32.md")
+                "$($_.Exception.Message) Download all five files together; see https://github.com/$Repository/blob/master/docs/INSTALL-ESP32.md")
         }
         finally {
             if (Test-Path -LiteralPath $tempFile) { Remove-Item -LiteralPath $tempFile -Force }
@@ -128,6 +223,49 @@ if ($missingScripts.Count -gt 0) {
     }
 }
 Import-Module $provisioningModule -Force
+
+if ($showStartupMenu) {
+    do {
+        Show-DmdClockStartupMenu
+        $choice = Read-DmdClockMenuChoice -Prompt 'Select an option' -Minimum 1 -Maximum 6 `
+            -RequiredParameter 'valid menu input'
+
+        switch ($choice) {
+            1 {
+                Invoke-DmdClockStartupMenuOperation -Operation 'SD card preparation' -Action {
+                    Invoke-DmdClockChildOperation -Operation 'SD card preparation' -ScriptPath $sdScript
+                }
+            }
+            2 {
+                Invoke-DmdClockStartupMenuOperation -Operation 'Firmware flash' -Action {
+                    Invoke-DmdClockChildOperation -Operation 'Firmware flash' -ScriptPath $flashScript
+                }
+            }
+            3 {
+                Invoke-DmdClockStartupMenuOperation -Operation 'Device settings reset' -Action {
+                    Invoke-DmdClockChildOperation -Operation 'Device settings reset' -ScriptPath $resetScript
+                }
+            }
+            4 {
+                Invoke-DmdClockStartupMenuOperation -Operation 'Download' -Action {
+                    Invoke-DmdClockChildOperation -Operation 'Download' -ScriptPath $installScript `
+                        -Arguments @{ DownloadOnly = $true; MenuChild = $true }
+                }
+            }
+            5 {
+                Invoke-DmdClockStartupMenuOperation -Operation 'Complete install / update' -Action {
+                    Invoke-DmdClockChildOperation -Operation 'Complete install / update' `
+                        -ScriptPath $installScript -Arguments @{ Update = $true; MenuChild = $true }
+                }
+            }
+            6 {
+                Write-Host 'Goodbye.' -ForegroundColor DarkGray
+                Set-DmdClockOperationResult -Status completed -Operation 'Exit'
+                return
+            }
+        }
+    } while ($true)
+}
 
 $localData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
 $destination = if (-not [string]::IsNullOrWhiteSpace($Destination)) {
@@ -137,8 +275,11 @@ $destination = if (-not [string]::IsNullOrWhiteSpace($Destination)) {
 }
 
 if ($CheckRequirements) {
-    & $sdScript -CheckRequirements -Repository $Repository
-    & $flashScript -CheckRequirements -Repository $Repository
+    $null = Invoke-DmdClockChildOperation -Operation 'microSD requirements check' `
+        -ScriptPath $sdScript -Arguments @{ CheckRequirements = $true; Repository = $Repository }
+    $null = Invoke-DmdClockChildOperation -Operation 'firmware requirements check' `
+        -ScriptPath $flashScript -Arguments @{ CheckRequirements = $true; Repository = $Repository }
+    Set-DmdClockOperationResult -Status completed -Operation 'Install requirements check'
     return
 }
 
@@ -176,7 +317,13 @@ if (-not $sdReady -or $Update) {
             Library = $Library
             Repository = $Repository
         }
-        & $sdScript @sdStageArgs
+        $stageResult = Invoke-DmdClockChildOperation -Operation 'microSD payload staging' `
+            -ScriptPath $sdScript -Arguments $sdStageArgs
+        if ($stageResult.Status -eq 'cancelled') {
+            Set-DmdClockOperationResult -Status cancelled -Operation 'Install' `
+                -Detail 'microSD payload staging was cancelled.'
+            return
+        }
     }
 }
 
@@ -220,13 +367,25 @@ if (-not $fwReady -or $Update) {
         }
         if ($Board) { $flashStageArgs['Board'] = $Board }
         if ($ReleaseTag) { $flashStageArgs['ReleaseTag'] = $ReleaseTag }
-        & $flashScript @flashStageArgs
+        $stageResult = Invoke-DmdClockChildOperation -Operation 'firmware/tool staging' `
+            -ScriptPath $flashScript -Arguments $flashStageArgs
+        if ($stageResult.Status -eq 'cancelled') {
+            Set-DmdClockOperationResult -Status cancelled -Operation 'Install' `
+                -Detail 'Firmware/tool staging was cancelled.'
+            return
+        }
     }
 }
 
 if ($DownloadOnly) {
+    if ($WhatIf) {
+        Write-Host '[DRY RUN] Download/staging plan completed; no files were downloaded or staged and no flash occurred.' -ForegroundColor Yellow
+        Set-DmdClockOperationResult -Status 'dry-run' -Operation 'Download only'
+        return
+    }
     Write-Host '[DONE] Staging complete. The verified payload is ready for offline card preparation and flashing.' -ForegroundColor Green
     Write-Host "Staging: $destination"
+    Set-DmdClockOperationResult -Status completed -Operation 'Download only'
     return
 }
 
@@ -249,10 +408,22 @@ if ($SkipCard) {
         Write-Host "[WHATIF] Skipping microSD card plan: no staged microSD payload at $destination." -ForegroundColor Yellow
     } else {
         $prepareArgs['DryRun'] = $true
-        & $sdScript @prepareArgs
+        $cardResult = Invoke-DmdClockChildOperation -Operation 'microSD card preparation' `
+            -ScriptPath $sdScript -Arguments $prepareArgs
+        if ($cardResult.Status -eq 'cancelled') {
+            Set-DmdClockOperationResult -Status cancelled -Operation 'Install' `
+                -Detail 'microSD card preparation was cancelled.'
+            return
+        }
     }
 } elseif ($PSBoundParameters.ContainsKey('DiskNumber') -or $Wizard) {
-    & $sdScript @prepareArgs
+    $cardResult = Invoke-DmdClockChildOperation -Operation 'microSD card preparation' `
+        -ScriptPath $sdScript -Arguments $prepareArgs
+    if ($cardResult.Status -eq 'cancelled') {
+        Set-DmdClockOperationResult -Status cancelled -Operation 'Install' `
+            -Detail 'microSD card preparation was cancelled.'
+        return
+    }
 } elseif (-not [Console]::IsInputRedirected) {
     # Interactive run without a chosen disk: ask whether a card needs preparing.
     $needPrepare = $null
@@ -266,7 +437,13 @@ if ($SkipCard) {
         }
     }
     if ($needPrepare) {
-        & $sdScript @prepareArgs
+        $cardResult = Invoke-DmdClockChildOperation -Operation 'microSD card preparation' `
+            -ScriptPath $sdScript -Arguments $prepareArgs
+        if ($cardResult.Status -eq 'cancelled') {
+            Set-DmdClockOperationResult -Status cancelled -Operation 'Install' `
+                -Detail 'microSD card preparation was cancelled.'
+            return
+        }
     } else {
         Write-Host '[SKIP] microSD card preparation skipped (you answered that no card needs preparing).' -ForegroundColor Yellow
         $cardPhaseSkipped = $true
@@ -295,10 +472,23 @@ if ($WhatIf) {
         Write-Host "[WHATIF] Skipping flash plan: no staged firmware/tool payload at $destination." -ForegroundColor Yellow
     } else {
         $flashArgs['WhatIf'] = $true
-        & $flashScript @flashArgs
+        $flashResult = Invoke-DmdClockChildOperation -Operation 'firmware flash plan' `
+            -ScriptPath $flashScript -Arguments $flashArgs
     }
 } else {
-    & $flashScript @flashArgs
+    $flashResult = Invoke-DmdClockChildOperation -Operation 'firmware flash' `
+        -ScriptPath $flashScript -Arguments $flashArgs
+    if ($flashResult.Status -eq 'cancelled') {
+        Set-DmdClockOperationResult -Status cancelled -Operation 'Install' `
+            -Detail 'Firmware flashing was cancelled.'
+        return
+    }
+}
+
+if ($WhatIf) {
+    Write-Host '[DRY RUN] Install plan completed; no flash occurred.' -ForegroundColor Yellow
+    Set-DmdClockOperationResult -Status 'dry-run' -Operation 'Install'
+    return
 }
 
 if ($cardPhaseSkipped) {
@@ -306,3 +496,4 @@ if ($cardPhaseSkipped) {
 } else {
     Write-Host '[DONE] Install complete: microSD card and firmware are up to date.' -ForegroundColor Green
 }
+Set-DmdClockOperationResult -Status completed -Operation 'Install'
