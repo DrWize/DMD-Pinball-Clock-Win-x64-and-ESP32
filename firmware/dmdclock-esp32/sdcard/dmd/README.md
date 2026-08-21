@@ -18,7 +18,7 @@ stays in clock mode when no valid card scene is available.
 | Card path | Purpose |
 | --- | --- |
 | `/dmd/scenes` | User/downloaded `.scn` library and shared `scene-metadata.json` |
-| `/dmd/fonts` | Validated DotClk bitmap fonts and future converted font assets |
+| `/dmd/fonts` | DotClk version 1 `.fnt` files discovered and validated at boot |
 | `/dmd/plasma` | Plasma palettes, presets, lookup tables, and optional textures |
 | `/dmd/web` | Version-matched non-recovery web assets |
 | `/dmd/config` | Editable settings backup and deterministic content manifests |
@@ -49,8 +49,10 @@ OTA application partition.
    Windows. The firmware releases the parsed JSON after resolving its compact
    in-memory scene records.
 2. Store all additional scenes and generated scene indexes on the card.
-3. Store DotClk and converted font packs under `/dmd/fonts`; retain only the
-   built-in 5×7 fallback font internally. Never embed full TTF/OTF collections.
+3. Store DotClk version 1 fonts under `/dmd/fonts`; the card preparation tool
+   installs ALTERN8, FISHY, TREK, and TWILIGHT without overwriting a differing
+   user file. Firmware scans valid top-level `.fnt` files at boot and retains
+   only the built-in 5×7 fallback internally. Reboot after changing font files.
 4. Keep the compact procedural Plasma renderer in firmware, but load palettes,
    presets, lookup tables, and optional textures from `/dmd/plasma`.
 5. Keep a minimal recovery web page internally and allow the version-matched

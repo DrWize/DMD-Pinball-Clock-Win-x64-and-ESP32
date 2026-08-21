@@ -85,6 +85,10 @@ try {
         "$rawBase/scenes/scene-metadata.json" = Join-Path $testRoot 'SDCard\scene-metadata.json'
         "$rawBase/firmware/dmdclock-esp32/sdcard/dmd/manifest.json" = Join-Path $testRoot 'SDCard\template\dmd\manifest.json'
         "$rawBase/firmware/dmdclock-esp32/sdcard/dmd/README.md" = Join-Path $testRoot 'SDCard\template\dmd\README.md'
+        "$rawBase/assets/fonts/DotClk/ALTERN8.fnt" = Join-Path $testRoot 'SDCard\fonts\ALTERN8.fnt'
+        "$rawBase/assets/fonts/DotClk/FISHY.fnt" = Join-Path $testRoot 'SDCard\fonts\FISHY.fnt'
+        "$rawBase/assets/fonts/DotClk/TREK.fnt" = Join-Path $testRoot 'SDCard\fonts\TREK.fnt'
+        "$rawBase/assets/fonts/DotClk/TWILIGHT.fnt" = Join-Path $testRoot 'SDCard\fonts\TWILIGHT.fnt'
         [string]$pack.downloadUrl = $libraryZip
     }
 
@@ -124,6 +128,10 @@ try {
     Assert-True (Test-Path -LiteralPath $stagedLibrary) 'Staged scene library zip is missing.'
     Assert-True ((Get-DmdClockSha256 -Path $stagedLibrary) -eq $libraryHash) `
         'Staged library digest does not match the catalog.'
+    foreach ($fontName in @('ALTERN8.fnt', 'FISHY.fnt', 'TREK.fnt', 'TWILIGHT.fnt')) {
+        Assert-True (Test-Path -LiteralPath (Join-Path $dest "SDCard\fonts\$fontName")) `
+            "Staged font $fontName is missing."
+    }
 
     # --- The result validates as a complete offline staging source. ---
     $verified = Test-DmdClockStagingManifest -Source $dest -RequiredArtifactIds @(
@@ -131,11 +139,15 @@ try {
         'sd.scene-metadata',
         'sd.template.manifest',
         'sd.template.readme',
+        'sd.font.altern8',
+        'sd.font.fishy',
+        'sd.font.trek',
+        'sd.font.twilight',
         'sd.library.drwize-complete')
-    Assert-True (@($verified.Manifest.artifacts).Count -eq 5) `
-        'Staging manifest does not contain all five artifacts.'
+    Assert-True (@($verified.Manifest.artifacts).Count -eq 9) `
+        'Staging manifest does not contain all nine artifacts.'
     $downloaded = @($verified.Manifest.artifacts | Where-Object { $_.status -eq 'downloaded' })
-    Assert-True ($downloaded.Count -eq 5) 'Not every staged artifact was reported as downloaded.'
+    Assert-True ($downloaded.Count -eq 9) 'Not every staged artifact was reported as downloaded.'
 
     # --- The run produced a completed provisioning log and left no partials. ---
     $logFiles = @(Get-ChildItem -LiteralPath (Join-Path $dest 'Logs') -File -Filter '*.log')

@@ -24,24 +24,23 @@ static int parse_int(const char *text, int *value)
 
 int main(int argc, char **argv)
 {
-    if (argc != 7) {
-        fprintf(stderr, "usage: renderer FONT TEXT BUILTIN_SCALE CENTER_X CENTER_Y OUTPUT\n");
+    if (argc != 8) {
+        fprintf(stderr, "usage: renderer FONT_DIRECTORY FONT TEXT BUILTIN_SCALE CENTER_X CENTER_Y OUTPUT\n");
         return 2;
     }
 
-    dmd_font_id_t font;
-    if (strcmp(argv[1], "invalid-id") == 0) {
-        font = (dmd_font_id_t)255;
-    } else if (!dmd_font_from_name(argv[1], &font)) {
-        fprintf(stderr, "unknown test font: %s\n", argv[1]);
+    if (!dmd_font_init_directory(argv[1])) {
+        fputs("font catalog initialization failed\n", stderr);
+        return 3;
+    }
+    const char *font = argv[2];
+    if (strcmp(font, "invalid-id") != 0 && !dmd_font_activate(font)) {
+        fprintf(stderr, "unknown test font: %s (%s)\n", font, dmd_font_last_error());
         return 2;
     }
-    dmd_font_id_t case_insensitive;
-    if (!dmd_font_from_name("TrEk", &case_insensitive) ||
-        case_insensitive != DMD_FONT_TREK ||
-        dmd_font_from_name("not-a-font", &case_insensitive) ||
-        dmd_font_is_valid(DMD_FONT_COUNT) ||
-        strcmp(dmd_font_name((dmd_font_id_t)255), "builtin-5x7") != 0) {
+    if (!dmd_font_is_available("TrEk") ||
+        dmd_font_is_available("not-a-font") ||
+        strcmp(dmd_font_display_name("TrEk"), "TREK") != 0) {
         fputs("font lookup/fallback contract failed\n", stderr);
         return 3;
     }
@@ -49,8 +48,8 @@ int main(int argc, char **argv)
     int scale;
     int center_x;
     int center_y;
-    if (!parse_int(argv[3], &scale) || scale < 1 || scale > 4 ||
-        !parse_int(argv[4], &center_x) || !parse_int(argv[5], &center_y)) {
+    if (!parse_int(argv[4], &scale) || scale < 1 || scale > 4 ||
+        !parse_int(argv[5], &center_x) || !parse_int(argv[6], &center_y)) {
         fputs("invalid scale or center\n", stderr);
         return 2;
     }
@@ -62,13 +61,13 @@ int main(int argc, char **argv)
         mask,
         FRAME_WIDTH,
         FRAME_HEIGHT,
-        argv[2],
+        argv[3],
         font,
         center_x,
         center_y,
         (uint8_t)scale);
 
-    FILE *output = fopen(argv[6], "wb");
+    FILE *output = fopen(argv[7], "wb");
     if (output == NULL) {
         perror("could not open renderer output");
         return 4;

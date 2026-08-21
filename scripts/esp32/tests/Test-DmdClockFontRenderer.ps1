@@ -46,7 +46,7 @@ try {
         '-std=c11', '-Wall', '-Wextra', '-Werror',
         '-I', $main,
         (Join-Path $main 'dmd_font.c'),
-        (Join-Path $main 'generated\dmd_fonts_generated.c'),
+        (Join-Path $main 'dmd_font_loader.c'),
         (Join-Path $PSScriptRoot 'Test-DmdClockFontRenderer.c'),
         '-o', $exe
     )
@@ -55,7 +55,7 @@ try {
 
     foreach ($case in $cases) {
         $output = Join-Path $testRoot ($case.Name + '.bin')
-        & $exe $case.Font $case.Text $case.Scale $case.X $case.Y $output
+        & $exe (Join-Path $repoRoot 'assets\fonts\DotClk') $case.Font $case.Text $case.Scale $case.X $case.Y $output
         if ($LASTEXITCODE -ne 0) { throw "C renderer failed for '$($case.Name)'." }
         $file = Get-Item -LiteralPath $output
         if ($file.Length -ne 8192) {

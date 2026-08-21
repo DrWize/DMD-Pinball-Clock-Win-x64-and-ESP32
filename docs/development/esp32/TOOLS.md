@@ -207,7 +207,8 @@ records per-case framebuffer/hash evidence under
 `output\esp32\reports\qemu-acceptance` and restores the original settings.
 
 `New-DmdClockQemuSdImage.ps1` creates a power-of-two 512 MiB FAT32 superfloppy
-with its boot sector at LBA 0, which is the layout accepted by QEMU's ESP32
+containing `/dmd/scenes` and the canonical `/dmd/fonts` set. Its boot sector is
+at LBA 0, which is the layout accepted by QEMU's ESP32
 SD/MMC device. Larger images are selected automatically when necessary. The
 generated images are writable and ignored by Git; never publish one containing
 scenes unless their distribution rights are confirmed.

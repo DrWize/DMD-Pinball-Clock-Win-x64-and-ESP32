@@ -288,13 +288,9 @@
         <label class="switch"><input id="showSeconds" type="checkbox"><span></span></label>
       </div>
       <div class="row">
-        <label for="clockFont">Clock font<small>Shared 128×32 DotClk font on both ESP32 displays</small></label>
+        <label for="clockFont">Clock font<small id="fontStatus">Loading fonts from the device…</small></label>
         <select id="clockFont" style="width:min(260px,48vw)">
           <option value="builtin-5x7">Built-in 5x7</option>
-          <option value="altern8">ALTERN8</option>
-          <option value="fishy">FISHY</option>
-          <option value="trek">TREK</option>
-          <option value="twilight">TWILIGHT</option>
         </select>
       </div>
       <div class="row">
@@ -1182,7 +1178,7 @@
         renderThemePicker();
         $("use24Hour").checked=state.use24Hour;
         $("showSeconds").checked=state.showSeconds;
-        $("clockFont").value=state.clockFont||"builtin-5x7";
+        $("clockFont").value=state.clockFontActive||"builtin-5x7";
         const autoOption=$('orientation').querySelector('option[value="auto"]');
         autoOption.disabled=!state.orientationSensorAvailable;
         autoOption.hidden=!state.orientationSensorAvailable;
@@ -1233,8 +1229,11 @@
         $("showSeconds").checked=state.showSeconds;
       }
       if(document.activeElement!==$("clockFont")){
-        $("clockFont").value=state.clockFont||"builtin-5x7";
+        $("clockFont").value=state.clockFontActive||"builtin-5x7";
       }
+      $("fontStatus").textContent=state.clockFontFallback
+        ?`Using ${state.clockFontName}; requested “${state.clockFont}” is unavailable until the SD card is corrected and the device reboots`
+        :`${state.clockFontName} active · SD card changes require reboot`;
       if(document.activeElement!==$("orientation")){
         $("orientation").value=state.orientationMode==="auto"
           ?"auto":`fixed${state.fixedRotation===180?180:0}`;
@@ -1280,6 +1279,18 @@
       }
       catch(error){$("statusText").textContent="Remote unavailable";$("statusDot").classList.remove("ok")}
       finally{refreshing=false}
+    }
+    async function loadFonts(){
+      const catalog=await request("/api/fonts");
+      const fonts=Array.isArray(catalog.fonts)?catalog.fonts:[];
+      $("clockFont").replaceChildren(...fonts.map(font=>{
+        const option=document.createElement("option");
+        option.value=font.id;
+        option.textContent=font.name;
+        option.title=font.source==="sd"?`SD card · ${font.filename}`:"Firmware fallback";
+        return option;
+      }));
+      $("fontStatus").textContent="Valid DotClk fonts found at boot · card changes require reboot";
     }
     function versionParts(value){
       const match=String(value||"").match(/(?:^|[^0-9])(\d+)\.(\d+)\.(\d+)/);
@@ -1639,7 +1650,12 @@
     });
     $("timezone").addEventListener("change",applyTimezone);
     $("save").addEventListener("click",saveSettings);
-    refresh();
+    async function initialize(){
+      try{await loadFonts()}
+      catch(error){$("fontStatus").textContent="Font catalog unavailable; built-in 5x7 remains available"}
+      await refresh();
+    }
+    initialize();
     setInterval(refresh,1000);
     refreshSceneLibrary();
     setInterval(refreshSceneLibrary,5000);

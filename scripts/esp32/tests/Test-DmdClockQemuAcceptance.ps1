@@ -23,6 +23,7 @@ $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 
 $stateUri = [uri]::new($QemuUrl, '/api/state')
+$fontsUri = [uri]::new($QemuUrl, '/api/fonts')
 $settingsUri = [uri]::new($QemuUrl, '/api/settings')
 $actionUri = [uri]::new($QemuUrl, '/api/action')
 
@@ -69,13 +70,28 @@ function Capture-Case {
 $initial = Get-State
 $captures = [Collections.Generic.List[object]]::new()
 try {
-    $clock = Set-Settings @{ playScene = $false; automaticCycle = $false; brightness = 100; colorPreset = 0 }
+    $fontIds = @('builtin-5x7', 'altern8', 'fishy', 'trek', 'twilight')
+    $fontCatalog = Invoke-RestMethod -Uri $fontsUri -TimeoutSec 5
+    $catalogIds = @($fontCatalog.fonts | ForEach-Object { [string]$_.id })
+    if ([string]::Join(',', $catalogIds) -ne [string]::Join(',', $fontIds)) {
+        throw "The usable font catalog was unexpected: $([string]::Join(', ', $catalogIds))"
+    }
+    if (@($fontCatalog.fonts | Where-Object { $_.source -eq 'sd' -and -not $_.filename }).Count -ne 0) {
+        throw 'An SD font catalog entry did not include its filename.'
+    }
+
+    $clock = Set-Settings @{
+        displayOn = $true
+        playScene = $false
+        automaticCycle = $false
+        brightness = 100
+        colorPreset = 0
+    }
     if ($clock.playScene -or [int]$clock.colorPreset -ne 0) {
         throw 'Clock/Basic settings did not apply.'
     }
     $captures.Add((Capture-Case 'clock-basic'))
 
-    $fontIds = @('builtin-5x7', 'altern8', 'fishy', 'trek', 'twilight')
     foreach ($fontId in $fontIds) {
         $fontState = Set-Settings @{
             playScene = $false
@@ -84,10 +100,20 @@ try {
             showSeconds = $false
             clockFont = $fontId
         }
-        if ([string]$fontState.clockFont -ne $fontId) {
-            throw "Clock font '$fontId' did not round-trip through the state API."
+        if ([string]$fontState.clockFont -ne $fontId -or
+            [string]$fontState.clockFontActive -ne $fontId -or
+            [bool]$fontState.clockFontFallback -ne $false -or
+            $null -ne $fontState.clockFontError) {
+            throw "Clock font '$fontId' did not activate cleanly through the state API."
         }
         $captures.Add((Capture-Case "font-$fontId"))
+    }
+    try {
+        Set-Settings @{ clockFont = 'not-in-the-boot-catalog' } | Out-Null
+        throw 'An unknown font ID was accepted.'
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 400) { throw }
     }
     $fontHashes = @(
         $captures | Where-Object Name -like 'font-*' |

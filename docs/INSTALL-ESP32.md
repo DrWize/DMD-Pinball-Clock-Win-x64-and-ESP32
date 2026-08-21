@@ -386,7 +386,10 @@ two very different settings:
 ### Clock, date, font, duration, and orientation
 
 - Select 12- or 24-hour time, seconds visibility, scene-information overlay and
-  colour, and one of the five embedded DotClk-compatible clock fonts.
+  colour, and any valid DotClk version 1 font found in `/dmd/fonts` when the
+  device boots. The card preparation tool installs ALTERN8, FISHY, TREK, and
+  TWILIGHT; built-in 5x7 remains available without a card. Reboot after changing
+  font files on the card.
 - **Fixed clock duration** accepts a whole number from 1 to 600 seconds and
   displays the value in readable minutes and seconds.
 - **Orientation** offers fixed 0° or 180° on both boards. The 3.49B V2 also

@@ -9,6 +9,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $modulePath = Join-Path $PSScriptRoot '..\DmdClock.Provisioning.psm1'
+$repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..\..')).Path
+$fontRoot = Join-Path $repoRoot 'assets\fonts\DotClk'
 if (-not (Test-Path -LiteralPath $modulePath -PathType Leaf)) {
     throw "Shared provisioning module not found: $modulePath"
 }
@@ -77,6 +79,25 @@ foreach ($support in $supportFiles) {
         kind = 'sd-fixture'
         sourceUrl = "https://example.invalid/$($support.Id)"
         relativePath = $support.Relative
+        size = [long]$item.Length
+        sha256 = (Get-DmdClockSha256 -Path $path)
+        version = $version
+        target = 'esp32-s3'
+        status = 'downloaded'
+    })
+}
+foreach ($fontName in @('ALTERN8.fnt', 'FISHY.fnt', 'TREK.fnt', 'TWILIGHT.fnt')) {
+    $id = 'sd.font.' + [IO.Path]::GetFileNameWithoutExtension($fontName).ToLowerInvariant()
+    $relative = "SDCard/fonts/$fontName"
+    $path = Join-Path $layout.Root ($relative -replace '/', '\')
+    [IO.Directory]::CreateDirectory((Split-Path -Parent $path)) | Out-Null
+    Copy-Item -LiteralPath (Join-Path $fontRoot $fontName) -Destination $path
+    $item = Get-Item -LiteralPath $path
+    $artifacts.Add([pscustomobject]@{
+        artifactId = $id
+        kind = 'sd-font'
+        sourceUrl = "https://example.invalid/$id"
+        relativePath = $relative
         size = [long]$item.Length
         sha256 = (Get-DmdClockSha256 -Path $path)
         version = $version
