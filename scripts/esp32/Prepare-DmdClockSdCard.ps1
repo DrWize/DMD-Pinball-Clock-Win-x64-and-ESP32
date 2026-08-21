@@ -995,6 +995,10 @@ if (-not [string]::IsNullOrWhiteSpace($StagingSource)) {
             'sd.scene-metadata',
             'sd.template.manifest',
             'sd.template.readme',
+            'sd.font.altern8',
+            'sd.font.fishy',
+            'sd.font.trek',
+            'sd.font.twilight',
             $libraryArtifactId
         )
 }

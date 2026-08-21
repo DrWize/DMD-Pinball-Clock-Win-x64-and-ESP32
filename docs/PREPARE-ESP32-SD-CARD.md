@@ -17,9 +17,11 @@ the Windows system volume.
 The workflow requires Windows 11 x64, PowerShell 7 or newer running as `pwsh`,
 `Prepare-DmdClockSdCard.ps1`, and `DmdClock.Provisioning.psm1`. When the
 surrounding repository files are absent,
-the script downloads its catalog, metadata, and card-template files from this
-repository. SCN validation is built in; Python, .NET, Git, and ESP-IDF are not
-required to prepare the card.
+the script downloads its catalog, metadata, card-template files, and the
+canonical `ALTERN8`, `FISHY`, `TREK`, and `TWILIGHT` DotClk fonts from this
+GitHub repository. It installs the fonts under `/dmd/fonts`; the firmware keeps
+its built-in 5x7 fallback when no card fonts are available. SCN validation is
+built in; Python, .NET, Git, and ESP-IDF are not required to prepare the card.
 
 ## 1. Verify that the intended card is FAT32
 
@@ -121,8 +123,9 @@ to download the selected version again instead of reusing its verified cache.
 
 Run the same command a second time. A card that already matches must report that
 it is up to date and write no files. Switching libraries preserves files from
-the previous managed library, unrelated/custom SCNs, and all other card content.
-Use a separately prepared empty FAT32 card when you want only one library.
+the previous managed library, unrelated/custom SCNs, customized fonts whose
+contents differ from the canonical GitHub files, and all other card content. Use
+a separately prepared empty FAT32 card when you want only one library.
 
 Use **Safely Remove Hardware and Eject Media**, power off the ESP32, insert the
 card, and power it on. The firmware should index exactly 2,324 scenes for Original
@@ -132,6 +135,10 @@ The managed layout is:
 
 ```text
 <card>:\dmd\scenes\
+<card>:\dmd\fonts\ALTERN8.fnt
+<card>:\dmd\fonts\FISHY.fnt
+<card>:\dmd\fonts\TREK.fnt
+<card>:\dmd\fonts\TWILIGHT.fnt
 <card>:\dmd\config\scene-library-manifest.json
 ```
 
