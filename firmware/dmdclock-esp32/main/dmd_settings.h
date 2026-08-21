@@ -56,7 +56,7 @@ typedef struct {
     dmd_rgb_t raster_custom[DMD_RASTER_CUSTOM_COLOR_COUNT];
     bool use_24_hour;
     bool show_seconds;
-    dmd_font_id_t clock_font;
+    char clock_font_id[DMD_FONT_ID_MAX];
     dmd_orientation_mode_t orientation_mode;
     uint16_t fixed_rotation;
     bool display_on;

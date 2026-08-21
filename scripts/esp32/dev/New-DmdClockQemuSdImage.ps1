@@ -19,6 +19,7 @@
 param(
     [Parameter(Mandatory)]
     [string] $ScenesFolder,
+    [string] $FontsFolder = (Join-Path $PSScriptRoot '..\..\..\assets\fonts\DotClk'),
     [string] $OutputPath,
     [switch] $Force
 )
@@ -29,11 +30,17 @@ Set-StrictMode -Version Latest
 if (-not (Test-Path -LiteralPath $ScenesFolder -PathType Container)) {
     throw "Scenes folder not found: $ScenesFolder"
 }
+if (-not (Test-Path -LiteralPath $FontsFolder -PathType Container)) {
+    throw "Fonts folder not found: $FontsFolder"
+}
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $OutputPath = Join-Path (Split-Path -Parent $ScenesFolder) 'dmdclock-qemu-sd.img'
 }
 if (-not $Force -and (Test-Path -LiteralPath $OutputPath -PathType Leaf)) {
-    $sources = Get-ChildItem -LiteralPath $ScenesFolder -File -Recurse
+    $sources = @(
+        Get-ChildItem -LiteralPath $ScenesFolder -File -Recurse
+        Get-ChildItem -LiteralPath $FontsFolder -File -Filter '*.fnt'
+    )
     $newest = ($sources | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
     if ($newest -lt (Get-Item -LiteralPath $OutputPath).LastWriteTime) {
         Write-Host "microSD image is up to date: $OutputPath"
@@ -56,10 +63,17 @@ $files = Get-ChildItem -LiteralPath $ScenesFolder -File -Recurse | ForEach-Objec
         FullName     = $_.FullName
     }
 }
+$fontFiles = Get-ChildItem -LiteralPath $FontsFolder -File -Filter '*.fnt' | ForEach-Object {
+    [pscustomobject]@{
+        RelativePath = $_.Name
+        Length       = [long]$_.Length
+        FullName     = $_.FullName
+    }
+}
 if ($files.Count -eq 0) {
     throw "No files found under $ScenesFolder"
 }
-$totalBytes = ($files | Measure-Object -Property Length -Sum).Sum
+$totalBytes = (($files + $fontFiles) | Measure-Object -Property Length -Sum).Sum
 $neededClusters = [int][Math]::Ceiling(($totalBytes + 8 * 1024 * 1024) / $script:ClusterBytes)
 
 # QEMU requires a microSD image whose complete byte length is a power of two. Start
@@ -97,8 +111,9 @@ $script:FatSectors = $fatSectors
 $script:PartitionSectors = $script:TotalSectors
 
 Write-Host (
-    'Building microSD image for {0} scene(s), {1} MiB data, {2} MiB volume: {3}' -f
+    'Building microSD image for {0} scene(s), {1} font(s), {2} MiB data, {3} MiB volume: {4}' -f
     $files.Count,
+    $fontFiles.Count,
     [Math]::Round($totalBytes / 1MB, 1),
     [Math]::Round($imageBytes / 1MB, 0),
     $OutputPath)
@@ -364,6 +379,20 @@ try {
         }
     }
 
+    $fontRecords = @()
+    foreach ($file in $fontFiles) {
+        $content = [IO.File]::ReadAllBytes($file.FullName)
+        $fileClusters = [int][Math]::Ceiling([double]$content.Length / $script:ClusterBytes)
+        if ($fileClusters -eq 0) { $fileClusters = 1 }
+        $startCluster = Get-AllocClusters -Count $fileClusters
+        Write-BytesAt -Offset (Get-ClusterOffset -Cluster $startCluster) -Data $content
+        $fontRecords += [pscustomobject]@{
+            Name = $file.RelativePath
+            StartCluster = $startCluster
+            Size = [long]$content.Length
+        }
+    }
+
     # --- Directories: root -> dmd -> scenes -> files ------------------------
     $usedShortNames = @{}
     $fileEntries = New-Object 'System.Collections.Generic.List[byte]'
@@ -380,6 +409,20 @@ try {
 
     $scenesCluster = Get-AllocClusters -Count (
         [int][Math]::Max(1, [Math]::Ceiling(($fileEntries.Count + 64) / 4096.0)))
+    $usedFontShortNames = @{}
+    $fontEntries = New-Object 'System.Collections.Generic.List[byte]'
+    foreach ($record in $fontRecords) {
+        $shortName = Get-ShortNameEntry -Name $record.Name -Used $usedFontShortNames
+        Add-DirectoryEntry `
+            -Directory $fontEntries `
+            -LongName $record.Name `
+            -ShortName $shortName `
+            -Attributes 0x20 `
+            -StartCluster ([uint32]$record.StartCluster) `
+            -Size $record.Size
+    }
+    $fontsCluster = Get-AllocClusters -Count (
+        [int][Math]::Max(1, [Math]::Ceiling(($fontEntries.Count + 64) / 4096.0)))
     $dmdCluster = Get-AllocClusters -Count 1
 
     $sceneEntries = New-Object 'System.Collections.Generic.List[byte]'
@@ -390,10 +433,19 @@ try {
     }
     Write-Directory -Directory $sceneEntries -StartCluster $scenesCluster
 
+    $fontDirectoryEntries = New-Object 'System.Collections.Generic.List[byte]'
+    Add-DirectoryEntry -Directory $fontDirectoryEntries -LongName $null -ShortName '.          ' -Attributes 0x10 -StartCluster $fontsCluster -Size 0
+    Add-DirectoryEntry -Directory $fontDirectoryEntries -LongName $null -ShortName '..         ' -Attributes 0x10 -StartCluster $dmdCluster -Size 0
+    foreach ($byte in $fontEntries) {
+        $fontDirectoryEntries.Add($byte)
+    }
+    Write-Directory -Directory $fontDirectoryEntries -StartCluster $fontsCluster
+
     $dmdEntries = New-Object 'System.Collections.Generic.List[byte]'
     Add-DirectoryEntry -Directory $dmdEntries -LongName $null -ShortName '.          ' -Attributes 0x10 -StartCluster $dmdCluster -Size 0
     Add-DirectoryEntry -Directory $dmdEntries -LongName $null -ShortName '..         ' -Attributes 0x10 -StartCluster 2 -Size 0
     Add-DirectoryEntry -Directory $dmdEntries -LongName $null -ShortName 'SCENES     ' -Attributes 0x10 -StartCluster $scenesCluster -Size 0
+    Add-DirectoryEntry -Directory $dmdEntries -LongName $null -ShortName 'FONTS      ' -Attributes 0x10 -StartCluster $fontsCluster -Size 0
     Write-Directory -Directory $dmdEntries -StartCluster $dmdCluster
 
     $rootEntries = New-Object 'System.Collections.Generic.List[byte]'

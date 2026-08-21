@@ -78,6 +78,7 @@ function Test-DmdClockShouldProcess {
 
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $localCardTemplateRoot = Join-Path $projectRoot 'firmware\dmdclock-esp32\sdcard\dmd'
+$localFontRoot = Join-Path $projectRoot 'assets\fonts\DotClk'
 $localMetadataPath = Join-Path $projectRoot 'scenes\scene-metadata.json'
 $localCatalogPath = Join-Path $projectRoot 'scenes\catalog.json'
 $cardTemplateRoot = $null
@@ -652,6 +653,8 @@ function Initialize-SupportFiles {
             Metadata = [string]$stagedSourceInfo.Artifacts['sd.scene-metadata'].ResolvedPath
             CardTemplate = Split-Path -Parent (
                 [string]$stagedSourceInfo.Artifacts['sd.template.manifest'].ResolvedPath)
+            Fonts = Split-Path -Parent (
+                [string]$stagedSourceInfo.Artifacts['sd.font.altern8'].ResolvedPath)
         }
     }
 
@@ -680,10 +683,27 @@ function Initialize-SupportFiles {
                 -MaximumBytes 1MB
         }
     }
+    $resolvedFontRoot = $localFontRoot
+    $fontNames = @('ALTERN8.fnt', 'FISHY.fnt', 'TREK.fnt', 'TWILIGHT.fnt')
+    $localFontsAvailable = @(
+        $fontNames | Where-Object {
+            Test-Path -LiteralPath (Join-Path $localFontRoot $_) -PathType Leaf
+        }).Count -eq $fontNames.Count
+    if ($OnlineSupportFiles -or -not $localFontsAvailable) {
+        $resolvedFontRoot = Join-Path $supportRoot 'fonts'
+        foreach ($fontName in $fontNames) {
+            $null = Get-SupportFile `
+                -LocalPath (Join-Path $supportRoot 'missing-local-file') `
+                -RepositoryPath "assets/fonts/DotClk/$fontName" `
+                -Destination (Join-Path $resolvedFontRoot $fontName) `
+                -MaximumBytes 96KB
+        }
+    }
     return [pscustomobject]@{
         Catalog = $resolvedCatalog
         Metadata = $resolvedMetadata
         CardTemplate = $resolvedTemplateRoot
+        Fonts = $resolvedFontRoot
     }
 }
 
@@ -691,7 +711,7 @@ function Get-ManagedFile {
     param(
         [Parameter(Mandatory)][string]$SourcePath,
         [Parameter(Mandatory)][string]$RelativeTarget,
-        [Parameter(Mandatory)][ValidateSet('Scene', 'Metadata', 'Template', 'Manifest')]
+        [Parameter(Mandatory)][ValidateSet('Scene', 'Metadata', 'Template', 'Manifest', 'Font')]
         [string]$Category
     )
 
@@ -807,6 +827,30 @@ function Invoke-SdCardDownloadOnly {
             RepositoryRelative = 'firmware/dmdclock-esp32/sdcard/dmd/README.md'
             Local = (Join-Path $localCardTemplateRoot 'README.md')
             Kind = 'sd-template'; Maximum = 1MB
+        },
+        [pscustomobject]@{
+            Id = 'sd.font.altern8'; Relative = 'SDCard/fonts/ALTERN8.fnt'
+            RepositoryRelative = 'assets/fonts/DotClk/ALTERN8.fnt'
+            Local = (Join-Path $localFontRoot 'ALTERN8.fnt')
+            Kind = 'sd-font'; Maximum = 96KB
+        },
+        [pscustomobject]@{
+            Id = 'sd.font.fishy'; Relative = 'SDCard/fonts/FISHY.fnt'
+            RepositoryRelative = 'assets/fonts/DotClk/FISHY.fnt'
+            Local = (Join-Path $localFontRoot 'FISHY.fnt')
+            Kind = 'sd-font'; Maximum = 96KB
+        },
+        [pscustomobject]@{
+            Id = 'sd.font.trek'; Relative = 'SDCard/fonts/TREK.fnt'
+            RepositoryRelative = 'assets/fonts/DotClk/TREK.fnt'
+            Local = (Join-Path $localFontRoot 'TREK.fnt')
+            Kind = 'sd-font'; Maximum = 96KB
+        },
+        [pscustomobject]@{
+            Id = 'sd.font.twilight'; Relative = 'SDCard/fonts/TWILIGHT.fnt'
+            RepositoryRelative = 'assets/fonts/DotClk/TWILIGHT.fnt'
+            Local = (Join-Path $localFontRoot 'TWILIGHT.fnt')
+            Kind = 'sd-font'; Maximum = 96KB
         }
     )
 
@@ -988,11 +1032,15 @@ try {
     $catalogPath = $supportFiles.Catalog
     $metadataPath = $supportFiles.Metadata
     $cardTemplateRoot = $supportFiles.CardTemplate
+    $fontRoot = $supportFiles.Fonts
     if (-not (Test-Path -LiteralPath $cardTemplateRoot -PathType Container)) {
         throw "Card template not found: $cardTemplateRoot"
     }
     if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) {
         throw "Scene metadata not found: $metadataPath"
+    }
+    if (-not (Test-Path -LiteralPath $fontRoot -PathType Container)) {
+        throw "DotClk font source not found: $fontRoot"
     }
 
     $definition = Get-LibraryDefinition
@@ -1065,6 +1113,12 @@ try {
             -SourcePath (Join-Path $cardTemplateRoot $templateName) `
             -RelativeTarget "dmd/$templateName" `
             -Category Template))
+    }
+    foreach ($fontName in @('ALTERN8.fnt', 'FISHY.fnt', 'TREK.fnt', 'TWILIGHT.fnt')) {
+        $managed.Add((Get-ManagedFile `
+            -SourcePath (Join-Path $fontRoot $fontName) `
+            -RelativeTarget "dmd/fonts/$fontName" `
+            -Category Font))
     }
 
     $contentManifest = [ordered]@{
@@ -1143,6 +1197,11 @@ try {
             (Get-DmdClockSha256 $destination) -eq $file.Hash
         if ($matches) {
             $counts.Unchanged++
+        }
+        elseif ($file.Category -eq 'Font') {
+            $counts.Preserved++
+            Write-Warning (
+                "Preserving existing user font '$($file.RelativeTarget)' because its content differs from the canonical file.")
         }
         elseif ($file.Category -eq 'Scene') {
             $counts.Repaired++
@@ -1245,6 +1304,9 @@ try {
             $destinationItem = Get-Item -LiteralPath $destination
             if ($destinationItem.Length -eq $file.Length -and
                 (Get-DmdClockSha256 $destination) -eq $file.Hash) {
+                continue
+            }
+            if ($file.Category -eq 'Font') {
                 continue
             }
         }

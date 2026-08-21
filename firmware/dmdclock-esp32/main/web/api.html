@@ -56,7 +56,7 @@
     <div class="columns">
       <div>
         <h3>Display and playback</h3>
-        <p><code>displayOn</code>, <code>playScene</code>, <code>waitingForScene</code>, <code>sceneIndex</code>, <code>sceneStep</code>, <code>sceneFrame</code>, <code>scene</code>, <code>sceneFile</code>, metadata fields, <code>sceneCount</code>, cycle settings, <code>clockFont</code>, <code>clockFontName</code>, brightness, glow, theme and information settings.</p>
+        <p><code>displayOn</code>, <code>playScene</code>, <code>waitingForScene</code>, <code>sceneIndex</code>, <code>sceneStep</code>, <code>sceneFrame</code>, <code>scene</code>, <code>sceneFile</code>, metadata fields, <code>sceneCount</code>, cycle settings, <code>clockFont</code>, <code>clockFontActive</code>, <code>clockFontName</code>, <code>clockFontFallback</code>, <code>clockFontError</code>, brightness, glow, theme and information settings.</p>
         <h3>Time and network</h3>
         <p>Device time/epoch/timezone, Wi-Fi connection and IP, device/AP identity, <code>lanOnlyWeb</code>, NTP state, last-sync epoch, elapsed sync age and configured servers.</p>
       </div>
@@ -70,6 +70,12 @@
       </div>
     </div>
     <pre>curl http://DMDClock-59D9/api/state</pre>
+  </section>
+
+  <section class="panel">
+    <div class="endpoint"><span class="method">GET</span><h2><code>/api/fonts</code> — usable font catalog</h2></div>
+    <p>Returns the built-in 5x7 fallback and valid DotClk version 1 fonts discovered in <code>/dmd/fonts</code> during boot. Each entry contains <code>id</code>, <code>name</code>, <code>source</code>, and, for SD fonts, <code>filename</code>. Invalid files are omitted and card changes require a device reboot.</p>
+    <pre>curl http://DMDClock-59D9/api/fonts</pre>
   </section>
 
   <section class="panel">
@@ -111,7 +117,7 @@
         <tr><td>plasmaCustomColors</td><td>Array containing four <code>#RRGGBB</code> stops.</td></tr>
         <tr><td>use24Hour</td><td>Boolean 24-hour clock mode.</td></tr>
         <tr><td>showSeconds</td><td>Boolean seconds display.</td></tr>
-        <tr><td>clockFont</td><td><code>builtin-5x7</code>, <code>altern8</code>, <code>fishy</code>, <code>trek</code>, or <code>twilight</code>. Applied immediately and used by the clock and scene clock overlays.</td></tr>
+        <tr><td>clockFont</td><td>A font ID returned by <code>/api/fonts</code>. The font is loaded before the setting is persisted, applied immediately, and used by the clock and scene clock overlays.</td></tr>
         <tr><td>showInformation</td><td>Boolean scene-information row; applies immediately.</td></tr>
         <tr><td>informationColorMode</td><td>0 discreet grey, 1 follow theme, 2 custom.</td></tr>
         <tr><td>informationCustomColor</td><td>Standalone <code>#RRGGBB</code> information colour.</td></tr>

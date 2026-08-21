@@ -363,8 +363,15 @@ file overrides and longest-prefix rules for titles, games, manufacturers, and
 years. SCN storyboard data remains authoritative for playback timing, masks,
 blanking, and clock placement.
 
+At boot the shared font subsystem scans top-level DotClk version 1 `.fnt` files
+from `/dmd/fonts`, validates them with bounded dimensions and allocation, and
+publishes only usable entries through `/api/fonts`. The selected font is loaded
+into PSRAM before activation; rendering performs no card I/O. Card changes take
+effect after reboot, and a missing requested font falls back to built-in 5x7
+without discarding the requested ID.
+
 Boot-critical firmware, NVS settings and secrets, a minimal recovery page, and
-one fallback bitmap font stay in internal flash. Production firmware contains
+one 5x7 fallback bitmap font stay in internal flash. Production firmware contains
 no SCN files.
 
 ## Test-scene boundary

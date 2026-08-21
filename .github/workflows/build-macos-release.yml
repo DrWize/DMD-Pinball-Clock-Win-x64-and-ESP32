@@ -6,7 +6,7 @@ on:
       release_tag:
         description: Existing GitHub release tag to receive the unsigned DMG
         required: true
-        default: v1.7.1
+        default: v1.7.2
         type: string
 
 permissions:

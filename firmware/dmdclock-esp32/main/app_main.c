@@ -1,6 +1,7 @@
 #include "dmd_board.h"
 #include "dmd_display.h"
 #include "dmd_diagnostics.h"
+#include "dmd_font.h"
 #include "dmd_network.h"
 #include "dmd_mqtt.h"
 #include "dmd_scene.h"
@@ -29,12 +30,22 @@ void app_main(void)
 
     ESP_ERROR_CHECK(dmd_board_init());
     ESP_ERROR_CHECK(dmd_storage_init());
+    if (!dmd_font_init()) {
+        ESP_LOGW(TAG, "SD font catalog initialization failed; using built-in 5x7");
+    }
     ESP_ERROR_CHECK(dmd_scene_pack_init());
     ESP_ERROR_CHECK(dmd_scene_init());
     ESP_ERROR_CHECK(dmd_settings_init());
     ESP_ERROR_CHECK(dmd_diagnostics_init());
     dmd_settings_t settings;
     dmd_settings_get(&settings);
+    if (!dmd_font_activate(settings.clock_font_id)) {
+        ESP_LOGW(
+            TAG,
+            "Requested font '%s' is unavailable; using built-in 5x7: %s",
+            settings.clock_font_id,
+            dmd_font_last_error());
+    }
     ESP_LOGI(
         TAG,
         "Startup display settings: display_on=%d brightness=%u schedule_enabled=%d "

@@ -208,7 +208,7 @@ static cJSON *settings_to_json(const dmd_settings_t *settings)
     cJSON_AddStringToObject(
         json,
         "clockFont",
-        dmd_font_name(settings->clock_font));
+        settings->clock_font_id);
     cJSON_AddStringToObject(
         json,
         "orientationMode",
@@ -381,10 +381,12 @@ esp_err_t dmd_settings_json_load(dmd_settings_t *settings)
     load_bool(json, "use24Hour", &settings->use_24_hour);
     load_bool(json, "showSeconds", &settings->show_seconds);
     cJSON *clock_font = cJSON_GetObjectItemCaseSensitive(json, "clockFont");
-    dmd_font_id_t parsed_font;
     if (cJSON_IsString(clock_font) &&
-        dmd_font_from_name(clock_font->valuestring, &parsed_font)) {
-        settings->clock_font = parsed_font;
+        strlen(clock_font->valuestring) < sizeof(settings->clock_font_id)) {
+        strlcpy(
+            settings->clock_font_id,
+            clock_font->valuestring,
+            sizeof(settings->clock_font_id));
     }
     cJSON *orientation_mode =
         cJSON_GetObjectItemCaseSensitive(json, "orientationMode");

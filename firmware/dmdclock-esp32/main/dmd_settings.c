@@ -24,6 +24,18 @@ static const char *TAG = "dmd_settings";
 static const char *NAMESPACE = "dmdclock";
 static SemaphoreHandle_t s_lock;
 static dmd_settings_t s_settings;
+
+static bool font_id_is_valid(const char *id)
+{
+    if (id == NULL || id[0] == '\0' ||
+        strnlen(id, DMD_FONT_ID_MAX) >= DMD_FONT_ID_MAX) return false;
+    for (size_t index = 0; id[index] != '\0'; index++) {
+        char value = id[index];
+        if (!((value >= 'a' && value <= 'z') ||
+              (value >= '0' && value <= '9') || value == '-')) return false;
+    }
+    return true;
+}
 static esp_err_t s_last_nvs_save_error = ESP_OK;
 static esp_err_t s_last_sd_save_error = ESP_OK;
 
@@ -76,7 +88,10 @@ static void set_defaults(void)
     s_settings.raster_custom[3] = (dmd_rgb_t){111, 61, 134};
     s_settings.use_24_hour = true;
     s_settings.show_seconds = false;
-    s_settings.clock_font = DMD_FONT_BUILTIN_5X7;
+    strlcpy(
+        s_settings.clock_font_id,
+        DMD_FONT_BUILTIN_ID,
+        sizeof(s_settings.clock_font_id));
 #if CONFIG_DMD_BOARD_3_49_LANDSCAPE && !CONFIG_DMD_QEMU
     s_settings.orientation_mode = DMD_ORIENTATION_AUTO;
 #else
@@ -130,10 +145,11 @@ static void load_string(nvs_handle_t handle, const char *key, char *value, size_
     }
 }
 
-static esp_err_t finalize_settings_init(void)
+static esp_err_t finalize_settings_init(bool persist_requested)
 {
     esp_err_t sd_error = dmd_settings_json_load(&s_settings);
     bool persist =
+        persist_requested ||
         sd_error == ESP_OK ||
         (sd_error == ESP_ERR_NOT_FOUND && dmd_storage_available());
     if (sd_error == ESP_OK) {
@@ -203,13 +219,14 @@ esp_err_t dmd_settings_init(void)
     nvs_handle_t handle;
     esp_err_t error = nvs_open(NAMESPACE, NVS_READONLY, &handle);
     if (error == ESP_ERR_NVS_NOT_FOUND) {
-        return finalize_settings_init();
+        return finalize_settings_init(false);
     }
     if (error != ESP_OK) {
         return error;
     }
 
     uint8_t value = 0;
+    bool migrated_font = false;
     if (nvs_get_u8(handle, "brightness", &value) == ESP_OK) {
         s_settings.brightness = value <= 100 ? value : 100;
     }
@@ -239,9 +256,29 @@ esp_err_t dmd_settings_init(void)
     if (nvs_get_u8(handle, "seconds", &value) == ESP_OK) {
         s_settings.show_seconds = value != 0;
     }
-    if (nvs_get_u8(handle, "clock_font", &value) == ESP_OK &&
-        dmd_font_is_valid(value)) {
-        s_settings.clock_font = (dmd_font_id_t)value;
+    size_t clock_font_size = sizeof(s_settings.clock_font_id);
+    if (nvs_get_str(
+            handle,
+            "clock_font_id",
+            s_settings.clock_font_id,
+            &clock_font_size) != ESP_OK ||
+        !font_id_is_valid(s_settings.clock_font_id)) {
+        static const char *LEGACY_FONT_IDS[] = {
+            DMD_FONT_BUILTIN_ID, "altern8", "fishy", "trek", "twilight"
+        };
+        if (nvs_get_u8(handle, "clock_font", &value) == ESP_OK &&
+            value < sizeof(LEGACY_FONT_IDS) / sizeof(LEGACY_FONT_IDS[0])) {
+            strlcpy(
+                s_settings.clock_font_id,
+                LEGACY_FONT_IDS[value],
+                sizeof(s_settings.clock_font_id));
+            migrated_font = true;
+        } else {
+            strlcpy(
+                s_settings.clock_font_id,
+                DMD_FONT_BUILTIN_ID,
+                sizeof(s_settings.clock_font_id));
+        }
     }
     if (nvs_get_u8(handle, "orient_mode", &value) == ESP_OK &&
         value <= DMD_ORIENTATION_AUTO) {
@@ -388,7 +425,7 @@ esp_err_t dmd_settings_init(void)
         sizeof(s_settings.mqtt_discovery_prefix));
     nvs_close(handle);
 
-    return finalize_settings_init();
+    return finalize_settings_init(migrated_font);
 }
 
 void dmd_settings_get(dmd_settings_t *out)
@@ -432,8 +469,12 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
     if (!dmd_color_is_valid((uint8_t)normalized.color_preset)) {
         normalized.color_preset = DMD_COLOR_ORANGE;
     }
-    if (!dmd_font_is_valid((uint8_t)normalized.clock_font)) {
-        normalized.clock_font = DMD_FONT_BUILTIN_5X7;
+    normalized.clock_font_id[DMD_FONT_ID_MAX - 1] = '\0';
+    if (!font_id_is_valid(normalized.clock_font_id)) {
+        strlcpy(
+            normalized.clock_font_id,
+            DMD_FONT_BUILTIN_ID,
+            sizeof(normalized.clock_font_id));
     }
     if (normalized.orientation_mode > DMD_ORIENTATION_AUTO) {
         normalized.orientation_mode = DMD_ORIENTATION_FIXED;
@@ -541,7 +582,7 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
             sizeof(normalized.raster_custom))) == ESP_OK &&
         (error = nvs_set_u8(handle, "hour24", normalized.use_24_hour)) == ESP_OK &&
         (error = nvs_set_u8(handle, "seconds", normalized.show_seconds)) == ESP_OK &&
-        (error = nvs_set_u8(handle, "clock_font", normalized.clock_font)) == ESP_OK &&
+        (error = nvs_set_str(handle, "clock_font_id", normalized.clock_font_id)) == ESP_OK &&
         (error = nvs_set_u8(handle, "orient_mode", normalized.orientation_mode)) == ESP_OK &&
         (error = nvs_set_u16(handle, "rotation", normalized.fixed_rotation)) == ESP_OK &&
         (error = nvs_set_u8(handle, "display", normalized.display_on)) == ESP_OK &&

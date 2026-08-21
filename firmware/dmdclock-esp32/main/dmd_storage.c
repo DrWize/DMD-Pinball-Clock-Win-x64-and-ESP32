@@ -43,6 +43,7 @@ esp_err_t dmd_storage_init(void)
 
     mkdir(DMD_STORAGE_ROOT, 0755);
     mkdir(DMD_STORAGE_SCENES, 0755);
+    mkdir(DMD_STORAGE_FONTS, 0755);
     mkdir(DMD_STORAGE_PLASMA, 0755);
     mkdir(DMD_STORAGE_CONFIG, 0755);
     mkdir(DMD_STORAGE_LOGS, 0755);
@@ -98,6 +99,7 @@ esp_err_t dmd_storage_init(void)
 
     mkdir(DMD_STORAGE_ROOT, 0755);
     mkdir(DMD_STORAGE_SCENES, 0755);
+    mkdir(DMD_STORAGE_FONTS, 0755);
     mkdir(DMD_STORAGE_PLASMA, 0755);
     mkdir(DMD_STORAGE_CONFIG, 0755);
     mkdir(DMD_STORAGE_LOGS, 0755);
@@ -198,6 +200,7 @@ esp_err_t dmd_storage_init(void)
 
     mkdir(DMD_STORAGE_ROOT, 0755);
     mkdir(DMD_STORAGE_SCENES, 0755);
+    mkdir(DMD_STORAGE_FONTS, 0755);
     mkdir(DMD_STORAGE_PLASMA, 0755);
     mkdir(DMD_STORAGE_CONFIG, 0755);
     mkdir(DMD_STORAGE_LOGS, 0755);

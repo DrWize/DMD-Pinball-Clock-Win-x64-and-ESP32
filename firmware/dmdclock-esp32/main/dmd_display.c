@@ -838,7 +838,7 @@ static void overlay_scene_clock(
         DMD_WIDTH,
         DMD_HEIGHT,
         time_text,
-        compact ? DMD_FONT_BUILTIN_5X7 : settings->clock_font,
+        compact ? DMD_FONT_BUILTIN_ID : settings->clock_font_id,
         center_x,
         center_y,
         compact || !settings->use_24_hour ? 2 : 3);
@@ -1203,7 +1203,7 @@ static void render_clock(const dmd_settings_t *settings)
         DMD_WIDTH,
         DMD_HEIGHT,
         time_text,
-        settings->clock_font,
+        settings->clock_font_id,
         DMD_WIDTH / 2,
         DMD_HEIGHT / 2,
         settings->use_24_hour ? 3 : 2);

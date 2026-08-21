@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <time.h>
@@ -304,11 +305,23 @@ static esp_err_t state_get(httpd_req_t *request)
     cJSON_AddStringToObject(
         json,
         "clockFont",
-        dmd_font_name(settings.clock_font));
+        settings.clock_font_id);
+    cJSON_AddStringToObject(
+        json,
+        "clockFontActive",
+        dmd_font_active_id());
     cJSON_AddStringToObject(
         json,
         "clockFontName",
-        dmd_font_display_name(settings.clock_font));
+        dmd_font_active_display_name());
+    bool font_fallback =
+        strcasecmp(settings.clock_font_id, dmd_font_active_id()) != 0;
+    cJSON_AddBoolToObject(json, "clockFontFallback", font_fallback);
+    if (font_fallback) {
+        cJSON_AddStringToObject(json, "clockFontError", dmd_font_last_error());
+    } else {
+        cJSON_AddNullToObject(json, "clockFontError");
+    }
     cJSON_AddStringToObject(
         json,
         "orientationMode",
@@ -730,6 +743,25 @@ static esp_err_t scenes_get(httpd_req_t *request)
     return send_json(request, json);
 }
 
+static esp_err_t fonts_get(httpd_req_t *request)
+{
+    cJSON *json = cJSON_CreateObject();
+    cJSON *fonts = cJSON_AddArrayToObject(json, "fonts");
+    for (size_t index = 0; index < dmd_font_count(); index++) {
+        dmd_font_info_t info;
+        if (!dmd_font_get(index, &info)) continue;
+        cJSON *entry = cJSON_CreateObject();
+        cJSON_AddStringToObject(entry, "id", info.id);
+        cJSON_AddStringToObject(entry, "name", info.display_name);
+        cJSON_AddStringToObject(entry, "source", info.builtin ? "builtin" : "sd");
+        if (!info.builtin) {
+            cJSON_AddStringToObject(entry, "filename", info.filename);
+        }
+        cJSON_AddItemToArray(fonts, entry);
+    }
+    return send_json(request, json);
+}
+
 static esp_err_t scene_pack_get(httpd_req_t *request)
 {
     dmd_scene_pack_status_t status;
@@ -897,14 +929,23 @@ static esp_err_t settings_post(httpd_req_t *request)
     update_bool(json, "showSeconds", &updated.show_seconds);
     cJSON *clock_font =
         cJSON_GetObjectItemCaseSensitive(json, "clockFont");
+    const char *canonical_font_id = clock_font != NULL && cJSON_IsString(clock_font)
+        ? dmd_font_canonical_id(clock_font->valuestring)
+        : NULL;
     if (clock_font != NULL &&
         (!cJSON_IsString(clock_font) ||
-         !dmd_font_from_name(clock_font->valuestring, &updated.clock_font))) {
+         canonical_font_id == NULL)) {
         cJSON_Delete(json);
         return httpd_resp_send_err(
             request,
             HTTPD_400_BAD_REQUEST,
             "Unknown clock font");
+    }
+    if (clock_font != NULL) {
+        strlcpy(
+            updated.clock_font_id,
+            canonical_font_id,
+            sizeof(updated.clock_font_id));
     }
     update_bool(json, "displayOn", &updated.display_on);
     update_bool(json, "lanOnlyWeb", &updated.lan_only_web);
@@ -1207,8 +1248,25 @@ static esp_err_t settings_post(httpd_req_t *request)
     bool wifi_changed =
         strcmp(before.wifi_ssid, updated.wifi_ssid) != 0 ||
         strcmp(before.wifi_password, updated.wifi_password) != 0;
+    bool font_changed =
+        strcmp(before.clock_font_id, updated.clock_font_id) != 0;
+    char previous_active_font[DMD_FONT_ID_MAX];
+    strlcpy(
+        previous_active_font,
+        dmd_font_active_id(),
+        sizeof(previous_active_font));
+    if (font_changed && !dmd_font_activate(updated.clock_font_id)) {
+        return httpd_resp_send_err(
+            request,
+            HTTPD_400_BAD_REQUEST,
+            dmd_font_last_error());
+    }
     esp_err_t error = dmd_settings_update(&updated);
     if (error != ESP_OK) {
+        if (font_changed) {
+            dmd_font_activate(previous_active_font);
+            dmd_settings_update(&before);
+        }
         return httpd_resp_send_err(
             request,
             HTTPD_500_INTERNAL_SERVER_ERROR,
@@ -1410,7 +1468,7 @@ static esp_err_t favicon_get(httpd_req_t *request)
 esp_err_t dmd_web_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 12;
+    config.max_uri_handlers = 13;
     config.stack_size = 6144;
     config.lru_purge_enable = true;
     config.open_fn = web_client_open;
@@ -1423,6 +1481,7 @@ esp_err_t dmd_web_start(void)
         {.uri = "/", .method = HTTP_GET, .handler = index_get},
         {.uri = "/api-docs", .method = HTTP_GET, .handler = api_docs_get},
         {.uri = "/api/state", .method = HTTP_GET, .handler = state_get},
+        {.uri = "/api/fonts", .method = HTTP_GET, .handler = fonts_get},
         {.uri = "/api/timezones", .method = HTTP_GET, .handler = timezones_get},
         {.uri = "/api/scenes", .method = HTTP_GET, .handler = scenes_get},
         {.uri = "/api/scene-library", .method = HTTP_GET, .handler = scene_pack_get},

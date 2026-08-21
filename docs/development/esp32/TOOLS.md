@@ -59,7 +59,7 @@ require Python, ESP-IDF, .NET, Git, CMake, Ninja, or the Xtensa compiler.
 .\scripts\esp32\dev\Package-DmdClockEsp32.ps1 -Board Waveshare349B
 
 # Include both verified ESP32 targets when previewing the combined release.
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.1 -IncludeEsp32 -WhatIf
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.2 -IncludeEsp32 -WhatIf
 
 # Generate a one-time, ignored first-flash Wi-Fi header and build with it.
 # The password is entered through a masked SecureString prompt.
@@ -207,7 +207,8 @@ records per-case framebuffer/hash evidence under
 `output\esp32\reports\qemu-acceptance` and restores the original settings.
 
 `New-DmdClockQemuSdImage.ps1` creates a power-of-two 512 MiB FAT32 superfloppy
-with its boot sector at LBA 0, which is the layout accepted by QEMU's ESP32
+containing `/dmd/scenes` and the canonical `/dmd/fonts` set. Its boot sector is
+at LBA 0, which is the layout accepted by QEMU's ESP32
 SD/MMC device. Larger images are selected automatically when necessary. The
 generated images are writable and ignored by Git; never publish one containing
 scenes unless their distribution rights are confirmed.
