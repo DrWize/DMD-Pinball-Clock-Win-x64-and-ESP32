@@ -112,7 +112,8 @@ try {
 
     $fixtureArtifactIds = @(
         'sd.catalog', 'sd.scene-metadata', 'sd.template.manifest',
-        'sd.template.readme', 'sd.library.drwize-complete')
+        'sd.template.readme', 'sd.font.altern8', 'sd.font.fishy',
+        'sd.font.trek', 'sd.font.twilight', 'sd.library.drwize-complete')
     $validatedFixture = Test-DmdClockStagingManifest -Source $fixtureRoot `
         -RequiredArtifactIds $fixtureArtifactIds
     Assert-True ($validatedFixture.Artifacts.ContainsKey('sd.library.drwize-complete')) `
