@@ -47,6 +47,40 @@ try {
             "PowerShell source contains an empty catch block: '$path'."
     }
 
+    $retryFunction = $parsedFiles[$sdScript].Find({
+        param($node)
+        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq 'Invoke-DmdClockFileOperationWithRetry'
+    }, $true)
+    Assert-True ($null -ne $retryFunction) `
+        'microSD preparation does not define its transient file-lock retry helper.'
+    $retryBody = [scriptblock]::Create($retryFunction.Body.Extent.Text.Trim('{}'))
+    function Test-DmdClockTransientFileLock {
+        param([Parameter(Mandatory)][Management.Automation.ErrorRecord]$ErrorRecord)
+        return (($ErrorRecord.Exception.HResult -band 0xFFFF) -in @(32, 33))
+    }
+    $retryState = [pscustomobject]@{ Attempts = 0 }
+    $retryResult = & $retryBody -Description 'test sharing violation' `
+        -MaximumAttempts 3 -RetryDelayMilliseconds 0 -Operation {
+            $retryState.Attempts++
+            if ($retryState.Attempts -lt 3) {
+                throw [Runtime.InteropServices.Marshal]::GetExceptionForHR(0x80070020)
+            }
+            return 'completed'
+        }
+    Assert-True ($retryState.Attempts -eq 3 -and $retryResult -eq 'completed') `
+        'microSD transient file-lock operation did not retry through success.'
+    $nonTransientState = [pscustomobject]@{ Attempts = 0 }
+    Assert-Throws {
+        $null = & $retryBody -Description 'test permanent failure' `
+            -MaximumAttempts 3 -RetryDelayMilliseconds 0 -Operation {
+                $nonTransientState.Attempts++
+                throw [IO.InvalidDataException]::new('permanent fixture failure')
+            }
+    } 'permanent fixture failure'
+    Assert-True ($nonTransientState.Attempts -eq 1) `
+        'microSD file retry repeated a non-transient failure.'
+
     $sdSource = Get-Content -LiteralPath $sdScript -Raw
     Assert-True ($sdSource -notmatch '(?im)\b(Clear-Disk|Format-Volume|Initialize-Disk|New-Partition|Remove-Partition)\b') `
         'microSD preparation contains a disk partitioning or formatting command.'
@@ -118,6 +152,15 @@ try {
         -RequiredArtifactIds $fixtureArtifactIds
     Assert-True ($validatedFixture.Artifacts.ContainsKey('sd.library.drwize-complete')) `
         'Complete offline staging fixture was not fully validated.'
+    $stagedMetadataPath = [string]$validatedFixture.Artifacts['sd.scene-metadata'].ResolvedPath
+    $metadataDocument = $null
+    try {
+        $metadataDocument = [Text.Json.JsonDocument]::Parse([IO.File]::ReadAllText($stagedMetadataPath))
+    }
+    finally {
+        if ($null -ne $metadataDocument) { $metadataDocument.Dispose() }
+    }
+    Assert-True ($null -ne $metadataDocument) 'Staged scene metadata is not strict JSON.'
 
     $incompleteFixture = Join-Path $testRoot 'offline-fixture-incomplete'
     [IO.Directory]::CreateDirectory($incompleteFixture) | Out-Null

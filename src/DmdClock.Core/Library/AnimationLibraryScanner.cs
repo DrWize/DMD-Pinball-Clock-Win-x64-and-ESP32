@@ -60,14 +60,17 @@ public sealed class AnimationLibraryScanner
         IReadOnlyDictionary<string, AnimationLibraryItem> previousByHash,
         CancellationToken cancellationToken)
     {
-        string hash;
+        var hash = string.Empty;
         ScnScene? scene = null;
+        ScnIntensityAnalysis? intensity = null;
         string? error = null;
         IReadOnlyList<ScnDiagnostic> warnings = [];
         try
         {
             await using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false));
+            stream.Position = 0;
+            intensity = ScnIntensityAnalyzer.Analyze(stream);
             stream.Position = 0;
             var inspection = ScnCompatibilityInspector.Inspect(stream);
             scene = inspection.Scene;
@@ -82,10 +85,22 @@ public sealed class AnimationLibraryScanner
             if (finalInfo.Length != fileSize || finalInfo.LastWriteTimeUtc != lastWrite.UtcDateTime)
                 throw new IOException("File changed while it was being scanned; it will be retried on the next scan.");
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is (IOException and not ScnFormatException) or UnauthorizedAccessException)
         {
             hash = string.Empty;
             error = exception.Message;
+        }
+        catch (ScnFormatException)
+        {
+            var inspection = ScnCompatibilityInspector.Inspect(fullPath);
+            error = string.Join(" ", inspection.Diagnostics.Select(static diagnostic =>
+                $"[{diagnostic.Code}] {diagnostic.Message}"));
+        }
+        catch (EndOfStreamException)
+        {
+            var inspection = ScnCompatibilityInspector.Inspect(fullPath);
+            error = string.Join(" ", inspection.Diagnostics.Select(static diagnostic =>
+                $"[{diagnostic.Code}] {diagnostic.Message}"));
         }
 
         var id = previousByPath.TryGetValue(relativePath, out var samePath)
@@ -103,7 +118,8 @@ public sealed class AnimationLibraryScanner
             scene?.Frames.Count ?? 0,
             duration,
             error,
-            warnings);
+            warnings,
+            intensity);
     }
 
     private static long EstimateDuration(ScnScene scene)

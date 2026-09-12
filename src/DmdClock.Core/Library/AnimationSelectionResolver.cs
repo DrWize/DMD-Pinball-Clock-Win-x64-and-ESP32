@@ -7,7 +7,7 @@ public static class AnimationSelectionResolver
         SceneMetadataCatalog metadata) =>
         items.Select(item => new AnimationCatalogItem(
                 item,
-                metadata.Resolve(item.RelativePath)))
+                metadata.Resolve(item.RelativePath, item.Sha256, item.Intensity)))
             .ToArray();
 
     public static IReadOnlyList<AnimationLibraryItem> ResolvePlayable(

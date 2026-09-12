@@ -725,6 +725,50 @@ function Get-ManagedFile {
     }
 }
 
+function Test-DmdClockTransientFileLock {
+    param([Parameter(Mandatory)][Management.Automation.ErrorRecord]$ErrorRecord)
+
+    $exception = $ErrorRecord.Exception
+    while ($null -ne $exception) {
+        if (($exception.HResult -band 0xFFFF) -in @(32, 33)) {
+            return $true
+        }
+        $exception = $exception.InnerException
+    }
+    return $false
+}
+
+function Invoke-DmdClockFileOperationWithRetry {
+    param(
+        [Parameter(Mandatory)][scriptblock]$Operation,
+        [Parameter(Mandatory)][string]$Description,
+        [ValidateRange(1, 20)][int]$MaximumAttempts = 6,
+        [ValidateRange(0, 5000)][int]$RetryDelayMilliseconds = 200
+    )
+
+    for ($attempt = 1; $attempt -le $MaximumAttempts; $attempt++) {
+        try {
+            return & $Operation
+        }
+        catch {
+            if (-not (Test-DmdClockTransientFileLock -ErrorRecord $_) -or
+                $attempt -ge $MaximumAttempts) {
+                throw
+            }
+
+            $delay = [Math]::Min(
+                $RetryDelayMilliseconds * [Math]::Pow(2, $attempt - 1),
+                1000)
+            Write-Warning (
+                "Temporary file lock during $Description " +
+                "(attempt $attempt of $MaximumAttempts). Retrying in $([int]$delay) ms...")
+            if ($delay -gt 0) {
+                Start-Sleep -Milliseconds ([int]$delay)
+            }
+        }
+    }
+}
+
 function Install-FileAtomically {
     param(
         [Parameter(Mandatory)]$File,
@@ -741,17 +785,44 @@ function Install-FileAtomically {
         '.dmdtmp-' + [Guid]::NewGuid().ToString('N')
     $temporaryPath = Join-Path $destinationDirectory $temporaryName
 
+    $primaryError = $null
     try {
-        Copy-Item -LiteralPath $File.SourcePath -Destination $temporaryPath
-        $copiedHash = Get-DmdClockSha256 $temporaryPath
+        Invoke-DmdClockFileOperationWithRetry `
+            -Description "copying $($File.RelativeTarget)" `
+            -Operation {
+                Copy-Item -LiteralPath $File.SourcePath -Destination $temporaryPath -Force
+            }
+        $copiedHash = Invoke-DmdClockFileOperationWithRetry `
+            -Description "verifying $($File.RelativeTarget)" `
+            -Operation { Get-DmdClockSha256 $temporaryPath }
         if ($copiedHash -ne $File.Hash) {
             throw "Hash verification failed while staging $($File.RelativeTarget)"
         }
-        Move-Item -LiteralPath $temporaryPath -Destination $destination -Force
+        Invoke-DmdClockFileOperationWithRetry `
+            -Description "installing $($File.RelativeTarget)" `
+            -Operation {
+                Move-Item -LiteralPath $temporaryPath -Destination $destination -Force
+            }
+    }
+    catch {
+        $primaryError = $_
+        throw
     }
     finally {
         if (Test-Path -LiteralPath $temporaryPath) {
-            Remove-Item -LiteralPath $temporaryPath -Force
+            try {
+                Invoke-DmdClockFileOperationWithRetry `
+                    -Description "cleaning up $($File.RelativeTarget)" `
+                    -Operation { Remove-Item -LiteralPath $temporaryPath -Force }
+            }
+            catch {
+                if ($null -eq $primaryError) {
+                    throw
+                }
+                Write-Warning (
+                    "Could not remove temporary file '$temporaryPath' after the copy failed. " +
+                    "The original error is preserved: $($primaryError.Exception.Message)")
+            }
         }
     }
 }
@@ -1104,12 +1175,8 @@ try {
         })
     }
 
-    $sourceMetadataPath = Join-Path $source.Scenes 'scene-metadata.json'
-    if (-not (Test-Path -LiteralPath $sourceMetadataPath -PathType Leaf)) {
-        $sourceMetadataPath = $metadataPath
-    }
     $managed.Add((Get-ManagedFile `
-        -SourcePath $sourceMetadataPath `
+        -SourcePath $metadataPath `
         -RelativeTarget 'dmd/scenes/scene-metadata.json' `
         -Category Metadata))
     foreach ($templateName in @('manifest.json', 'README.md')) {

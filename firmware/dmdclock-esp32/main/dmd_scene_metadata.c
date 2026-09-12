@@ -8,6 +8,7 @@
 #include "cJSON.h"
 #include "dmd_storage.h"
 #include "esp_log.h"
+#include "mbedtls/sha256.h"
 #include "sdkconfig.h"
 
 #define DMD_SCENE_METADATA_PATH DMD_STORAGE_SCENES "/scene-metadata.json"
@@ -53,6 +54,50 @@ static void copy_if_set(char *target, size_t capacity, const char *value)
     if (value != NULL && value[0] != '\0') {
         strlcpy(target, value, capacity);
     }
+}
+
+static bool valid_sha256(const char *value)
+{
+    if (value == NULL || strlen(value) != DMD_SCENE_SHA256_HEX_LENGTH) return false;
+    for (size_t index = 0; index < DMD_SCENE_SHA256_HEX_LENGTH; index++) {
+        if (!((value[index] >= '0' && value[index] <= '9') ||
+              (value[index] >= 'a' && value[index] <= 'f') ||
+              (value[index] >= 'A' && value[index] <= 'F'))) return false;
+    }
+    return true;
+}
+
+static void resolve_intensity(const cJSON *entry, dmd_scene_metadata_t *metadata)
+{
+    for (uint8_t value = 0; value < 16; value++) metadata->intensity_lut[value] = value;
+    const cJSON *intensity = cJSON_GetObjectItemCaseSensitive(entry, "intensity");
+    const char *mapping = json_string(intensity, "mapping");
+    if (!cJSON_IsObject(intensity) || mapping == NULL || strcmp(mapping, "evenly-spaced-v1") != 0) return;
+    const char *sha256 = json_string(intensity, "sha256");
+    const cJSON *frame_count = cJSON_GetObjectItemCaseSensitive(intensity, "frameCount");
+    const cJSON *used_values = cJSON_GetObjectItemCaseSensitive(intensity, "usedValues");
+    const cJSON *output_values = cJSON_GetObjectItemCaseSensitive(intensity, "outputValues");
+    if (!valid_sha256(sha256) || !cJSON_IsNumber(frame_count) || frame_count->valueint < 1 ||
+        frame_count->valueint > UINT16_MAX || !cJSON_IsArray(used_values) || !cJSON_IsArray(output_values)) return;
+    int count = cJSON_GetArraySize(used_values);
+    if (count < 1 || count > 16 || cJSON_GetArraySize(output_values) != count) return;
+    uint16_t used_mask = 0;
+    int previous = -1;
+    for (int index = 0; index < count; index++) {
+        const cJSON *used = cJSON_GetArrayItem(used_values, index);
+        const cJSON *output = cJSON_GetArrayItem(output_values, index);
+        if (!cJSON_IsNumber(used) || !cJSON_IsNumber(output) ||
+            used->valuedouble != used->valueint || output->valuedouble != output->valueint ||
+            used->valueint < 0 || used->valueint > 15 || used->valueint <= previous ||
+            output->valueint < 0 || output->valueint > 255) return;
+        previous = used->valueint;
+        used_mask |= (uint16_t)(1U << used->valueint);
+        metadata->intensity_lut[used->valueint] = (uint8_t)((output->valueint * 15 + 127) / 255);
+    }
+    strlcpy(metadata->intensity_sha256, sha256, sizeof(metadata->intensity_sha256));
+    metadata->intensity_frame_count = (uint16_t)frame_count->valueint;
+    metadata->intensity_used_values_mask = used_mask;
+    metadata->intensity_present = true;
 }
 
 static void base_name_without_extension(
@@ -225,6 +270,7 @@ void dmd_scene_metadata_resolve(
         metadata->year = json_year(prefix_match);
     }
     metadata->catalog_match = file_match != NULL || prefix_match != NULL;
+    if (file_match != NULL) resolve_intensity(file_match, metadata);
 
     if (metadata->title[0] != '\0') {
         strlcpy(
@@ -239,6 +285,21 @@ void dmd_scene_metadata_resolve(
             metadata->game,
             base_name);
     }
+}
+
+void dmd_scene_metadata_verify_intensity(dmd_scene_metadata_t *metadata, const uint8_t *scene_data,
+                                         size_t scene_size, uint16_t frame_count, uint16_t used_values_mask)
+{
+    if (metadata == NULL || !metadata->intensity_present || scene_data == NULL ||
+        metadata->intensity_frame_count != frame_count || metadata->intensity_used_values_mask != used_values_mask) return;
+    uint8_t digest[32];
+    char hex[DMD_SCENE_SHA256_HEX_LENGTH + 1];
+    if (mbedtls_sha256(scene_data, scene_size, digest, 0) != 0) return;
+    for (size_t index = 0; index < sizeof(digest); index++) {
+        snprintf(hex + index * 2, sizeof(hex) - index * 2, "%02x", digest[index]);
+    }
+    metadata->intensity_verified = strcasecmp(hex, metadata->intensity_sha256) == 0;
+    if (metadata->intensity_verified) ESP_LOGI(TAG, "Verified intensity mapping for %s", metadata->display_name);
 }
 
 void dmd_scene_metadata_free(dmd_scene_metadata_catalog_t *catalog)

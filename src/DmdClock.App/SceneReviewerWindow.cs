@@ -25,15 +25,18 @@ public sealed class SceneReviewerWindow : Window
     private readonly DmdClockSettings _settings;
     private readonly ComboBox _gamePicker;
     private readonly ComboBox _filterPicker;
+    private readonly ComboBox _levelPicker;
     private readonly NumericUpDown _columns;
     private readonly NumericUpDown _rows;
     private readonly CheckBox _gameEnabled;
     private readonly TextBlock _pageText;
     private readonly TextBlock _summaryText;
     private readonly TextBlock _statusText;
+    private readonly TextBlock _intensityText;
     private readonly Grid _tileGrid;
     private readonly Button _previous;
     private readonly Button _next;
+    private readonly Button _mappedPreviewButton;
     private readonly DispatcherTimer _timer;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private readonly List<TileSession> _tiles = [];
@@ -43,6 +46,7 @@ public sealed class SceneReviewerWindow : Window
     private AnimationSelectionDocument _document;
     private int _page;
     private bool _paused;
+    private bool _mappedPreview;
     private bool _updatingControls;
 
     public SceneReviewerWindow(
@@ -81,18 +85,35 @@ public sealed class SceneReviewerWindow : Window
             ItemsSource = new[] { "All", "Unreviewed", "Allowed", "Disallowed" },
             SelectedIndex = 0
         };
+        _levelPicker = new ComboBox
+        {
+            Width = 78,
+            ItemsSource = new[] { "All" }.Concat(Enumerable.Range(2, 15).Select(static count => count.ToString())).ToArray(),
+            SelectedIndex = 0
+        };
         _columns = Number(_document.Columns);
         _rows = Number(_document.Rows);
         _gameEnabled = new CheckBox { Content = "Enable game for clock" };
         _pageText = MutedText();
         _summaryText = MutedText();
         _statusText = MutedText();
+        _intensityText = MutedText();
         _previous = new Button { Content = "Previous", MinWidth = 90 };
         _next = new Button { Content = "Next", MinWidth = 90 };
+        _mappedPreviewButton = new Button { Content = "Mapped levels: Off" };
         var allowPage = new Button { Content = "Allow page" };
         var disallowPage = new Button { Content = "Disallow page" };
         var allowAll = new Button { Content = "Allow all" };
         var pause = new Button { Content = "Pause all" };
+        _mappedPreviewButton.Click += (_, _) =>
+        {
+            _mappedPreview = !_mappedPreview;
+            _mappedPreviewButton.Content = _mappedPreview ? "Mapped levels: On" : "Mapped levels: Off";
+            foreach (var tile in _tiles) RenderTile(tile, DateTimeOffset.Now);
+            _statusText.Text = _mappedPreview
+                ? "Mapped-level preview is on for scenes with verified metadata."
+                : "Mapped-level preview is off; raw scene intensities are shown.";
+        };
 
         _tileGrid = new Grid
         {
@@ -109,6 +130,12 @@ public sealed class SceneReviewerWindow : Window
             await RebuildPageAsync();
         };
         _filterPicker.SelectionChanged += async (_, _) =>
+        {
+            if (_updatingControls) return;
+            _page = 0;
+            await RebuildPageAsync();
+        };
+        _levelPicker.SelectionChanged += async (_, _) =>
         {
             if (_updatingControls) return;
             _page = 0;
@@ -165,6 +192,8 @@ public sealed class SceneReviewerWindow : Window
         toolbar.Children.Add(_gameEnabled);
         toolbar.Children.Add(Label("Filter"));
         toolbar.Children.Add(_filterPicker);
+        toolbar.Children.Add(Label("Levels"));
+        toolbar.Children.Add(_levelPicker);
         toolbar.Children.Add(Label("Columns"));
         toolbar.Children.Add(_columns);
         toolbar.Children.Add(Label("Rows"));
@@ -173,6 +202,7 @@ public sealed class SceneReviewerWindow : Window
         toolbar.Children.Add(disallowPage);
         toolbar.Children.Add(allowAll);
         toolbar.Children.Add(pause);
+        toolbar.Children.Add(_mappedPreviewButton);
 
         var footer = new Grid
         {
@@ -182,6 +212,7 @@ public sealed class SceneReviewerWindow : Window
         var textStack = new StackPanel { Spacing = 2 };
         textStack.Children.Add(_summaryText);
         textStack.Children.Add(_statusText);
+        textStack.Children.Add(_intensityText);
         footer.Children.Add(textStack);
         Grid.SetColumn(_pageText, 1);
         Grid.SetColumn(_previous, 2);
@@ -266,10 +297,20 @@ public sealed class SceneReviewerWindow : Window
                 Margin = new Thickness(5, 2),
                 HorizontalAlignment = HorizontalAlignment.Center
             };
-            var content = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
+            var intensity = new TextBlock
+            {
+                Text = FormatIntensity(item.LibraryItem.Intensity),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                FontSize = 10,
+                Foreground = Brushes.Gray,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            var content = new Grid { RowDefinitions = new RowDefinitions("*,Auto,Auto") };
             content.Children.Add(display);
             Grid.SetRow(title, 1);
             content.Children.Add(title);
+            Grid.SetRow(intensity, 2);
+            content.Children.Add(intensity);
             var border = new Border
             {
                 Margin = new Thickness(3),
@@ -283,6 +324,7 @@ public sealed class SceneReviewerWindow : Window
                 border,
                 $"{item.Game}\n{item.LibraryItem.RelativePath}\n" +
                 "Left-click: Allowed/Unreviewed · Right-click: Disallowed/Allowed");
+            border.PointerEntered += (_, _) => _intensityText.Text = FormatIntensityDetails(item);
             var tile = new TileSession(item, border, display);
             ApplyTileState(tile);
             border.PointerPressed += async (_, eventArgs) =>
@@ -343,6 +385,19 @@ public sealed class SceneReviewerWindow : Window
         }
     }
 
+    private static string FormatIntensity(DmdClock.Core.Scn.ScnIntensityAnalysis? analysis) =>
+        analysis is null ? "Intensity unavailable" :
+        $"Levels ({analysis.UsedValues.Count}): {string.Join(',', analysis.UsedValues)}";
+
+    private static string FormatIntensityDetails(AnimationCatalogItem item)
+    {
+        var analysis = item.LibraryItem.Intensity;
+        if (analysis is null) return "Intensity: unavailable for this scene.";
+        var histogram = string.Join(" ", analysis.Histogram.Select((count, value) => $"{value}:{count}"));
+        var verification = item.Metadata.IntensityMetadataVerified ? "metadata verified" : "metadata unavailable or stale";
+        return $"Intensity {item.LibraryItem.RelativePath}: values {string.Join(',', analysis.UsedValues)}; {histogram}; {verification}.";
+    }
+
     private void Tick()
     {
         if (_paused) return;
@@ -379,8 +434,26 @@ public sealed class SceneReviewerWindow : Window
                 now,
                 _settings.ClockFormat == "12",
                 _settings.ShowSeconds ?? true);
-        tile.Display.Frame = DmdFrameCompositor.Compose(
-            playback.CurrentFrame, clock, playback.ClockAbove);
+        var animation = _mappedPreview
+            ? MapVerifiedIntensity(playback.CurrentFrame, tile.Item.Metadata)
+            : playback.CurrentFrame;
+        tile.Display.Frame = DmdFrameCompositor.Compose(animation, clock, playback.ClockAbove);
+    }
+
+    private static DmdFrame MapVerifiedIntensity(DmdFrame frame, ResolvedSceneMetadata metadata)
+    {
+        var intensity = metadata.Intensity;
+        if (!metadata.IntensityMetadataVerified || intensity is null) return frame;
+        var lookup = Enumerable.Range(0, 16).Select(static value => (byte)value).ToArray();
+        for (var index = 0; index < intensity.UsedValues.Count; index++)
+        {
+            var source = intensity.UsedValues[index];
+            lookup[source] = (byte)Math.Clamp((int)Math.Floor((intensity.OutputValues[index] * 15d / 255d) + 0.5d), 0, 15);
+        }
+        var mapped = frame.Intensities.Span.ToArray();
+        for (var index = 0; index < mapped.Length; index++) mapped[index] = lookup[mapped[index]];
+        var mask = frame.Mask is { } sourceMask ? sourceMask.ToArray() : null;
+        return new DmdFrame(frame.Width, frame.Height, mapped, mask);
     }
 
     private async Task SetPageStateAsync(AnimationSelectionState state)
@@ -466,6 +539,9 @@ public sealed class SceneReviewerWindow : Window
         if (filter is not null)
             items = items.Where(item =>
                 AnimationSelectionResolver.ResolveState(item, _document) == filter);
+        var levelCount = _levelPicker.SelectedIndex == 0 ? (int?)null : _levelPicker.SelectedIndex + 1;
+        if (levelCount is not null)
+            items = items.Where(item => item.LibraryItem.Intensity?.UsedValues.Count == levelCount);
         return items.OrderBy(
                 static item => item.LibraryItem.RelativePath,
                 NaturalPathComparer.Instance)

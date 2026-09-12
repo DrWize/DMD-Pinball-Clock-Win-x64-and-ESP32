@@ -46,7 +46,7 @@ public sealed class AnimationLibraryScannerTests : IDisposable
     public async Task Store_RoundTripsIndexAtomically()
     {
         var path = Path.Combine(_directory, "index.json");
-        var expected = new AnimationLibraryIndex(1, _directory, DateTimeOffset.UnixEpoch, []);
+        var expected = new AnimationLibraryIndex(AnimationLibraryIndex.CurrentSchemaVersion, _directory, DateTimeOffset.UnixEpoch, []);
         var store = new AnimationLibraryStore();
 
         await store.SaveAtomicAsync(expected, path);

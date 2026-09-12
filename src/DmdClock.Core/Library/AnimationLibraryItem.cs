@@ -9,7 +9,8 @@ public sealed record AnimationLibraryItem(
     int FrameCount,
     long EstimatedDurationMs,
     string? Error,
-    IReadOnlyList<DmdClock.Core.Scn.ScnDiagnostic>? Warnings = null)
+    IReadOnlyList<DmdClock.Core.Scn.ScnDiagnostic>? Warnings = null,
+    DmdClock.Core.Scn.ScnIntensityAnalysis? Intensity = null)
 {
     public bool IsValid => Error is null;
 }

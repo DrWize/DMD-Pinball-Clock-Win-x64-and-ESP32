@@ -252,6 +252,15 @@ static esp_err_t parse_scene(uint16_t index)
             (unsigned)(s_size - offset));
         return ESP_ERR_INVALID_SIZE;
     }
+    uint16_t used_values_mask = 0;
+    for (uint16_t frame = 0; frame < frame_count; frame++) {
+        const uint8_t *packed = s_data + s_frame_offsets[frame];
+        for (size_t pixel = 0; pixel < SCN_PACKED_PIXEL_SIZE; pixel++) {
+            used_values_mask |= (uint16_t)(1U << (packed[pixel] & 0x0f));
+            used_values_mask |= (uint16_t)(1U << (packed[pixel] >> 4));
+        }
+    }
+    dmd_scene_metadata_verify_intensity(&s_metadata[index], s_data, s_size, frame_count, used_values_mask);
 
     memset(&s_info, 0, sizeof(s_info));
     s_info.index = index;
@@ -550,6 +559,10 @@ esp_err_t dmd_scene_decode_step(
         for (size_t index = 0; index < SCN_PACKED_PIXEL_SIZE; index++) {
             output[index * 2] = packed[index] & 0x0f;
             output[index * 2 + 1] = packed[index] >> 4;
+        }
+        if (s_metadata[s_info.index].intensity_verified) {
+            const uint8_t *lut = s_metadata[s_info.index].intensity_lut;
+            for (size_t index = 0; index < DMD_SCENE_PIXEL_COUNT; index++) output[index] = lut[output[index]];
         }
         uint32_t mask_offset = s_mask_offsets[step_info->frame_index];
         if (mask_offset == 0) {
