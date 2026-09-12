@@ -19,7 +19,8 @@ public sealed record SceneFileMetadata(
     string? DateManufactured = null,
     int? Players = null,
     string? MachineType = null,
-    string? Theme = null);
+    string? Theme = null,
+    SceneIntensityMetadata? Intensity = null);
 
 public sealed record ResolvedSceneMetadata(
     string RelativePath,
@@ -32,7 +33,9 @@ public sealed record ResolvedSceneMetadata(
     string? DateManufactured,
     int? Players,
     string? MachineType,
-    string? Theme);
+    string? Theme,
+    SceneIntensityMetadata? Intensity = null,
+    bool IntensityMetadataVerified = false);
 
 public sealed class SceneMetadataCatalog
 {
@@ -58,7 +61,10 @@ public sealed class SceneMetadataCatalog
 
     public static SceneMetadataCatalog Empty { get; } = new();
 
-    public ResolvedSceneMetadata Resolve(string relativePath)
+    public ResolvedSceneMetadata Resolve(
+        string relativePath,
+        string? sha256 = null,
+        DmdClock.Core.Scn.ScnIntensityAnalysis? rawIntensity = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
         var normalizedPath = NormalizePath(relativePath);
@@ -76,9 +82,12 @@ public sealed class SceneMetadataCatalog
         var machineType = NullIfWhiteSpace(file?.MachineType) ?? prefix?.MachineType;
         var theme = NullIfWhiteSpace(file?.Theme) ?? prefix?.Theme;
         var displayName = title ?? (game is null ? baseName : $"{game} — {baseName}");
+        var intensity = IsVerifiedIntensity(file?.Intensity, sha256, rawIntensity)
+            ? file!.Intensity
+            : null;
         return new ResolvedSceneMetadata(
             normalizedPath, fileName, displayName, title, game, manufacturer, year,
-            dateManufactured, players, machineType, theme);
+            dateManufactured, players, machineType, theme, intensity, intensity is not null);
     }
 
     private static void ValidatePrefixes(IReadOnlyList<ScenePrefixMetadata> prefixes)
@@ -104,6 +113,25 @@ public sealed class SceneMetadataCatalog
         }
         if (files.GroupBy(static item => NormalizePath(item.Path), StringComparer.OrdinalIgnoreCase).Any(static group => group.Count() > 1))
             throw new ArgumentException("Scene metadata contains duplicate file paths.", nameof(files));
+    }
+
+    private static bool IsVerifiedIntensity(
+        SceneIntensityMetadata? metadata,
+        string? sha256,
+        DmdClock.Core.Scn.ScnIntensityAnalysis? raw)
+    {
+        if (metadata is null || raw is null || string.IsNullOrWhiteSpace(sha256) ||
+            !string.Equals(metadata.Sha256, sha256, StringComparison.OrdinalIgnoreCase) ||
+            metadata.FrameCount != raw.FrameCount || metadata.UsedValues.Count != raw.UsedValues.Count ||
+            metadata.OutputValues.Count != metadata.UsedValues.Count ||
+            !string.Equals(metadata.Mapping, "evenly-spaced-v1", StringComparison.Ordinal)) return false;
+        for (var index = 0; index < raw.UsedValues.Count; index++)
+        {
+            if (metadata.UsedValues[index] != raw.UsedValues[index] || metadata.UsedValues[index] is < 0 or > 15 ||
+                metadata.OutputValues[index] is < 0 or > 255 ||
+                (index > 0 && (metadata.UsedValues[index] <= metadata.UsedValues[index - 1] || metadata.OutputValues[index] <= metadata.OutputValues[index - 1]))) return false;
+        }
+        return true;
     }
 
     private static void ValidateYear(int? year)

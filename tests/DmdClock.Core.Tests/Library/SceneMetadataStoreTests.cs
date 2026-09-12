@@ -63,4 +63,20 @@ public sealed class SceneMetadataStoreTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public void Resolve_OnlyReturnsMatchingVerifiedIntensity()
+    {
+        var raw = new DmdClock.Core.Scn.ScnIntensityAnalysis(2, [0, 3, 15], 2, [4L, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
+        var intensity = new SceneIntensityMetadata("ABC", 2, [0, 3, 15], "evenly-spaced-v1", [0, 128, 255]);
+        var catalog = new SceneMetadataCatalog(files: [new SceneFileMetadata("test.scn", Intensity: intensity)]);
+
+        var verified = catalog.Resolve("test.scn", "abc", raw);
+        var stale = catalog.Resolve("test.scn", "def", raw);
+
+        Assert.True(verified.IntensityMetadataVerified);
+        Assert.Same(intensity, verified.Intensity);
+        Assert.False(stale.IntensityMetadataVerified);
+        Assert.Null(stale.Intensity);
+    }
 }

@@ -29,6 +29,7 @@ public partial class MainWindow : Window
 {
     private static readonly TimeSpan AnimationInformationDuration = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan StartupBrandDuration = TimeSpan.FromSeconds(4);
+    private static readonly TimeSpan UpdateAvailableDuration = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan MouseCursorHideDelay = TimeSpan.FromSeconds(5);
     private const double DefaultWindowWidth = 1024;
     private const double DefaultWindowHeight = 256;
@@ -843,6 +844,7 @@ public partial class MainWindow : Window
                 UpdateAvailableText.Text =
                     $"DMDClock {result.LatestVersion} is available · click to download";
                 UpdateAvailableOverlay.IsVisible = true;
+                _ = HideUpdateAvailableAsync(cancellationToken);
             }
             else
             {
@@ -877,6 +879,16 @@ public partial class MainWindow : Window
         {
             SetStatus($"Could not open the latest release: {error.Message}");
         }
+    }
+
+    private async Task HideUpdateAvailableAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(UpdateAvailableDuration, cancellationToken);
+            UpdateAvailableOverlay.IsVisible = false;
+        }
+        catch (OperationCanceledException) { }
     }
 
     private async Task HideStartupBrandAsync(CancellationToken cancellationToken)

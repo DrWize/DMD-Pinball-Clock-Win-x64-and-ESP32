@@ -6,6 +6,5 @@ public sealed record AnimationLibraryIndex(
     DateTimeOffset ScannedAtUtc,
     IReadOnlyList<AnimationLibraryItem> Items)
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 }
-

@@ -23,7 +23,7 @@ Turn your computer/esp32 into a retro pinball **Dot Matrix Display (DMD)** clock
 | Waveshare ESP32-S3-Touch-LCD-3.49B V2 / Rev1.1 | 640×172, N16R8 | Supported |
 
 
-**Stable release: [v1.7.2 for Windows, macOS, and ESP32-S3](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest)**
+**Stable release: [v1.8.0 for Windows, macOS, and ESP32-S3](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest)**
 
 ---
 
@@ -92,6 +92,9 @@ For how the installer decides what to run, see [Install on the ESP32 — how the
 ### 1. Prepare the microSD card — from Windows 11
 
 The scene library and settings live on a FAT32 microSD card. Use the included script from **Windows 11** (PowerShell 7 or newer):
+
+The prepared card always receives DMDClock's canonical `scene-metadata.json`, including
+the verified per-scene brightness mappings used by both supported ESP32 boards.
 
 1. Insert the microSD card and list physical disks to find its number:
 
