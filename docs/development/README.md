@@ -1,26 +1,12 @@
-# Local DMDClock development
+# DMDClock developer guide
 
-Everything required to edit, run, review scenes, test, package, and publish
-DMDClock runs locally. ChatGPT and other hosted AI services are optional.
+This is the maintained technical guide. Historical guides, release notes,
+experiments, and superseded plans are in [`../legacy/`](../legacy/).
 
-## Requirements
+## Workstation and desktop application
 
-- Windows 10 or Windows 11 x64
-- Git
-- .NET 10 SDK
-- PowerShell 7 (`pwsh`)
-- Visual Studio 2022, JetBrains Rider, or VS Code with C# support
-- Inno Setup 7 only when building the setup EXE
-
-Check the command-line tools:
-
-```powershell
-git --version
-dotnet --info
-$PSVersionTable.PSVersion
-```
-
-## Clone, restore, and run
+Use Windows 10/11 x64, Git, .NET 10 SDK, and PowerShell 7. Inno Setup 7 is
+required only for the Windows setup EXE.
 
 ```powershell
 git clone https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32.git
@@ -28,244 +14,115 @@ Set-Location DMD-Pinball-Clock-Win-x64-and-ESP32
 dotnet restore DMDClock.sln
 dotnet build DMDClock.sln -c Debug
 dotnet run --project .\src\DmdClock.App\DmdClock.App.csproj
-```
-
-Open the Scene Reviewer directly:
-
-```powershell
-dotnet run --project .\src\DmdClock.App\DmdClock.App.csproj -- /review
-```
-
-The reviewer, SCN decoding, rendering, clock compositor, file scanning, and
-selection persistence all use the local CPU. No scene or preference data is sent
-to an AI service.
-
-## Optional original resources
-
-DMDClock builds and runs without the original DotClk repositories. Developers can
-download reference sources and local test resources into the Git-ignored
-`external` directory:
-
-```powershell
-.\scripts\Get-OriginalResources.ps1
-```
-
-See [source references](SOURCES.md) for the available selections, provenance, and
-update-safety rules.
-
-## Test
-
-```powershell
 dotnet test DMDClock.sln -c Release
 ```
 
-Run a focused test while developing:
+Start the Scene Reviewer with `/review`. Optional original resources belong in
+the ignored `external` directory and can be fetched with
+`scripts\Get-OriginalResources.ps1`.
 
-```powershell
-dotnet test DMDClock.sln -c Release --filter FullyQualifiedName~AnimationSelection
-```
-
-## Build distributable packages
-
-Create the portable and standalone Windows packages:
+Build desktop packages with:
 
 ```powershell
 .\scripts\Build.ps1 -Configuration Release -Runtime win-x64 -NoStart
-```
-
-Create and validate the installer:
-
-```powershell
 .\scripts\Build-Installer.ps1
 .\scripts\Test-Installer.ps1
-```
-
-`Directory.Build.props` is the single source of truth for the semantic
-`VersionPrefix`. Use `-Version 1.3.0` only for an intentional one-off override.
-Every invocation adds a new UTC millisecond build number and source commit to the
-build ID and uses that build number in the ZIP and setup filenames.
-
-`Build-Installer.ps1` also writes
-`output\current\release\release-manifest.json`. Installer testing and GitHub
-publication resolve the current artifacts from their metadata and this manifest;
-they do not depend on hard-coded ZIP or setup filenames.
-
-Build output is generated below `output\` and is intentionally excluded from Git.
-Every package contains the tracked `scenes\scene-metadata.json`; downloaded `.scn`
-animations are never packaged.
-
-### Build the macOS Apple Silicon developer preview
-
-Create the initial self-contained `osx-arm64` application bundle and ZIP:
-
-```powershell
 .\scripts\Build-MacOS.ps1
 ```
 
-The output is written to `output\current\osx-arm64`. This first-stage package is
-deliberately marked unsigned, unnotarized, and not release-ready. A cross-build
-from Windows proves the bundle structure and native dependencies, but executable
-permissions and launch behavior must still be validated on Apple Silicon before
-distribution. Follow the [macOS Apple Silicon plan](MACOS-ARM64.md) for hardware
-testing, signing, notarization, and release criteria.
+`Directory.Build.props` supplies the normal version. Build outputs go under
+`output\` and must not be committed. The macOS result requires physical Apple
+Silicon validation before any release claim.
 
-Repository maintainers can run the `Build macOS release asset` workflow against
-an existing release tag. Its `macos-14` runner verifies the ARM64 bundle, creates
-and mounts a real DMG with `hdiutil`, and uploads the unsigned DMG, build metadata,
-and SHA-256 checksums to that release.
+## ESP32-S3 development
 
-## Build and test ESP32-S3 firmware
-
-The firmware targets the original 800x480 Waveshare ESP32-S3-Touch-LCD-7 with an
-N16R8 module. Start by checking the workstation toolchain:
+Supported targets are Waveshare ESP32-S3-Touch-LCD-7 (800x480, N16R8) and
+ESP32-S3-Touch-LCD-3.49B V2 / Rev1.1 (640x172, N16R8). The 7B and 3.49B V1 are
+not supported.
 
 ```powershell
 .\scripts\esp32\dev\Doctor.ps1
 .\scripts\esp32\dev\Build-DmdClock.ps1
-```
-
-Build and run both host QEMU validation profiles in separate terminals:
-
-```powershell
 .\scripts\esp32\dev\Run-DmdClockQemuModel.ps1 -Model Waveshare7
 .\scripts\esp32\dev\Run-DmdClockQemuModel.ps1 -Model Landscape349
 ```
 
-They use separate build directories, writable microSD images, web ports 8080/8081,
-and QEMU monitor ports 4444/4445. Generate the model images with
-`New-DmdClockQemuSdImage.ps1`; do not commit or publish images containing the
-local scene library. QEMU targets the classic ESP32 model with 4 MiB emulated
-PSRAM, while the physical N16R8 ESP32-S3 has 8 MiB PSRAM, so it is a useful
-memory-pressure gate but not a cycle-accurate hardware substitute.
-
-After identifying the board's exact COM port, flash it explicitly and keep the
-serial monitor open:
+QEMU is a memory-pressure and integration gate, not a substitute for a physical
+panel. Flash an explicitly verified port with the pinned ESP-IDF wrapper:
 
 ```powershell
 .\scripts\esp32\dev\Invoke-Idf.ps1 `
-  -ProjectPath .\firmware\dmdclock-esp32 `
-  -p COM5 -B build-hw-esp32 flash monitor
+  -ProjectPath .\firmware\dmdclock-esp32 -p COM5 -B build-hw-esp32 flash monitor
 ```
 
-Replace `COM5` with the verified port. Read the
-[firmware development guide](esp32/FIRMWARE.md) before changing
-board settings, partitions, Wi-Fi bootstrap data, or release artifacts.
+Use `Flash-DmdClockEsp32.ps1` and `RUNME-Install-DmdClockEsp32.ps1` for the
+published end-user path. Before a destructive card or flash operation, run
+`-WhatIf`, verify the physical disk/COM port, and retain the resulting evidence.
+Use a FAT32 microSD card; the supplied card layout stores scenes at
+`/dmd/scenes` and settings under `/dmd`.
 
-`Flash-DmdClockEsp32.ps1` is the supported end-user flashing entry point. It asks
-for the exact board, presents compatible GitHub releases, downloads and verifies
-the selected package, obtains a verified portable Espressif flashing tool, and
-then offers application-only or complete flashing. Local developer builds use
-the pinned `Invoke-Idf.ps1` workflow above. The 1024×600
-`ESP32-S3-Touch-LCD-7B` remains unsupported.
-
-### Optional ESP32 Wi-Fi bootstrap and local flashing
-
-This developer-only path requires a repository clone and the ESP32 development
-prerequisites. It is not needed when installing a published release with
-`Flash-DmdClockEsp32.ps1`.
-
-From the repository root, create a one-time local bootstrap header. The password
-prompt is masked and the generated header is ignored by Git:
+The first Wi-Fi bootstrap header is local and Git-ignored. Create it with
+`Set-DmdClockBootstrapWifi.ps1`; after confirming home Wi-Fi, remove it with
+`Clear-DmdClockBootstrapWifi.ps1` and use `app-flash` without erasing NVS.
 
 ```powershell
-.\scripts\esp32\dev\Set-DmdClockBootstrapWifi.ps1 `
-  -WifiSsid 'Your 2.4 GHz Wi-Fi name' `
-  -Build
-```
-
-The ESP32-S3 supports 2.4 GHz Wi-Fi, not a 5 GHz-only network. Flash the current
-local build through the pinned ESP-IDF wrapper:
-
-```powershell
-.\scripts\esp32\dev\Doctor.ps1
-.\scripts\esp32\dev\Invoke-Idf.ps1 `
-  -ProjectPath .\firmware\dmdclock-esp32 `
-  -p COM5 -B build-hw-esp32 flash monitor
-```
-
-Replace `COM5` with the exact connected port reported by the doctor. On first
-boot, the device copies the bootstrap Wi-Fi credentials into NVS and starts the
-recovery network `DMDClock-xxxx`.
-
-After the home-network connection is confirmed, remove credentials from later
-firmware images while preserving NVS:
-
-```powershell
+.\scripts\esp32\dev\Set-DmdClockBootstrapWifi.ps1 -WifiSsid 'Your 2.4 GHz Wi-Fi name' -Build
+# After Home Wi-Fi connected is confirmed:
 .\scripts\esp32\dev\Clear-DmdClockBootstrapWifi.ps1 -Build
 .\scripts\esp32\dev\Invoke-Idf.ps1 `
-  -ProjectPath .\firmware\dmdclock-esp32 `
-  -p COM5 -B build-hw-esp32 app-flash
+  -ProjectPath .\firmware\dmdclock-esp32 -p COM5 -B build-hw-esp32 app-flash
 ```
 
-Do not erase the device during this cleanup flash. Confirm that the credentialed
-build reached **Home Wi-Fi connected** before clearing the bootstrap header.
+## Scene metadata and intensity mapping
 
-## Publish a GitHub Release
+`scenes/scene-metadata.json` uses `schemaVersion: 1`. It supplies optional
+prefix rules and exact file entries; exact entries take precedence. Paths are
+relative to the selected scene directory and use `/` separators.
 
-After building and validating all packages, preview release publication:
+An exact file entry may contain this optional intensity contract:
 
-```powershell
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.2 -WhatIf
+```json
+{
+  "path": "example.scn",
+  "intensity": {
+    "sha256": "64 lowercase hexadecimal characters",
+    "frameCount": 120,
+    "usedValues": [0, 3, 15],
+    "mapping": "evenly-spaced-v1",
+    "outputValues": [0, 128, 255]
+  }
+}
 ```
 
-When the release should appear in the ESP32 installer's download menu, build
-both credential-free targets into the same release directory:
+`usedValues` is sorted, unique, and contains raw SCN values from 0 through 15.
+`outputValues` is the same length and contains the corresponding 0–255 output
+levels. The data is accepted only when the mapping name is exact and its SCN
+SHA-256, frame count, and used values all match the loaded scene. Missing,
+invalid, or stale intensity metadata never blocks playback: the original values
+remain in use.
+
+Windows validates the metadata and displays a mapped preview in Scene Reviewer;
+normal desktop playback intentionally remains unchanged. ESP32 validates the
+same evidence and converts the verified 0–255 mapping into its 16-level runtime
+lookup table. SCN source files are immutable. Generation reports and detailed
+histograms are analysis artifacts, not runtime input.
+
+## Release and documentation maintenance
+
+Before publication, build and test the intended artifacts, validate both ESP32
+targets, and run physical checks where QEMU cannot establish panel behavior.
+Preview GitHub publication before releasing; use the real tag in place of the
+example:
 
 ```powershell
 .\scripts\esp32\dev\Package-DmdClockEsp32.ps1 -Board Waveshare7 -CleanOutput
 .\scripts\esp32\dev\Package-DmdClockEsp32.ps1 -Board Waveshare349B
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.2 -IncludeEsp32 -WhatIf
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.8.0 -IncludeEsp32 -WhatIf
 ```
 
-Publish after reviewing the preflight output:
+Use explicit Git paths or `git add -p`; this worktree may contain unrelated
+changes. `STATUS.md` is the single active record of verified work, blockers, and
+next steps. Keep public claims aligned with its physical-acceptance boundary.
 
-```powershell
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.7.2 -IncludeEsp32
-```
-
-The script requires an authenticated GitHub CLI, a clean working tree whose `HEAD`
-exactly matches `origin/master`, matching portable/standalone/installer build IDs,
-and a tag that does not already exist. It uploads the setup EXE, portable ZIP,
-standalone ZIP, installer build information, and a generated SHA-256 file covering
-all uploaded build artifacts. With `-IncludeEsp32`, it requires exactly one
-manifest for each supported target, verifies tag, source revision, target, touch
-status, filenames, sizes and hashes, then uploads both sets of firmware assets. Use
-`-NotesPath path\to\notes.md` for curated release notes; otherwise GitHub generates
-notes from the repository history. The current published build is available through the
-[latest release](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest).
-
-## Work with Git
-
-Inspect before staging:
-
-```powershell
-git status
-git diff
-```
-
-Commit one tested, coherent change:
-
-```powershell
-git add -p
-git commit -m "Describe the completed change"
-git push
-```
-
-A commit is a local snapshot. A push uploads local commits to GitHub. Commit after
-a feature or fix is coherent and tested; push when it should be backed up, shared,
-or released. Prefer explicit paths or `git add -p` when unrelated work is present.
-
-## Local data
-
-Runtime files remain under:
-
-```text
-%LOCALAPPDATA%\DmdClock\
-```
-
-- `settings.json` — application and screensaver preferences
-- `library-index.json` — incremental scene index
-- `library-selections.json` — shared game and scene decisions
-- `logs\dmdclock.log` — diagnostics
-
-Back up this directory before manually changing or removing runtime data.
+The retained documentation under `docs/legacy/` is historical source material;
+do not update it instead of this guide or `STATUS.md`.

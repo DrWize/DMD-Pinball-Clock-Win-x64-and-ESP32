@@ -14,7 +14,7 @@ Rev1.1 (640×172, N16R8). The 7B and 3.49B V1 remain incompatible.
 - [ ] Ensure startup and normal operation never require write access beside the executable
 - [ ] Consider trimming only after the untrimmed standalone build passes all release tests
 
-### Priority 3 — animation-library selection
+### Priority 3 — animation-library selection - Future
 
 - [ ] Add manufacturer → game → animation browsing with search
 - [ ] Add `Select all`, `Clear all`, and `Reset`
@@ -41,17 +41,6 @@ Rev1.1 (640×172, N16R8). The 7B and 3.49B V1 remain incompatible.
 - [ ] Add packaging, precedence, offline fallback, checksum failure, schema migration,
       concurrent reload, and clean-build metadata tests
 
-### Scene Reviewer
-
-- [ ] Preserve the 128×32 DMD aspect ratio, resize tiles to fill the available window,
-      remember the chosen rows and columns, and provide an optional automatic-fit mode
-- [ ] Add previous/next-page controls, scene ranges, and per-game plus overall counts
-      for allowed, disallowed, and unreviewed animations
-- [ ] Add filters for all, allowed, disallowed, and unreviewed scenes, plus pause,
-      replay, and enlarged single-scene inspection
-- [ ] Add tests for grid sizing, pagination, immediate persistence, state restoration,
-      filtering, and propagation of Allow/Disallow decisions into playback
-
 ### Priority 4 — display and daily operation
 
 - [ ] Select and persist the target monitor
@@ -73,12 +62,6 @@ Rev1.1 (640×172, N16R8). The 7B and 3.49B V1 remain incompatible.
 - [ ] Custom metadata corrections, thumbnails, and duplicate-file handling
 - [ ] Curate consistent names and metadata for known SCN collections
 
-### Appearance
-
-- [ ] Scrolling C64-inspired palettes/raster bars with direction, speed, and disable controls
-- [ ] Selectable dot shape, spacing, and glow strength
-- [ ] Per-manufacturer or per-game color palettes
-- [ ] Pixel-perfect integer scaling when the available display size permits it
 
 ### Clock and automatic display
 
@@ -221,14 +204,28 @@ Rev1.1 (640×172, N16R8). The 7B and 3.49B V1 remain incompatible.
       baseline.
 - [ ] Run physical rendering, persistence, responsiveness, and one-hour soak
       tests for Basic, Gradient, Raster, glow, clock/scene cycling, NTP, and touch
-- [ ] Optional future: serve a first-run setup page that creates the web
-      administrator password before normal controls become available
-- [ ] Optional future: use `admin` as the initial username, but never ship a
-      reusable `admin/admin` password; use a temporary per-device setup code
-      shown on the local display and require replacement on first login
-- [ ] Optional future: store only a salted password verifier in NVS, use expiring
-      authenticated sessions plus CSRF protection, and provide a
-      physical-button/USB recovery path for a forgotten password
+- [ ] 2026-09-12: Add first-run web setup for fixed username `admin`; the first
+      user chooses a new password (minimum five characters), with no shipped
+      default or displayed setup code.
+- [ ] 2026-09-12: Store only a salted password verifier in a separate NVS
+      namespace; use 24-hour HttpOnly authenticated sessions and CSRF protection.
+      Full physical/USB recovery clears all NVS settings; a serial `auth reset`
+      clears only web credentials and preserves normal settings.
+- [ ] 2026-09-12: Automated ESP32 builds and dual-board flash/boot checks passed;
+      browser setup/login and direct panel acceptance remain open with the user.
+- [ ] 2026-09-12: **Blocked — browser login.** Both boards accept first-run
+      password creation and subsequently report `configured:true`, but the
+      interactive browser cannot complete sign-in. A controlled HTTP
+      setup/login/authenticated-API check passed earlier, so the remaining
+      gate is the browser session handoff. Do not close authentication or
+      claim serial recovery works. Next: run a controlled same-browser
+      setup → logout → login test using a temporary credential, verify an
+      authenticated `/api/state` request, then reset credentials before user
+      acceptance on both boards.
+- [ ] 2026-09-12: The initial serial `auth reset` listener does not receive input
+      on the current console transports. Do not use a direct UART-driver reader:
+      it caused a Waveshare 7 crash and was removed. Implement and hardware-test
+      a transport-aware credential-only recovery command before claiming serial reset support.
 - [ ] Verify live card removal, corruption, full-card, and power-loss behavior.
 - [ ] Add browser upload as an offline SCN import fallback.
 - [ ] Cover catalog/archive errors, cancellation, resume, corrupt data, removed or

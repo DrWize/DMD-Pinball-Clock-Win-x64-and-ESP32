@@ -79,4 +79,21 @@ public sealed class SceneMetadataStoreTests
         Assert.False(stale.IntensityMetadataVerified);
         Assert.Null(stale.Intensity);
     }
+
+    [Fact]
+    public void Resolve_TreatsMissingOrMalformedIntensityAsUnverified()
+    {
+        var raw = new DmdClock.Core.Scn.ScnIntensityAnalysis(
+            2, [0, 15], 1, [2L, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
+        var malformed = new SceneIntensityMetadata(
+            "abc", 2, [0, 15], "evenly-spaced-v1", [0, 0]);
+        var catalog = new SceneMetadataCatalog(files:
+        [
+            new SceneFileMetadata("missing.scn"),
+            new SceneFileMetadata("malformed.scn", Intensity: malformed)
+        ]);
+
+        Assert.False(catalog.Resolve("missing.scn", "abc", raw).IntensityMetadataVerified);
+        Assert.False(catalog.Resolve("malformed.scn", "abc", raw).IntensityMetadataVerified);
+    }
 }
