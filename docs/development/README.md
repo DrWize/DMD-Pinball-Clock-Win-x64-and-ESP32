@@ -55,6 +55,16 @@ panel. Flash an explicitly verified port with the pinned ESP-IDF wrapper:
   -ProjectPath .\firmware\dmdclock-esp32 -p COM5 -B build-hw-esp32 flash monitor
 ```
 
+To capture 30 PNG examples for each Basic, Gradient, Raster, and Plasma colour
+family from a running 3.49B QEMU instance, run:
+
+```powershell
+.\scripts\esp32\tests\Capture-DmdClockQemuColourModes.ps1
+```
+
+Images and `manifest.json` are written below
+`output\esp32\screenshots\landscape349-colour-modes\<UTC timestamp>\`.
+
 Use `Flash-DmdClockEsp32.ps1` and `RUNME-Install-DmdClockEsp32.ps1` for the
 published end-user path. Before a destructive card or flash operation, run
 `-WhatIf`, verify the physical disk/COM port, and retain the resulting evidence.

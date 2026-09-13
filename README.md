@@ -83,3 +83,19 @@ verified metadata exists.
 
 Original DotClk resources and related scene formats are credited to
 [sigmafx/DotClk-Resources](https://github.com/sigmafx/DotClk-Resources).
+
+## ESP32 colour examples
+
+These Landscape 3.49B (640x172) QEMU captures use 100% brightness. Scene
+artwork changes with the selected scene; the examples demonstrate colour
+settings rather than fixed scenes.
+
+| Basic | Gradient |
+| --- | --- |
+| ![Basic Classic orange](docs/screenshots/readme/esp32-basic-classic-orange.png) | ![Gradient Neon sunset](docs/screenshots/readme/esp32-gradient-neon-sunset.png) |
+| Classic orange — preset 0 | Neon sunset — preset 4 |
+
+| Raster | Plasma |
+| --- | --- |
+| ![Raster Green halo](docs/screenshots/readme/esp32-raster-green-halo.png) | ![Plasma Neon pulse](docs/screenshots/readme/esp32-plasma-neon-pulse.png) |
+| Green halo — preset 25 | Neon pulse — preset 2 |
