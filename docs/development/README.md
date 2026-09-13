@@ -61,6 +61,11 @@ published end-user path. Before a destructive card or flash operation, run
 Use a FAT32 microSD card; the supplied card layout stores scenes at
 `/dmd/scenes` and settings under `/dmd`.
 
+For forgotten web credentials, use `-FlashMode FullReset` or the matching
+board-specific `-FactoryRecovery` path. These recovery operations reset NVS and
+return the device to first-run setup; ordinary `Application` and `Full` flashes
+preserve NVS and do not reset credentials.
+
 The first Wi-Fi bootstrap header is local and Git-ignored. Create it with
 `Set-DmdClockBootstrapWifi.ps1`; after confirming home Wi-Fi, remove it with
 `Clear-DmdClockBootstrapWifi.ps1` and use `app-flash` without erasing NVS.
