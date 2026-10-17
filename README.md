@@ -26,6 +26,8 @@ scene library to alternate animated pinball scenes with the clock.
 The app works as a clock without any scenes. Settings and logs are stored in
 `%LOCALAPPDATA%\DmdClock`, not beside the executable.
 
+See the [Windows guide](docs/WINDOWS.md) for setup, playback, diagnostics, and recovery.
+
 ## ESP32-S3 quick start
 
 You need a FAT32 microSD card (256 MB or larger), card reader, USB-C data cable,

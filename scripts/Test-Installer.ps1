@@ -118,8 +118,8 @@ try {
         'i18n\en.json',
         'fonts\Inter\InterVariable.ttf',
         'scenes\scene-metadata.json',
-        'docs\INSTALL-WINDOWS.md',
-        'docs\SETTINGS.md',
+        'docs\WINDOWS.md',
+        'docs\development\WINDOWS-API.md',
         'docs\screenshots\setup\settings-menu.png',
         'unins000.exe'
     )
