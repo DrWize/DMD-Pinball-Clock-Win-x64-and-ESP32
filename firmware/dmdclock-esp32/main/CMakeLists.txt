@@ -1,3 +1,7 @@
+if(NOT CONFIG_DMD_QEMU)
+    set(DMD_SERIAL_DRIVER esp_driver_usb_serial_jtag esp_driver_uart)
+endif()
+
 idf_component_register(
     SRCS
         "app_main.c"
@@ -11,6 +15,8 @@ idf_component_register(
         "dmd_color.c"
         "dmd_controls.c"
         "dmd_settings.c"
+        "dmd_serial.c"
+        "dmd_timing.c"
         "dmd_settings_json.c"
         "dmd_storage.c"
         "dmd_network.c"
@@ -37,6 +43,7 @@ idf_component_register(
         "web/timezones/pacific.json"
     REQUIRES
         esp_driver_i2c
+        ${DMD_SERIAL_DRIVER}
         esp_driver_tsens
         esp_event
         esp_app_format

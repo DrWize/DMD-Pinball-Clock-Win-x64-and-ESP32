@@ -1,0 +1,2 @@
+# Reference manifests must retain identical bytes across checkouts/platforms.
+tests/fixtures/playback/*.json -text whitespace=cr-at-eol

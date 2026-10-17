@@ -1663,7 +1663,166 @@ function Show-DmdClockDeviceTable {
     Write-Host ('  [{0}] Exit' -f ($Rows.Count + 1)) -ForegroundColor DarkGray
 }
 
+function Invoke-DmdClockWifiRequest {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Connection,
+        [Parameter(Mandatory)][hashtable] $Request,
+        [ValidateRange(1, 30)][int] $TimeoutSeconds = 3)
+
+    $Request['protocol'] = 1
+    $Request['id'] = [Guid]::NewGuid().ToString('N')
+    $json = $Request | ConvertTo-Json -Compress -Depth 4
+    $bytes = [Text.Encoding]::UTF8.GetBytes('DMDWIFI:' + $json + "`n")
+    try {
+        if ($bytes.Length -gt 1024) { throw 'Wi-Fi request exceeds the serial protocol limit.' }
+        # A leading newline recovers a timed-out or incomplete previous request.
+        $Connection.Write("`n")
+        # Pace input for the unbuffered UART and USB FIFOs on both boards.
+        for ($offset = 0; $offset -lt $bytes.Length; $offset += 32) {
+            $Connection.Write($bytes, $offset, [Math]::Min(32, $bytes.Length - $offset))
+            Start-Sleep -Milliseconds 15
+        }
+        $timer = [Diagnostics.Stopwatch]::StartNew()
+        $buffer = ''
+        while ($timer.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+            # Bound memory even if an unrelated firmware floods serial logs.
+            $buffer += $Connection.ReadExisting()
+            while ($buffer.Contains("`n")) {
+                $index = $buffer.IndexOf("`n")
+                $line = $buffer.Substring(0, $index).TrimEnd("`r")
+                $buffer = $buffer.Substring($index + 1)
+                if (-not $line.StartsWith('DMDWIFI:')) { continue }
+                try { $reply = $line.Substring(8) | ConvertFrom-Json -AsHashtable -ErrorAction Stop }
+                catch { continue }
+                if ($reply -isnot [hashtable] -or $reply['id'] -ne $Request.id) { continue }
+                if ($reply['protocol'] -ne 1) { throw 'Unsupported Wi-Fi provisioning protocol.' }
+                if ($reply['ok'] -ne $true) {
+                    # Never include raw firmware input or an untrusted error string.
+                    $reason = switch ($reply['error']) {
+                        'save_failed' { 'Could not save settings to NVS or the SD settings mirror.' }
+                        'connect_failed' { 'Credentials saved, but Wi-Fi could not start connecting.' }
+                        'identity_mismatch' { 'Device identity changed; credentials were rejected.' }
+                        'invalid_credentials' { 'Firmware rejected the credential lengths or fields.' }
+                        default { 'Firmware rejected the Wi-Fi provisioning request.' }
+                    }
+                    throw $reason
+                }
+                return $reply
+            }
+            if ($buffer.Length -gt 4096) { $buffer = '' }
+            Start-Sleep -Milliseconds 20
+        }
+        throw 'No Wi-Fi provisioning reply. This firmware may not support serial setup; use its AP/web setup or install compatible firmware.'
+    } catch {
+        $cause = $_.Exception.GetBaseException()
+        if ($cause -is [IO.IOException] -or $cause -is [TimeoutException]) {
+            throw [IO.IOException]::new('COM communication failed: the USB connection timed out or the firmware is not consuming serial input. Close serial monitors and install the corrected serial-Wi-Fi firmware before retrying. No automatic reset or reflash was performed.')
+        }
+        throw
+    } finally {
+        [Array]::Clear($bytes, 0, $bytes.Length)
+        $json = $null
+        $Request.Remove('password')
+    }
+}
+
+function New-DmdClockWifiSerialPort {
+    param([string] $Port)
+    return [IO.Ports.SerialPort]::new($Port, 115200)
+}
+
+function Set-DmdClockWifi {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][ValidatePattern('^COM\d+$')][string] $Port,
+        [Parameter(Mandatory)][ValidateSet('Waveshare7', 'Waveshare349B')][string] $Board,
+        [string] $WifiSsid,
+        [Security.SecureString] $WifiPassword,
+        [string] $ExpectedInstanceId,
+        [ValidateRange(1, 120)][int] $ConnectionTimeoutSeconds = 30,
+        [switch] $WhatIf
+    )
+    if ($WhatIf) {
+        Write-Host "[WHATIF] Verify $Board on $Port, prompt for Wi-Fi, send credentials over COM, and confirm an IP. No port is opened."
+        return
+    }
+    $serial = $null
+    try {
+        # Flashing native USB may temporarily remove its COM port.
+        $deadline = [Diagnostics.Stopwatch]::StartNew()
+        do {
+            $ports = @(Get-DmdClockConnectedPorts)
+            if ($ExpectedInstanceId) {
+                $matches = @($ports | Where-Object InstanceId -eq $ExpectedInstanceId)
+            } else {
+                $matches = @($ports | Where-Object Port -eq $Port)
+            }
+            if ($matches.Count -eq 1) {
+                $Port = $matches[0].Port
+                $serial = New-DmdClockWifiSerialPort -Port $Port
+                $serial.Encoding = [Text.UTF8Encoding]::new($false)
+                $serial.DtrEnable = $false
+                $serial.RtsEnable = $false
+                $serial.WriteTimeout = 2000
+                try { $serial.Open() } catch { $serial.Dispose(); $serial = $null }
+            }
+            if ($null -eq $serial) { Start-Sleep -Milliseconds 250 }
+        } while ($null -eq $serial -and $deadline.Elapsed.TotalSeconds -lt 20)
+        if ($null -eq $serial) { throw 'Could not open the identified clock COM port. Close other serial monitors and check its USB cable.' }
+        $identity = $null
+        # Allow boot to finish, but never send credentials until hello succeeds.
+        for ($attempt = 0; $attempt -lt 4; $attempt++) {
+            try { $identity = Invoke-DmdClockWifiRequest -Connection $serial -Request @{ op = 'hello' }; break }
+            catch {
+                if ($_.Exception.GetBaseException() -is [IO.IOException] -or $attempt -eq 3) { throw }
+                Start-Sleep -Milliseconds 250
+            }
+        }
+        if ($identity['board'] -ne $Board -or $identity['mac'] -notmatch '^([0-9a-f]{2}:){5}[0-9a-f]{2}$') {
+            throw 'Connected device does not match the selected board or has no valid identity. No credentials sent.'
+        }
+        Write-Host "Serial Wi-Fi supported: $Board, firmware $($identity['firmware']), MAC $($identity['mac'])."
+        if ([string]::IsNullOrEmpty($WifiSsid)) { $WifiSsid = Read-Host 'Home Wi-Fi SSID (2.4 GHz)' }
+        if ($null -eq $WifiPassword) { $WifiPassword = Read-Host 'Home Wi-Fi password (empty for an open network)' -AsSecureString }
+        $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($WifiPassword)
+        $plain = $null
+        try {
+            $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
+            $ssidLength = [Text.Encoding]::UTF8.GetByteCount($WifiSsid)
+            if ($ssidLength -lt 1 -or $ssidLength -gt 32 -or $WifiSsid.Contains([char]0) -or
+                [Text.Encoding]::UTF8.GetByteCount($plain) -gt 64 -or $plain.Contains([char]0)) {
+                throw 'SSID must contain 1-32 UTF-8 bytes; password at most 64 bytes; NUL characters are not supported.'
+            }
+            Write-Host 'Connecting home Wi-Fi also allows the clock to synchronize time automatically through NTP.'
+            $null = Invoke-DmdClockWifiRequest -Connection $serial -Request @{
+                op = 'setWifi'; mac = $identity['mac']; ssid = $WifiSsid; password = $plain
+            }
+        } finally {
+            $plain = $null
+            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)
+        }
+        $timer = [Diagnostics.Stopwatch]::StartNew()
+        do {
+            $state = Invoke-DmdClockWifiRequest -Connection $serial -Request @{ op = 'status' }
+            if ($state['mac'] -ne $identity['mac'] -or $state['board'] -ne $Board) {
+                throw 'Clock identity changed during Wi-Fi verification.'
+            }
+            if ($state['connected'] -eq $true -and $state['ssid'] -ceq $WifiSsid -and
+                $state['ip'] -match '^\d{1,3}(\.\d{1,3}){3}$' -and $state['ip'] -ne '0.0.0.0') {
+                Write-Host "[OK] Wi-Fi connected. Clock API: http://$($state['ip'])/api/state" -ForegroundColor Green
+                return [pscustomobject]@{ Board = $Board; Port = $Port; Mac = $state['mac']; Ip = $state['ip']; Firmware = $state['firmware'] }
+            }
+            Start-Sleep -Milliseconds 500
+        } while ($timer.Elapsed.TotalSeconds -lt $ConnectionTimeoutSeconds)
+        throw 'Credentials were saved, but the clock did not obtain an IP. Check the password and 2.4 GHz network, then retry Wi-Fi-only setup. AP/web recovery remains available.'
+    } finally {
+        if ($null -ne $serial) { $serial.Dispose() }
+    }
+}
+
 Export-ModuleMember -Function @(
+    'Invoke-DmdClockWifiRequest',
+    'Set-DmdClockWifi',
     'Clear-DmdClockOperationResult',
     'Get-DmdClockConfig',
     'Assert-DmdClockPathBelowRoot',

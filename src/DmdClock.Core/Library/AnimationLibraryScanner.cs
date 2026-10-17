@@ -125,12 +125,7 @@ public sealed class AnimationLibraryScanner
     private static long EstimateDuration(ScnScene scene)
     {
         if (scene.Frames.Count == 0) return 0;
-        var storyboard = scene.Storyboards.FirstOrDefault();
-        var regular = storyboard?.FrameDelayMs > 0 ? storyboard.FrameDelayMs : 100;
-        var duration = (long)regular * scene.Frames.Count;
-        if (storyboard?.FirstFrameDelayMs > 0) duration += storyboard.FirstFrameDelayMs - regular;
-        if (scene.Frames.Count > 1 && storyboard?.LastFrameDelayMs > 0) duration += storyboard.LastFrameDelayMs - regular;
-        return Math.Max(duration, 0);
+        return (long)new DmdClock.Core.Playback.ScenePlaybackSession(scene, DateTimeOffset.UnixEpoch).ExpectedDurationMs;
     }
 
     private static string CreateStableId(string relativePath)

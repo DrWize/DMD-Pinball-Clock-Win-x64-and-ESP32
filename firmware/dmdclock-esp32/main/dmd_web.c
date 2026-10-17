@@ -19,6 +19,8 @@
 #include "dmd_scene.h"
 #include "dmd_scene_pack.h"
 #include "dmd_settings.h"
+#include "dmd_serial.h"
+#include "dmd_timing.h"
 #include "esp_app_desc.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
@@ -583,6 +585,19 @@ static esp_err_t state_get(httpd_req_t *request)
         "lastSdSaveStatus",
         esp_err_to_name(diagnostics.last_sd_save_error));
     cJSON_AddBoolToObject(json, "ntpStarted", network.ntp_started);
+    dmd_serial_diagnostics_t serial;
+    dmd_serial_get_diagnostics(&serial);
+    cJSON_AddBoolToObject(json, "serialReaderRunning", serial.running);
+    cJSON_AddNumberToObject(json, "serialPollCount", serial.polls);
+    cJSON_AddNumberToObject(json, "serialUartRxBytes", serial.uart_rx_bytes);
+    cJSON_AddNumberToObject(json, "serialUsbRxBytes", serial.usb_rx_bytes);
+    cJSON_AddNumberToObject(json, "serialRequests", serial.requests);
+    dmd_timing_status_t timing;
+    dmd_timing_get_status(&timing);
+    cJSON_AddNumberToObject(json, "timingProtocol", 1);
+    cJSON_AddBoolToObject(json, "timingEnabled", timing.enabled);
+    cJSON_AddBoolToObject(json, "timingActive", timing.active);
+    cJSON_AddNumberToObject(json, "timingCapturedSteps", timing.steps);
     cJSON_AddBoolToObject(json, "ntpSyncing", network.ntp_syncing);
     cJSON_AddBoolToObject(json, "ntpSynced", network.ntp_synced);
     cJSON_AddNumberToObject(json, "ntpLastSync", (double)network.ntp_last_sync);
@@ -830,7 +845,7 @@ static bool parse_rgb_array(
     return true;
 }
 
-static esp_err_t settings_post(httpd_req_t *request)
+static esp_err_t settings_post_impl(httpd_req_t *request)
 {
     cJSON *json = receive_json(request);
     if (json == NULL) {
@@ -1299,6 +1314,14 @@ static esp_err_t settings_post(httpd_req_t *request)
     cJSON_AddBoolToObject(response, "ok", true);
     cJSON_AddBoolToObject(response, "wifiReconnecting", wifi_changed);
     return send_json(request, response);
+}
+
+static esp_err_t settings_post(httpd_req_t *request)
+{
+    dmd_settings_begin_update();
+    esp_err_t error = settings_post_impl(request);
+    dmd_settings_end_update();
+    return error;
 }
 
 static esp_err_t orientation_post(httpd_req_t *request)

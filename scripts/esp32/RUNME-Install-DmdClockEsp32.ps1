@@ -8,13 +8,15 @@
 #     staging already exists (unchanged artifacts are reused, not re-downloaded).
 #   -SkipCard skips the microSD card phase for flash-only runs.
 #   -Force skips the interactive FLASH confirmation (testing/automation).
+#   -ConfigureWifi prompts for home Wi-Fi over COM after a successful flash.
+#   -WifiOnly configures Wi-Fi without staging, card operations, or flashing.
 #   If Prepare-DmdClockSdCard.ps1, Flash-DmdClockEsp32.ps1,
 #   Reset-DmdClockSettings.ps1, or DmdClock.Provisioning.psm1 is missing next to
 #   this script, it is downloaded automatically from GitHub (network required on
 #   the first run).
 #   -CompanionScriptSource overrides the source: an https URL base or a local
 #   folder path containing the four companion files (offline mirror).
-# See docs\INSTALL-ESP32.md. Developer tooling lives in scripts\esp32\dev;
+# See docs\ESP32-FLASH-AND-WIFI.md. Developer tooling lives in scripts\esp32\dev;
 # automated tests live in scripts\esp32\tests.
 [CmdletBinding()]
 param(
@@ -31,6 +33,10 @@ param(
     [switch] $SkipCard,
 
     [switch] $Force,
+
+    [switch] $ConfigureWifi,
+
+    [switch] $WifiOnly,
 
     [ValidateSet('Waveshare7', 'Waveshare349B')]
     [string] $Board,
@@ -96,6 +102,7 @@ function Show-DmdClockStartupMenu {
     Write-Host '  [4] Download only' -ForegroundColor White
     Write-Host '  [5] Complete install / update' -ForegroundColor White
     Write-Host '  [6] Exit' -ForegroundColor DarkGray
+    Write-Host '  [7] Configure Wi-Fi only (compatible firmware required)' -ForegroundColor White
     Write-Host ''
 }
 
@@ -227,10 +234,18 @@ Import-Module $provisioningModule -Force
 if ($showStartupMenu) {
     do {
         Show-DmdClockStartupMenu
-        $choice = Read-DmdClockMenuChoice -Prompt 'Select an option' -Minimum 1 -Maximum 6 `
+        $choice = Read-DmdClockMenuChoice -Prompt 'Select an option' -Minimum 1 -Maximum 7 `
             -RequiredParameter 'valid menu input'
 
         switch ($choice) {
+            7 {
+                Invoke-DmdClockStartupMenuOperation -Operation 'Configure Wi-Fi only' -Action {
+                    $wifiBoard = Read-Host 'Board: Waveshare7 or Waveshare349B'
+                    $wifiPort = Read-Host 'Clock COM port (for example COM3)'
+                    Invoke-DmdClockChildOperation -Operation 'Configure Wi-Fi only' -ScriptPath $flashScript `
+                        -Arguments @{ WifiOnly = $true; Board = $wifiBoard; Port = $wifiPort }
+                }
+            }
             1 {
                 Invoke-DmdClockStartupMenuOperation -Operation 'SD card preparation' -Action {
                     Invoke-DmdClockChildOperation -Operation 'SD card preparation' -ScriptPath $sdScript
@@ -265,6 +280,17 @@ if ($showStartupMenu) {
             }
         }
     } while ($true)
+}
+
+if (($ConfigureWifi -or $WifiOnly) -and ($FactoryRecovery -or $DownloadOnly -or $CheckRequirements)) {
+    throw 'Wi-Fi setup cannot be combined with factory recovery, download-only, or requirements checks.'
+}
+if ($WifiOnly) {
+    $wifiArgs = @{ WifiOnly = $true; Board = $Board; Port = $Port }
+    if ($WhatIf) { $wifiArgs['WhatIf'] = $true }
+    $wifiResult = Invoke-DmdClockChildOperation -Operation 'Configure Wi-Fi only' -ScriptPath $flashScript -Arguments $wifiArgs
+    Set-DmdClockOperationResult -Status $wifiResult.Status -Operation 'Configure Wi-Fi only'
+    return
 }
 
 $localData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
@@ -465,6 +491,7 @@ foreach ($forwarded in @(
     }
 }
 if ($FactoryRecovery) { $flashArgs['FactoryRecovery'] = $true }
+if ($ConfigureWifi) { $flashArgs['ConfigureWifi'] = $true }
 if ($Wizard) { $flashArgs['Wizard'] = $true }
 if ($Force) { $flashArgs['Force'] = $true }
 if ($WhatIf) {

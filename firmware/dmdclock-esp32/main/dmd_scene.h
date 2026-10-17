@@ -42,6 +42,9 @@ typedef struct {
 
 esp_err_t dmd_scene_init(void);
 esp_err_t dmd_scene_select(uint16_t index);
+// Measurement preflight: refresh bytes even when the index is unchanged.
+esp_err_t dmd_scene_reload(uint16_t index);
+esp_err_t dmd_scene_source_hash(char output[65]);
 uint16_t dmd_scene_count(void);
 const char *dmd_scene_file_name(uint16_t index);
 const char *dmd_scene_display_name(uint16_t index);

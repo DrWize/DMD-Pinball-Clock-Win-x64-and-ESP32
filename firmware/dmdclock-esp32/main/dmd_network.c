@@ -224,12 +224,14 @@ esp_err_t dmd_network_apply_credentials(const char *ssid, const char *password)
     }
 
     wifi_config_t station = {0};
-    strlcpy((char *)station.sta.ssid, ssid, sizeof(station.sta.ssid));
-    strlcpy((char *)station.sta.password, password, sizeof(station.sta.password));
+    // ESP-IDF permits full-width 32-byte SSIDs and 64-byte PSKs without a NUL.
+    memcpy(station.sta.ssid, ssid, strnlen(ssid, sizeof(station.sta.ssid)));
+    memcpy(station.sta.password, password, strnlen(password, sizeof(station.sta.password)));
     station.sta.threshold.authmode = WIFI_AUTH_OPEN;
     station.sta.pmf_cfg.capable = true;
     station.sta.pmf_cfg.required = false;
 
+    set_station_state(false, "");
     esp_wifi_disconnect();
     ESP_RETURN_ON_ERROR(
         esp_wifi_set_config(WIFI_IF_STA, &station),
@@ -321,14 +323,10 @@ esp_err_t dmd_network_init(void)
     access_point.ap.pmf_cfg.required = false;
 
     wifi_config_t station = {0};
-    strlcpy(
-        (char *)station.sta.ssid,
-        settings.wifi_ssid,
-        sizeof(station.sta.ssid));
-    strlcpy(
-        (char *)station.sta.password,
-        settings.wifi_password,
-        sizeof(station.sta.password));
+    memcpy(station.sta.ssid, settings.wifi_ssid,
+        strnlen(settings.wifi_ssid, sizeof(station.sta.ssid)));
+    memcpy(station.sta.password, settings.wifi_password,
+        strnlen(settings.wifi_password, sizeof(station.sta.password)));
     station.sta.threshold.authmode = WIFI_AUTH_OPEN;
     station.sta.pmf_cfg.capable = true;
     station.sta.pmf_cfg.required = false;

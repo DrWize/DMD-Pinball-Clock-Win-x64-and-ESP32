@@ -95,6 +95,9 @@ typedef struct {
 esp_err_t dmd_settings_init(void);
 void dmd_settings_get(dmd_settings_t *out);
 esp_err_t dmd_settings_update(const dmd_settings_t *settings);
+// Serialize read-modify-save/apply transactions across web and serial setup.
+void dmd_settings_begin_update(void);
+void dmd_settings_end_update(void);
 bool dmd_settings_time_is_valid(void);
 bool dmd_settings_screen_scheduled_off(
     const dmd_settings_t *settings,

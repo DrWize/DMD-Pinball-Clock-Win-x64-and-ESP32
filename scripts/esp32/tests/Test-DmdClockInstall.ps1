@@ -131,12 +131,15 @@ param(
     [string] $Repository,
     [switch] $WhatIf,
     [string] $ConfirmHardware,
-    [switch] $Force
+    [switch] $Force,
+    [switch] $ConfigureWifi,
+    [switch] $WifiOnly
 )
 $kind = if ($DownloadOnly) { 'fw-stage' } elseif ($CheckRequirements) { 'fw-check' } else { 'fw-flash' }
 $entry = '{0}|src={1}|board={2}|mode={3}|port={4}|dest={5}|wi={6}|check={7}|rev={8}|fr={9}|tag={10}|hw={11}|force={12}' -f `
     $kind, $Source, $Board, $FlashMode, $Port, $Destination, [bool]$WhatIf, [bool]$CheckRequirements, `
     $BoardRevision, [bool]$FactoryRecovery, $ReleaseTag, $ConfirmHardware, [bool]$Force
+$entry += "|configureWifi=$([bool]$ConfigureWifi)|wifiOnly=$([bool]$WifiOnly)"
 [IO.File]::AppendAllText((Join-Path $PSScriptRoot 'calls.txt'), $entry + [Environment]::NewLine)
 if ($env:DMD_TEST_CANCEL_KIND -eq $kind) {
     Set-DmdClockOperationResult -Status cancelled -Operation $kind
@@ -274,6 +277,16 @@ Set-DmdClockOperationResult -Status $(if ($WhatIf) { 'dry-run' } else { 'complet
     Assert-True ($callsK[0] -match '^fw-flash') "Scenario K must only flash; got: $($callsK[0])"
     Assert-True ($callsK[0] -match 'force=True') 'Scenario K must forward -Force.'
     Assert-True ($callsK[0] -match 'port=COM5') 'Scenario K must forward -Port.'
+
+    $callsWifiFlash = Invoke-Scenario 'Wi-Fi after flash' {
+        & (Join-Path $scratch 'RUNME-Install-DmdClockEsp32.ps1') -Destination $destFull `
+            -SkipCard -Board Waveshare349B -Port COM3 -ConfigureWifi -Force
+    } 'forward serial Wi-Fi setup'
+    Assert-True ($callsWifiFlash.Count -eq 1 -and $callsWifiFlash[0] -match 'configureWifi=True') 'Wi-Fi flag not forwarded to flashing.'
+    $callsWifiOnly = Invoke-Scenario 'Wi-Fi only' {
+        & (Join-Path $scratch 'RUNME-Install-DmdClockEsp32.ps1') -Board Waveshare349B -Port COM3 -WifiOnly -WhatIf
+    } 'Wi-Fi-only bypasses staging and card operations'
+    Assert-True ($callsWifiOnly.Count -eq 1 -and $callsWifiOnly[0] -match 'wifiOnly=True' -and $callsWifiOnly[0] -match 'wi=True') 'Wi-Fi-only must call only the flash entry point in dry-run mode.'
 
     # --- Scenario M: a child cancellation stops orchestration and must never
     #     become an install or flash completion message. ---

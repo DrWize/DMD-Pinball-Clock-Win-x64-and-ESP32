@@ -37,7 +37,11 @@ param(
 
     [switch] $Force,
 
-    [switch] $Wizard
+    [switch] $Wizard,
+
+    [switch] $ConfigureWifi,
+
+    [switch] $WifiOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -1192,6 +1196,20 @@ function Show-FirmwareDryRun {
 }
 
 # --- Main flow ---
+if (($ConfigureWifi -or $WifiOnly) -and ($FactoryRecovery -or $DownloadOnly -or $CheckRequirements -or $ProbePorts)) {
+    throw 'Wi-Fi setup cannot be combined with factory recovery, download-only, requirements checks, or port probing.'
+}
+if ($WifiOnly) {
+    if (-not $Board -or -not $Port) { throw 'Wi-Fi-only setup requires -Board and -Port.' }
+    try {
+        $null = Set-DmdClockWifi -Port $Port -Board $Board -WhatIf:$WhatIf
+        Set-DmdClockOperationResult -Status $(if ($WhatIf) { 'dry-run' } else { 'completed' }) -Operation 'Configure Wi-Fi'
+    } catch {
+        Set-DmdClockOperationResult -Status failed -Operation 'Configure Wi-Fi' -Detail $_.Exception.Message
+        throw
+    }
+    return
+}
 $identifiedDevice = $false
 
 $willPrompt = -not $CheckRequirements -and
@@ -1563,6 +1581,7 @@ if ($WhatIf -and -not $FlashMode) {
 
 if ($WhatIf) {
     Show-FirmwareDryRun -Package $package -Mode $FlashMode
+    if ($ConfigureWifi) { Write-Host '[WHATIF] After flashing: verify serial Wi-Fi support, prompt for credentials, configure home Wi-Fi, and verify an IP.' }
     return
 }
 
@@ -1583,6 +1602,15 @@ Assert-ConnectedHardware -SelectedPort $selectedPort `
         -DetectedRevision $(if ($null -ne $quickSelect) { $quickSelect.Revision } else { $null })
     $flashed = Invoke-FirmwareFlash -Package $package -Mode $FlashMode `
         -SelectedPort $selectedPort -SkipIfIdentified:($null -ne $quickSelect -and $identifiedDevice)
+    if ($flashed) {
+        if (-not $ConfigureWifi -and -not $Force -and -not [Console]::IsInputRedirected) {
+            $ConfigureWifi = (Read-Host 'Configure home Wi-Fi over COM now? Existing Wi-Fi is preserved if skipped. [y/N]') -match '^(y|yes)$'
+        }
+        if ($ConfigureWifi) {
+            $null = Set-DmdClockWifi -Port $selectedPort -Board $selectedTarget.Key `
+                -ExpectedInstanceId $script:selectedPortIdentity.InstanceId
+        }
+    }
     $runOutcome = if ($flashed) { 'completed' } else { 'cancelled' }
 }
 catch {

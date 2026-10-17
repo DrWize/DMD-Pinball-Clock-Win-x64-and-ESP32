@@ -280,7 +280,7 @@ public sealed class SceneReviewerWindow : Window
             : $"Loading {pageItems.Length} live scenes…";
         UpdateSummary();
 
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.UnixEpoch + _effectClock.Elapsed;
         for (var index = 0; index < pageItems.Length; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -401,7 +401,7 @@ public sealed class SceneReviewerWindow : Window
     private void Tick()
     {
         if (_paused) return;
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.UnixEpoch + _effectClock.Elapsed;
         var localNow = DateTimeOffset.Now;
         foreach (var tile in _tiles)
         {
@@ -442,18 +442,7 @@ public sealed class SceneReviewerWindow : Window
 
     private static DmdFrame MapVerifiedIntensity(DmdFrame frame, ResolvedSceneMetadata metadata)
     {
-        var intensity = metadata.Intensity;
-        if (!metadata.IntensityMetadataVerified || intensity is null) return frame;
-        var lookup = Enumerable.Range(0, 16).Select(static value => (byte)value).ToArray();
-        for (var index = 0; index < intensity.UsedValues.Count; index++)
-        {
-            var source = intensity.UsedValues[index];
-            lookup[source] = (byte)Math.Clamp((int)Math.Floor((intensity.OutputValues[index] * 15d / 255d) + 0.5d), 0, 15);
-        }
-        var mapped = frame.Intensities.Span.ToArray();
-        for (var index = 0; index < mapped.Length; index++) mapped[index] = lookup[mapped[index]];
-        var mask = frame.Mask is { } sourceMask ? sourceMask.ToArray() : null;
-        return new DmdFrame(frame.Width, frame.Height, mapped, mask);
+        return SceneIntensityMapper.Apply(frame, metadata);
     }
 
     private async Task SetPageStateAsync(AnimationSelectionState state)

@@ -36,6 +36,11 @@ Silicon validation before any release claim.
 
 ## ESP32-S3 development
 
+Serial Wi-Fi setup: [operating guide](../ESP32-FLASH-AND-WIFI.md) and
+[roadmap](ESP32-SERIAL-WIFI-ROADMAP.md). Firmware and PowerShell support are included in v1.9.0. Both physical boards
+have completed COM setup and natural NTP synchronization; remaining cold-boot
+and clean-install checks are listed in the root TODO.
+
 Supported targets are Waveshare ESP32-S3-Touch-LCD-7 (800x480, N16R8) and
 ESP32-S3-Touch-LCD-3.49B V2 / Rev1.1 (640x172, N16R8). The 7B and 3.49B V1 are
 not supported.
@@ -116,8 +121,10 @@ SHA-256, frame count, and used values all match the loaded scene. Missing,
 invalid, or stale intensity metadata never blocks playback: the original values
 remain in use.
 
-Windows validates the metadata and displays a mapped preview in Scene Reviewer;
-normal desktop playback intentionally remains unchanged. ESP32 validates the
+Windows validates the bytes loaded for playback and applies verified mapping once
+per scene, before clock composition and overall brightness. Debug restarts use the
+same loader. Scene Reviewer retains its raw/mapped comparison toggle and shares
+the playback mapping implementation. ESP32 validates the
 same evidence and converts the verified 0–255 mapping into its 16-level runtime
 lookup table. SCN source files are immutable. Generation reports and detailed
 histograms are analysis artifacts, not runtime input.
@@ -132,12 +139,22 @@ example:
 ```powershell
 .\scripts\esp32\dev\Package-DmdClockEsp32.ps1 -Board Waveshare7 -CleanOutput
 .\scripts\esp32\dev\Package-DmdClockEsp32.ps1 -Board Waveshare349B
-.\scripts\Publish-GitHubRelease.ps1 -Tag v1.8.0 -IncludeEsp32 -WhatIf
+.\scripts\Publish-GitHubRelease.ps1 -Tag v1.9.0 -IncludeEsp32 -WhatIf
 ```
 
 Use explicit Git paths or `git add -p`; this worktree may contain unrelated
-changes. `STATUS.md` is the single active record of verified work, blockers, and
-next steps. Keep public claims aligned with its physical-acceptance boundary.
+changes. `STATUS.md` records verification and [TODO.md](../../TODO.md) lists next steps. Keep public claims aligned with its physical-acceptance boundary.
 
 The retained documentation under `docs/legacy/` is historical source material;
 do not update it instead of this guide or `STATUS.md`.
+
+## v1.9.0 Windows diagnostics
+
+- [Reproducible Windows / both ESP32 playback comparison](CURRENT-PLAYBACK-COMPARISON.md)
+- [Measured differences across Windows and both ESP32 platforms](PLAYBACK-PLATFORM-DIFFERENCES.md)
+- [Playback timing findings and remaining work](PLAYBACK-TIMING-TODO.md)
+- [Iteration TODO](V1.9.0-TODO.md)
+- [Windows LAN API](WINDOWS-API.md)
+- [v1.9.0 release notes](RELEASE-NOTES-v1.9.0.md)
+
+Run `dotnet test DMDClock.sln -c Release` for core/API and headless rendered UI checks.

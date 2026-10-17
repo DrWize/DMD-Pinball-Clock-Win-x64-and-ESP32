@@ -120,7 +120,8 @@ public sealed class SceneMetadataCatalog
         string? sha256,
         DmdClock.Core.Scn.ScnIntensityAnalysis? raw)
     {
-        if (metadata is null || raw is null || string.IsNullOrWhiteSpace(sha256) ||
+        if (metadata is null || raw is null || metadata.UsedValues is null || metadata.OutputValues is null ||
+            metadata.UsedValues.Count is < 1 or > 16 || string.IsNullOrWhiteSpace(sha256) ||
             !string.Equals(metadata.Sha256, sha256, StringComparison.OrdinalIgnoreCase) ||
             metadata.FrameCount != raw.FrameCount || metadata.UsedValues.Count != raw.UsedValues.Count ||
             metadata.OutputValues.Count != metadata.UsedValues.Count ||
@@ -129,6 +130,7 @@ public sealed class SceneMetadataCatalog
         {
             if (metadata.UsedValues[index] != raw.UsedValues[index] || metadata.UsedValues[index] is < 0 or > 15 ||
                 metadata.OutputValues[index] is < 0 or > 255 ||
+                (metadata.UsedValues[index] == 0 ? metadata.OutputValues[index] != 0 : metadata.OutputValues[index] == 0) ||
                 (index > 0 && (metadata.UsedValues[index] <= metadata.UsedValues[index - 1] || metadata.OutputValues[index] <= metadata.OutputValues[index - 1]))) return false;
         }
         return true;

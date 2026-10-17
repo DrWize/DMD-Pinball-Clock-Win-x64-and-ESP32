@@ -1,7 +1,9 @@
 bin/
 obj/
+__pycache__/
 .vs/
 .vscode/*.log
+.vscode/settings.json
 external/
 output/
 /original-dotclk-*.zip

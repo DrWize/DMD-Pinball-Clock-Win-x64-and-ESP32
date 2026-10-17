@@ -104,7 +104,10 @@ public sealed record DmdClockSettings(
     DmdBackgroundMode? BackgroundMode = null,
     bool? HotCoreEnabled = null,
     HotCoreStyle? HotCoreStyle = null,
-    string? HotCoreColor = null)
+    string? HotCoreColor = null,
+    bool ApiEnabled = false,
+    int ApiPort = 17891,
+    string? ApiToken = null)
 {
     public const int CurrentSchemaVersion = 1;
 
@@ -114,6 +117,7 @@ public sealed record DmdClockSettings(
     public DmdClockSettings Normalize() => this with
     {
         SchemaVersion = CurrentSchemaVersion,
+        ApiPort = ApiPort is >= 1024 and <= 65535 ? ApiPort : 17891,
         ClockDisplaySeconds = Math.Clamp(ClockDisplaySeconds, 5, 3600),
         AnimationsPerCycle = Math.Clamp(AnimationsPerCycle, 1, 20),
         AnimationGapSeconds = Math.Clamp(AnimationGapSeconds, 0, 3600),

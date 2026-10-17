@@ -13,7 +13,7 @@
         MinHeight="13"
         Background="Black">
     <Border Background="Black" BorderBrush="#080808" BorderThickness="3" Padding="3">
-        <Grid>
+        <Grid x:Name="CaptureSurface">
         <controls:DmdDisplay x:Name="Display" PointerPressed="Display_PointerPressed">
             <controls:DmdDisplay.ContextMenu>
                 <ContextMenu x:Name="MainContextMenu" Opened="MainContextMenu_Opened">
@@ -28,9 +28,18 @@
                     <MenuItem Header="Rescan library (F5)" Click="Rescan_Click" />
                     <MenuItem Header="Review and choose scenes… (Ctrl+Shift+R)" Click="SceneReviewer_Click" />
                     <Separator />
+                    <MenuItem Header="Debug timing">
+                        <MenuItem x:Name="DebugToggleMenuItem" Header="Enable debug timing" Click="DebugToggle_Click" />
+                        <MenuItem Header="Slower by 0.1× (Down)" Click="DebugSlower_Click" />
+                        <MenuItem Header="Faster by 0.1× (Up)" Click="DebugFaster_Click" />
+                        <MenuItem Header="Reset speed to 1×" Click="DebugReset_Click" />
+                        <MenuItem Header="Restart scene" Click="DebugRestart_Click" />
+                        <MenuItem Header="Copy debug report" Click="DebugCopy_Click" />
+                    </MenuItem>
+                    <MenuItem Header="LAN API settings…" Click="ApiSettings_Click" />
                     <MenuItem Header="Play/pause (Space)" Click="PlayPause_Click" />
-                    <MenuItem Header="Next frame (Right)" Click="NextFrame_Click" />
-                    <MenuItem Header="Previous frame (Left)" Click="PreviousFrame_Click" />
+                    <MenuItem Header="Next frame (Period / Right)" Click="NextFrame_Click" />
+                    <MenuItem Header="Previous frame (Comma / Left)" Click="PreviousFrame_Click" />
                     <MenuItem Header="Next animation (N)" Click="NextAnimation_Click" />
                     <MenuItem Header="Previous animation (P)" Click="PreviousAnimation_Click" />
                     <MenuItem x:Name="RandomMenuItem" Header="Random order" Click="RandomMode_Click" />
@@ -258,6 +267,12 @@
                        FontSize="12"
                        FontWeight="SemiBold"
                        Foreground="#FFFFE0B8" />
+        </Border>
+        <Border x:Name="DebugOverlay" IsVisible="False" IsHitTestVisible="False"
+                HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6"
+                Padding="7" Background="#E6000000" CornerRadius="4">
+            <TextBlock x:Name="DebugText" FontFamily="Consolas" FontSize="11"
+                       Foreground="White" TextWrapping="Wrap" />
         </Border>
         </Grid>
     </Border>

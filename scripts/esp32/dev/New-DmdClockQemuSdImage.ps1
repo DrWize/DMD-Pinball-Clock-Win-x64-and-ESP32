@@ -258,7 +258,10 @@ function Add-DirectoryEntry {
             $charStart = ($slotIndex - 1) * 13
             for ($c = 0; $c -lt 13; $c++) {
                 $charIndex = $charStart + $c
-                if ($charIndex -ge $LongName.Length) {
+                if ($charIndex -gt $LongName.Length) {
+                    $code = 0xFFFF
+                }
+                elseif ($charIndex -eq $LongName.Length) {
                     $code = 0
                 }
                 else {

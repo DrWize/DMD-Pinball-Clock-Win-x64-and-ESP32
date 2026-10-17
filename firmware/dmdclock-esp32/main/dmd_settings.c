@@ -23,6 +23,7 @@
 static const char *TAG = "dmd_settings";
 static const char *NAMESPACE = "dmdclock";
 static SemaphoreHandle_t s_lock;
+static SemaphoreHandle_t s_update_lock;
 static dmd_settings_t s_settings;
 
 static bool font_id_is_valid(const char *id)
@@ -211,7 +212,8 @@ static esp_err_t finalize_settings_init(bool persist_requested)
 esp_err_t dmd_settings_init(void)
 {
     s_lock = xSemaphoreCreateMutex();
-    if (s_lock == NULL) {
+    s_update_lock = xSemaphoreCreateRecursiveMutex();
+    if (s_lock == NULL || s_update_lock == NULL) {
         return ESP_ERR_NO_MEM;
     }
 
@@ -438,7 +440,7 @@ void dmd_settings_get(dmd_settings_t *out)
     xSemaphoreGive(s_lock);
 }
 
-esp_err_t dmd_settings_update(const dmd_settings_t *settings)
+static esp_err_t settings_update_impl(const dmd_settings_t *settings)
 {
     if (settings == NULL || s_lock == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -667,6 +669,25 @@ esp_err_t dmd_settings_update(const dmd_settings_t *settings)
         return sd_error;
     }
     return ESP_OK;
+}
+
+void dmd_settings_begin_update(void)
+{
+    xSemaphoreTakeRecursive(s_update_lock, portMAX_DELAY);
+}
+
+void dmd_settings_end_update(void)
+{
+    xSemaphoreGiveRecursive(s_update_lock);
+}
+
+esp_err_t dmd_settings_update(const dmd_settings_t *settings)
+{
+    if (s_update_lock == NULL) return ESP_ERR_INVALID_STATE;
+    dmd_settings_begin_update();
+    esp_err_t error = settings_update_impl(settings);
+    dmd_settings_end_update();
+    return error;
 }
 
 esp_err_t dmd_settings_last_nvs_save_error(void)

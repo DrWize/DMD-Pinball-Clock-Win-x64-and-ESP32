@@ -15,6 +15,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
+#include "mbedtls/sha256.h"
 
 #define SCN_HEADER_SIZE 6
 #define SCN_STORYBOARD_SIZE 36
@@ -429,6 +430,29 @@ esp_err_t dmd_scene_select(uint16_t index)
     }
     xSemaphoreGive(s_lock);
     return error;
+}
+
+esp_err_t dmd_scene_reload(uint16_t index)
+{
+    if (s_lock == NULL || index >= s_scene_count) return ESP_ERR_INVALID_ARG;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    esp_err_t error = parse_scene(index);
+    xSemaphoreGive(s_lock);
+    return error;
+}
+
+esp_err_t dmd_scene_source_hash(char output[65])
+{
+    if (s_lock == NULL || output == NULL) return ESP_ERR_INVALID_ARG;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    unsigned char digest[32];
+    int error = s_data == NULL ? -1 : mbedtls_sha256(s_data, s_size, digest, 0);
+    if (error == 0) {
+        for (unsigned i = 0; i < 32; i++) sprintf(output + i * 2, "%02x", digest[i]);
+        output[64] = 0;
+    }
+    xSemaphoreGive(s_lock);
+    return error == 0 ? ESP_OK : ESP_FAIL;
 }
 
 uint16_t dmd_scene_count(void)

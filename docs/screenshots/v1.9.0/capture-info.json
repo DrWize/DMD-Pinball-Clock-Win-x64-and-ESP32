@@ -1,0 +1,54 @@
+{
+  "scene": "LAST_ACTION_HERO_010.scn",
+  "sceneSha256": "d0bd0aad828ecb1a403018af6962b0fe7a7cfc100825b20dd8b3eba3bb75a78c",
+  "sourceLevels": [
+    0,
+    10,
+    15
+  ],
+  "metadataOutputValues": [
+    0,
+    128,
+    255
+  ],
+  "runtimeLevels": [
+    0,
+    8,
+    15
+  ],
+  "overallBrightnessPercent": 100,
+  "colorPreset": 16,
+  "glowEnabled": false,
+  "hotCoreEnabled": false,
+  "windows": [
+    {
+      "file": "windows-last-action-hero-frame-1.png",
+      "frameIndex": 0,
+      "paused": true,
+      "width": 1473,
+      "height": 360
+    },
+    {
+      "file": "windows-last-action-hero-frame-2.png",
+      "frameIndex": 1,
+      "paused": true,
+      "width": 1473,
+      "height": 360
+    }
+  ],
+  "esp32": {
+    "file": "esp32-349b-last-action-hero.png",
+    "captureSource": "ESP32 production renderer in QEMU, 640x172",
+    "frameIndex": 0,
+    "metadataMatched": true,
+    "sourcePixelClassificationAgreement": 1.0
+  },
+  "note": "Same scene-level mapping; platform rendering and RGB565 output can differ. Screenshots are not physical-panel photographs.",
+  "capturedAtUtc": "2026-10-17T15:57:23.746728+00:00",
+  "releaseVersion": "1.9.0",
+  "imagesSha256": {
+    "esp32-349b-last-action-hero.png": "77983f0f6a1f353fd092b2668b6c479d2988d1278a5e2dc5527616ffd94e4e14",
+    "windows-last-action-hero-frame-1.png": "b0c272432cc636bd6580213f717d29f69df65e82f0e73ef33f2de5f03ef064e4",
+    "windows-last-action-hero-frame-2.png": "10cd4aee907ff9cede3b93cb804a946002eab8ccb2dc5eb73147e707a4d66b3a"
+  }
+}

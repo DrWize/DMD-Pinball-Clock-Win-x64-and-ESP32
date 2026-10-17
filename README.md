@@ -42,8 +42,12 @@ a supported board, Windows 11, and PowerShell 7.
 
 2. Let the wizard prepare the card, insert it while the board is powered off,
    then select the board and its verified UART COM port for flashing.
-3. Power on the board, join its Wi-Fi access point, open the shown local web
-   address, and set time zone, network, display preferences, and scene library.
+3. Accept the optional **Configure home Wi-Fi over COM** prompt after flashing,
+   or choose **[7] Configure Wi-Fi only** in the installer menu. You can also
+   join its Wi-Fi access point and use the local web setup.
+4. Open the clock's web address to set time zone, display preferences, and scene library.
+
+See [flash and COM Wi-Fi setup](docs/ESP32-FLASH-AND-WIFI.md) for commands and recovery.
 
 Use `-WhatIf` to preview an operation. `-DownloadOnly` stages the library,
 firmware, and flasher without a card or board. Never select a disk number until
@@ -54,7 +58,7 @@ you have confirmed it is the intended removable card.
 > **Developer preview:** the Apple Silicon app is unsigned and not notarized.
 > Gatekeeper will require an explicit first-launch confirmation.
 
-1. Download the macOS package from the latest release.
+1. Download the unsigned macOS package from [v1.7.2](https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/tag/v1.7.2).
 2. Move `DMDClock.app` to `Applications`.
 3. Control-click the app, choose **Open**, then confirm **Open** in Gatekeeper.
 
@@ -78,11 +82,34 @@ verified metadata exists.
   hardware, formats, and release maintenance.
 - [Project status](STATUS.md) — verified completed work, open blockers, and
   prioritized next steps.
+- [Current TODO](TODO.md) — completed v1.9.0 work and remaining priorities.
+- [v1.9.0 release notes](docs/development/RELEASE-NOTES-v1.9.0.md).
 - [Historical documentation](docs/legacy/) — preserved guides, release notes,
   design notes, and earlier plans.
 
 Original DotClk resources and related scene formats are credited to
 [sigmafx/DotClk-Resources](https://github.com/sigmafx/DotClk-Resources).
+
+## Aligned scene brightness
+
+v1.9.0 applies the same verified whole-scene level mapping on Windows and ESP32.
+For `LAST_ACTION_HERO_010.scn`, source values **0, 10, 15** map to **0, 128, 255**
+in metadata and **0, 8, 15** in each platform's 16-level renderer.
+
+These fresh captures use Amber (preset 16), 100% overall brightness, and no glow
+or hot core. Windows images come from its authenticated capture API. The ESP32
+image is a 640x172 QEMU framebuffer capture of the production 3.49B renderer;
+it is not a panel photograph. Dot geometry and colour precision differ between
+platforms; the scene-level mapping is shared.
+
+| Windows — frame 1 | ESP32 3.49B renderer — frame 1 |
+| --- | --- |
+| ![Windows Last Action Hero with mapped brightness](docs/screenshots/v1.9.0/windows-last-action-hero-frame-1.png) | ![ESP32 Last Action Hero with the same mapped levels](docs/screenshots/v1.9.0/esp32-349b-last-action-hero.png) |
+
+![Windows Last Action Hero frame 2 with the same scene-level mapping](docs/screenshots/v1.9.0/windows-last-action-hero-frame-2.png)
+
+[Capture settings and scene identity](docs/screenshots/v1.9.0/capture-info.json).
+The source SCN is unchanged; mapping remains consistent across both frames.
 
 ## ESP32 colour examples
 

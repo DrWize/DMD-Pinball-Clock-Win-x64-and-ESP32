@@ -19,6 +19,7 @@
 #include "dmd_plasma.h"
 #include "dmd_scene.h"
 #include "dmd_settings.h"
+#include "dmd_timing.h"
 #include "esp_check.h"
 #include "esp_random.h"
 #include "esp_system.h"
@@ -1391,6 +1392,8 @@ void dmd_display_task(void *context)
 
     while (true) {
         dmd_settings_get(&settings);
+        dmd_timing_apply_settings(&settings);
+        if (dmd_timing_enabled()) startup_network_status_until = 0;
         if (settings.revision != previous_revision &&
             (settings.color_preset != previous_color_preset ||
              settings.plasma_palette != previous_plasma_palette ||
@@ -1548,7 +1551,7 @@ void dmd_display_task(void *context)
             previous_schedule_override_active) {
             force_render = true;
         }
-        uint8_t current_controls_opacity = controls_opacity(monotonic_now);
+        uint8_t current_controls_opacity = dmd_timing_enabled() ? 0 : controls_opacity(monotonic_now);
         if (current_controls_opacity != previous_controls_opacity) {
             force_render = true;
         }
@@ -1650,6 +1653,7 @@ void dmd_display_task(void *context)
                 : now / 60 != previous_second / 60;
         if (playing_scene && monotonic_now >= next_scene_frame_at) {
             if (scene_step >= scene.step_count) {
+                dmd_timing_finished(esp_timer_get_time());
                 playing_scene = false;
                 scene_step = 0;
                 render_clock(&settings);
@@ -1674,6 +1678,7 @@ void dmd_display_task(void *context)
                         s_scene_mask,
                         &step_info));
                 scene_frame = step_info.frame_index;
+                dmd_timing_step(scene_step, &step_info, monotonic_now, esp_timer_get_time());
                 if (dmd_settings_time_is_valid()) {
                     overlay_scene_clock(
                         &settings,
@@ -1769,6 +1774,7 @@ void dmd_display_task(void *context)
             refresh_display();
             display_frames_rendered++;
             force_render = false;
+            dmd_timing_painted(esp_timer_get_time());
         }
         previous_second = now;
         previous_scheduled_off = scheduled_off;

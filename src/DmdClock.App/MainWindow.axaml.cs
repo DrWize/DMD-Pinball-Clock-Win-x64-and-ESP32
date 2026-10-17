@@ -36,6 +36,7 @@ public partial class MainWindow : Window
     private const string HelpGitHubUrl = "https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32";
     private const string LatestReleaseUrl = "https://github.com/DrWize/DMD-Pinball-Clock-Win-x64-and-ESP32/releases/latest";
     private readonly DispatcherTimer _displayTimer;
+    private readonly PlaybackTicker _playbackTicker;
     private readonly DispatcherTimer _cursorHideTimer;
     private readonly Cursor _hiddenCursor = new(StandardCursorType.None);
     private readonly AnimationLibraryScanner _libraryScanner = new();
@@ -92,18 +93,21 @@ public partial class MainWindow : Window
 
     public MainWindow() : this(new ScreenSaverLaunchOptions(ScreenSaverLaunchMode.Normal, 0)) { }
 
-    internal MainWindow(ScreenSaverLaunchOptions launchOptions)
+    internal MainWindow(ScreenSaverLaunchOptions launchOptions, bool initializeRuntime = true)
     {
         _launchOptions = launchOptions;
         InitializeComponent();
         ConfigureColorSwatches();
         ConfigureLaunchMode();
-        LogStartup();
         _displayTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
         _displayTimer.Tick += (_, _) => Tick();
+        _playbackTicker = new PlaybackTicker(Tick);
+        Closed += (_, _) => _playbackTicker.Dispose();
         _cursorHideTimer = new DispatcherTimer { Interval = MouseCursorHideDelay };
         _cursorHideTimer.Tick += (_, _) => HideInactiveCursor();
         Show(DisplayMode.Time);
+        if (!initializeRuntime) return;
+        LogStartup();
         _displayTimer.Start();
         Opened += OnOpened;
         Closed += OnClosed;
@@ -144,8 +148,12 @@ public partial class MainWindow : Window
                 case Key.D0:
                 case Key.NumPad0: ResetDisplaySize(); break;
                 case Key.F5: _ = ScanLibraryAsync(startPlayback: false); break;
+                case Key.OemPeriod:
                 case Key.Right: MoveFrame(1); break;
+                case Key.OemComma:
                 case Key.Left: MoveFrame(-1); break;
+                case Key.Down when _debugEnabled: SetDebugSpeed(Math.Round(Math.Max(.1, _debugSpeed - .1), 1)); break;
+                case Key.Up when _debugEnabled: SetDebugSpeed(Math.Round(Math.Min(4, _debugSpeed + .1), 1)); break;
                 case Key.N: _ = PlayLibraryOffsetAsync(1); break;
                 case Key.P: _ = PlayLibraryOffsetAsync(-1); break;
                 case Key.Escape when WindowState == WindowState.FullScreen:
@@ -158,26 +166,34 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void Tick()
+    internal void Tick()
     {
+        // Poll deadlines more frequently than a 10 ms scene step. Keep the idle
+        // clock and paused playback on the lower-frequency timer.
+        var animating = _displayMode == DisplayMode.Animation && !_isPaused;
+        _playbackTicker.SetActive(animating);
+        if (animating) _displayTimer.Stop();
+        else if (!_displayTimer.IsEnabled) _displayTimer.Start();
         if (_launchOptions.Mode == ScreenSaverLaunchMode.Preview &&
             !ScreenSaverPreviewHost.ParentExists(_launchOptions.PreviewParent))
         {
             Close();
             return;
         }
+        RefreshDebugOverlay();
         if (_isPaused) return;
         var now = DateTimeOffset.UtcNow;
         Display.SetEffectTime(_effectClock.ElapsedMilliseconds);
 
         if (_displayMode == DisplayMode.Animation && _playback is not null)
         {
-            var changed = _playback.Advance(now);
+            var changed = _playback.Advance(PlaybackClock.Now);
             var localNow = DateTimeOffset.Now;
             if (changed || localNow.Second != _lastClockRender.Second || localNow.Minute != _lastClockRender.Minute)
             {
                 _lastClockRender = localNow;
                 Display.Frame = RenderPlaybackFrame(localNow);
+                if (changed) _playback.NotifyFrameSubmitted(PlaybackClock.Now);
             }
             if (_playback.IsComplete) HandlePlaybackCompleted();
             return;
@@ -353,15 +369,10 @@ public partial class MainWindow : Window
         CancelInformationDisplay();
         try
         {
-            var scene = await Task.Run(() => ScnReader.Read(path));
-            var metadata = ResolveSceneMetadata(path, relativePath);
+            var (scene, metadata) = await Task.Run(() => LoadPlaybackScene(path, relativePath));
             SetStatus(metadata.DisplayName);
 
-            var now = DateTimeOffset.UtcNow;
-            _playback = new ScenePlaybackSession(scene, now);
-            if (_isPaused) _playback.Pause(now);
-            _displayMode = DisplayMode.Animation;
-            Display.Frame = RenderPlaybackFrame(DateTimeOffset.Now);
+            BeginScene(scene, path);
             LogDisplayedAnimation(path, scene.Frames.Count, metadata);
 
             if (_settings.ShowAnimationInfo ?? true)
@@ -421,9 +432,10 @@ public partial class MainWindow : Window
     private void MoveFrame(int offset)
     {
         if (_playback is null) return;
-        var now = DateTimeOffset.UtcNow;
+        if (!_isPaused) TogglePause();
+        var now = PlaybackClock.Now;
         if (offset > 0) _playback.MoveNext(now); else _playback.MovePrevious(now);
-        if (_isPaused) _playback.Pause(now);
+        _playback.Pause(now);
         _displayMode = DisplayMode.Animation;
         Display.Frame = RenderPlaybackFrame(DateTimeOffset.Now);
     }
@@ -432,7 +444,7 @@ public partial class MainWindow : Window
     {
         _isPaused = !_isPaused;
         if (_isPaused) _effectClock.Stop(); else _effectClock.Start();
-        var now = DateTimeOffset.UtcNow;
+        var now = PlaybackClock.Now;
         if (_playback is not null)
         {
             if (_isPaused) _playback.Pause(now); else _playback.Resume(now);
@@ -733,16 +745,16 @@ public partial class MainWindow : Window
             $"sequence=\"{SanitizeLogValue(sequence)}\" durationMs={AnimationInformationDuration.TotalMilliseconds:F0}");
     }
 
-    private ResolvedSceneMetadata ResolveSceneMetadata(string fullPath, string? relativePath)
+    private (ScnScene Scene, ResolvedSceneMetadata Metadata) LoadPlaybackScene(string fullPath, string? relativePath = null)
     {
-        if (relativePath is not null) return _sceneMetadata.Resolve(relativePath);
+        if (relativePath is not null) return ScenePlaybackLoader.Read(fullPath, _sceneMetadata, relativePath);
         if (_libraryRoot is not null)
         {
             var candidate = Path.GetRelativePath(_libraryRoot, fullPath);
             if (!candidate.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) && candidate != "..")
-                return _sceneMetadata.Resolve(candidate);
+                return ScenePlaybackLoader.Read(fullPath, _sceneMetadata, candidate);
         }
-        return SceneMetadataCatalog.Empty.Resolve(Path.GetFileName(fullPath));
+        return ScenePlaybackLoader.Read(fullPath, SceneMetadataCatalog.Empty, Path.GetFileName(fullPath));
     }
 
     private async Task LoadSceneMetadataAsync()
@@ -772,6 +784,7 @@ public partial class MainWindow : Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        _ = StopApiAsync();
         _displayTimer.Stop();
         _cursorHideTimer.Stop();
         Cursor = null;
@@ -907,6 +920,7 @@ public partial class MainWindow : Window
     private async Task InitializeDefaultLibraryAsync()
     {
         _settings = await _settingsStore.LoadAsync(_settingsPath);
+        await ConfigureApiAsync();
         _selectionDocument = await _selectionStore.LoadAsync(_selectionPath);
         LoadLocalization(_settings.Language ?? "en");
         StartupAnimationCountText.Text = L("startupLoading");
@@ -991,6 +1005,7 @@ public partial class MainWindow : Window
 
     private void HandlePlaybackCompleted()
     {
+        _lastSceneResult = CurrentSceneResult();
         _playback = null;
         if (_animationsRemainingInCycle > 0)
         {

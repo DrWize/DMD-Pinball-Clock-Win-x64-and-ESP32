@@ -5,6 +5,19 @@ namespace DmdClock.Core.Tests.Settings;
 public sealed class DmdClockSettingsStoreTests
 {
     [Fact]
+    public void LegacySettingsDefaultApiOffAndNormalizeInvalidPort()
+    {
+        var legacy = System.Text.Json.JsonSerializer.Deserialize<DmdClock.Core.Settings.DmdClockSettings>(
+            "{\"schemaVersion\":1}", new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+        Assert.False(legacy.ApiEnabled);
+        Assert.Equal(17891, legacy.Normalize().ApiPort);
+        var configured = legacy with { ApiEnabled = true, ApiPort = 90000, ApiToken = "preserve-token" };
+        Assert.True(configured.Normalize().ApiEnabled);
+        Assert.Equal(17891, configured.Normalize().ApiPort);
+        Assert.Equal("preserve-token", configured.Normalize().ApiToken);
+    }
+
+    [Fact]
     public void ExistingColorEnumValues_RemainSettingsCompatible()
     {
         Assert.Equal(4, (int)DmdColorPreset.NeonSunset);

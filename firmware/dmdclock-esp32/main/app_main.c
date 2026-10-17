@@ -7,6 +7,7 @@
 #include "dmd_scene.h"
 #include "dmd_scene_pack.h"
 #include "dmd_settings.h"
+#include "dmd_serial.h"
 #include "dmd_storage.h"
 #include "dmd_web.h"
 
@@ -67,6 +68,7 @@ void app_main(void)
     ESP_ERROR_CHECK(dmd_network_init());
     ESP_ERROR_CHECK(dmd_mqtt_init());
     ESP_ERROR_CHECK(dmd_web_start());
+    ESP_ERROR_CHECK(dmd_serial_init());
 
     BaseType_t created = xTaskCreatePinnedToCore(
         dmd_display_task,
