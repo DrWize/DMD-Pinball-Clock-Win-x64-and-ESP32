@@ -1,6 +1,6 @@
 # END-USER SCRIPT - prepares a DMDClock microSD card on Windows 11 x64 / PowerShell 7,
 # or reports that the card is already up to date. Usually driven by RUNME-Install-DmdClockEsp32.ps1.
-# See docs\INSTALL-ESP32.md. Developer tooling lives in scripts\esp32\dev; tests in scripts\esp32\tests.
+# See docs\ESP32-FLASH-AND-WIFI.md. Developer tooling lives in scripts\esp32\dev; tests in scripts\esp32\tests.
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High', DefaultParameterSetName = 'Card')]
 param(
     [Parameter(Position = 0, ParameterSetName = 'Card')]

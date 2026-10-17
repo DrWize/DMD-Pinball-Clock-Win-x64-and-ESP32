@@ -222,7 +222,7 @@ if ($missingScripts.Count -gt 0) {
         }
         catch {
             throw ("Failed to fetch missing companion script '$missingName' from $sourcePath. " +
-                "$($_.Exception.Message) Download all five files together; see https://github.com/$Repository/blob/master/docs/INSTALL-ESP32.md")
+                "$($_.Exception.Message) Download all five files together; see https://github.com/$Repository/blob/master/docs/ESP32-FLASH-AND-WIFI.md")
         }
         finally {
             if (Test-Path -LiteralPath $tempFile) { Remove-Item -LiteralPath $tempFile -Force }
